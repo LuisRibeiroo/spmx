@@ -8,7 +8,10 @@ struct PSPMCommand: ParsableCommand {
         abstract: "Performant Swift Package Manager — global APFS CoW store and transparent shims for Swift & Flutter.",
         version: "0.1.0",
         subcommands: [
-            DerivedDataPathCommand.self
+            DerivedDataPathCommand.self,
+            HooksCommand.self,
+            SetupCommand.self,
+            UninstallCommand.self
         ]
     )
 }
