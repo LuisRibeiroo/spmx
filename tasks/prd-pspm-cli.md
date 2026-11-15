@@ -43,12 +43,12 @@ Para oferecer experiência **Zero-Config**, o `pspm` instala **shims no `PATH`**
 
 **Acceptance Criteria:**
 
-- [ ] Criar pacote Swift modular em `~/projects/pspm` com `Package.swift`, biblioteca `PSPMCore`, executável `pspm` (usando `swift-argument-parser`) e target de testes `PSPMCoreTests`.
-- [ ] Implementar o algoritmo determinístico do Xcode para o sufixo de 28 caracteres: MD5 dos bytes UTF-8 do caminho absoluto canônico do `.xcworkspace`/`.xcodeproj`, convertido em dois inteiros `UInt64` big-endian e codificado em 28 letras minúsculas (`a`–`z`) em base 26.
-- [ ] Respeitar a configuração `IDECustomDerivedDataLocation` do domínio `com.apple.dt.Xcode` (via `UserDefaults` / `defaults`) e o campo `DerivedDataLocation` em `WorkspaceSettings.xcsettings` quando presentes, usando `~/Library/Developer/Xcode/DerivedData` como padrão.
-- [ ] Expor o comando `pspm derived-data-path [caminho]` imprimindo o path exato calculado.
-- [ ] Testes unitários e de integração validando que o path gerado corresponde 100% ao `BUILD_DIR`/`SYMROOT` retornado pelo `xcodebuild -showBuildSettings` real no macOS.
-- [ ] `swift build` e `swift test` passam sem erros ou warnings.
+- [x] Criar pacote Swift modular em `~/projects/pspm` com `Package.swift`, biblioteca `PSPMCore`, executável `pspm` (usando `swift-argument-parser`) e target de testes `PSPMCoreTests`.
+- [x] Implementar o algoritmo determinístico do Xcode para o sufixo de 28 caracteres: MD5 dos bytes UTF-8 do caminho absoluto canônico do `.xcworkspace`/`.xcodeproj`, convertido em dois inteiros `UInt64` big-endian e codificado em 28 letras minúsculas (`a`–`z`) em base 26.
+- [x] Respeitar a configuração `IDECustomDerivedDataLocation` do domínio `com.apple.dt.Xcode` (via `UserDefaults` / `defaults`) e o campo `DerivedDataLocation` em `WorkspaceSettings.xcsettings` quando presentes, usando `~/Library/Developer/Xcode/DerivedData` como padrão.
+- [x] Expor o comando `pspm derived-data-path [caminho]` imprimindo o path exato calculado.
+- [x] Testes unitários e de integração validando que o path gerado corresponde 100% ao `BUILD_DIR`/`SYMROOT` retornado pelo `xcodebuild -showBuildSettings` real no macOS.
+- [x] `swift build` e `swift test` passam sem erros ou warnings.
 
 ---
 

@@ -14,7 +14,7 @@ Living tracker for PRDs in `~/projects/pspm`.
 
 ## User Stories Summary (`prd-pspm-cli.md`)
 
-- [ ] **US-001:** Scaffold do Projeto Open-Source em Swift e Cálculo Determinístico do `DerivedData`
+- [x] **US-001:** Scaffold do Projeto Open-Source em Swift e Cálculo Determinístico do `DerivedData`
 - [ ] **US-002:** Detecção de Tipo de Projeto e Parser de `Package.resolved` (v1, v2 e v3) e `workspace-state.json` (`artifacts` + `prebuilts`)
 - [ ] **US-003:** Content-Addressable Store Global (`~/.pspm/store`) com `checkouts`, `artifacts`, `prebuilts`, Hash de Toolchain e Engine APFS `clonefile()`
 - [ ] **US-004:** Hidratação (`hydrate`) e Colheita (`harvest`) do `SourcePackages` (`checkouts`, `artifacts`, `prebuilts`) e `workspace-state.json`
