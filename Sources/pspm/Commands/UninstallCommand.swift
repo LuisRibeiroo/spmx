@@ -21,18 +21,20 @@ struct UninstallCommand: ParsableCommand {
     var yes: Bool = false
 
     func run() throws {
+        let style = TerminalStyle.stdout
+
         if !yes {
             let prompt: String
             if purge {
-                prompt = "Remove pspm shims, binary, shell RC entries, and purge ~/.pspm/store & ~/.pspm/compilation-cache? [y/N]: "
+                prompt = "\(style.warningIcon) \(style.warningText("Remove pspm shims, binary, shell RC entries, and purge ~/.pspm/store & ~/.pspm/compilation-cache?")) \(style.gray("[y/N]: "))"
             } else {
-                prompt = "Remove pspm shims, binary, and shell RC entries (keeping ~/.pspm/store)? [y/N]: "
+                prompt = "\(style.warningIcon) \(style.bold("Remove pspm shims, binary, and shell RC entries")) \(style.gray("(keeping ~/.pspm/store)? [y/N]: "))"
             }
             FileHandle.standardOutput.write(Data(prompt.utf8))
 
             let answer = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
             guard answer == "y" || answer == "yes" else {
-                print("Uninstall aborted.")
+                print(style.tip("Uninstall aborted."))
                 return
             }
         }
@@ -43,21 +45,37 @@ struct UninstallCommand: ParsableCommand {
             homeDirectory: homeDirectory
         )
 
-        print("pspm uninstalled:")
-        print("  Shims removed:   \(result.removedShimsDirectory ? "yes" : "not found")")
-        print("  Binary removed:  \(result.removedBinary ? "yes" : "not found")")
+        print(style.heading("pspm uninstall"))
+        if result.removedShimsDirectory {
+            print(style.stepSuccess("Shims removed", detail: style.cyan("~/.pspm/shims")))
+        } else {
+            print(style.stepSkipped("Shims", detail: "not found"))
+        }
+
+        if result.removedBinary {
+            print(style.stepSuccess("Binary removed", detail: style.cyan("~/.pspm/bin/pspm")))
+        } else {
+            print(style.stepSkipped("Binary", detail: "not found"))
+        }
+
         if result.cleanedShellRCs.isEmpty {
-            print("  Shell RCs:       no pspm entries found")
+            print(style.stepSkipped("Shell RCs", detail: "no pspm entries found"))
         } else {
             let paths = result.cleanedShellRCs.map(\.path).joined(separator: ", ")
-            print("  Shell RCs:       cleaned \(paths)")
+            print(style.stepSuccess("Shell RCs cleaned", detail: style.magenta(paths)))
         }
+
         if purge {
-            print("  Store purged:    \(result.purgedStore ? "yes" : "not found")")
-            print("  Cache purged:    \(result.purgedCompilationCache ? "yes" : "not found")")
+            print(result.purgedStore
+                ? style.stepSuccess("Store purged", detail: style.cyan("~/.pspm/store"))
+                : style.stepSkipped("Store", detail: "not found"))
+            print(result.purgedCompilationCache
+                ? style.stepSuccess("Compilation cache purged", detail: style.cyan("~/.pspm/compilation-cache"))
+                : style.stepSkipped("Compilation cache", detail: "not found"))
         } else {
             let storePath = homeDirectory.appendingPathComponent(".pspm/store").path
-            print("  Store preserved: \(storePath) (pass --purge to delete)")
+            print("")
+            print("  \(style.tip("›")) \(style.tip("Store preserved at")) \(style.tipItalic(storePath)) \(style.tip("(pass --purge to delete)"))")
         }
     }
 }

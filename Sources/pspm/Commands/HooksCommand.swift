@@ -39,6 +39,7 @@ struct HooksCommand: ParsableCommand {
         }
 
         func run() throws {
+            let style = TerminalStyle.stdout
             let scope: HookScope? = global ? .global : (repo ? .repo : nil)
             let manager = GitHooksManager()
             let result = try manager.enable(
@@ -47,15 +48,15 @@ struct HooksCommand: ParsableCommand {
             )
 
             if let notice = result.notice {
-                print("Notice: \(notice)")
+                print(style.stepWarning("Notice", detail: notice))
             }
 
             let modeLabel = result.async ? "async" : "sync"
             let actionLabel = result.alreadyInstalled ? "Updated" : "Enabled"
-            print("\(actionLabel) pspm post-checkout hook (\(result.scope.rawValue), \(modeLabel)) at \(result.hookFilePath)")
+            print(style.stepSuccess("\(actionLabel) pspm post-checkout hook (\(result.scope.rawValue), \(modeLabel))", detail: style.path(result.hookFilePath)))
 
             if result.configuredGlobalHooksPath {
-                print("Configured git config --global core.hooksPath = \(result.hooksDirectoryPath)")
+                print(style.stepSuccess("Configured git config --global core.hooksPath", detail: style.path(result.hooksDirectoryPath)))
             }
         }
     }
@@ -83,23 +84,24 @@ struct HooksCommand: ParsableCommand {
             let manager = GitHooksManager()
             let result = try manager.disable(scope: scope)
 
+            let style = TerminalStyle.stdout
             if let notice = result.notice {
-                print("Notice: \(notice)")
+                print(style.stepWarning("Notice", detail: notice))
             }
 
             if result.removed {
                 if let hookPath = result.hookFilePath {
                     if result.preservedOtherContent {
-                        print("Removed pspm block from \(hookPath) (existing hooks preserved).")
+                        print(style.stepSuccess("Removed pspm block from \(style.path(hookPath))", detail: "existing hooks preserved"))
                     } else {
-                        print("Disabled pspm post-checkout hook (\(result.scope.rawValue)) at \(hookPath).")
+                        print(style.stepSuccess("Disabled pspm post-checkout hook (\(result.scope.rawValue))", detail: style.path(hookPath)))
                     }
                 }
                 if result.unsetGlobalHooksPath {
-                    print("Unset git config --global core.hooksPath.")
+                    print(style.stepSuccess("Unset git config --global core.hooksPath"))
                 }
             } else {
-                print("No pspm post-checkout hook active for \(result.scope.rawValue) scope.")
+                print(style.stepSkipped("No pspm post-checkout hook active", detail: "\(result.scope.rawValue) scope"))
             }
         }
     }
@@ -135,8 +137,9 @@ struct HooksCommand: ParsableCommand {
         }
 
         private func printScopedStatus(_ status: ScopedHookStatus, title: String) {
+            let style = TerminalStyle.stdout
             guard status.isAvailable else {
-                print("\(title): unavailable (not inside a Git repository)")
+                print("\(style.bold(title)): \(style.gray("\(style.skippedIcon) unavailable (not inside a Git repository)"))")
                 return
             }
 
@@ -148,22 +151,23 @@ struct HooksCommand: ParsableCommand {
                 if !status.isExecutable {
                     details.append("not executable")
                 }
-                print("\(title): active (\(details.joined(separator: ", ")))")
+                let stateText = style.green("\(style.successIcon) active")
+                print("\(style.bold(title)): \(stateText) \(style.dim("(\(details.joined(separator: ", ")))"))")
             } else {
-                print("\(title): inactive")
+                print("\(style.bold(title)): \(style.gray("\(style.skippedIcon) inactive"))")
             }
 
             if let configured = status.configuredHooksPath {
-                print("  core.hooksPath: \(configured)")
+                print("  \(style.dim("core.hooksPath:")) \(style.path(configured))")
             }
             if let commonDir = status.gitCommonDirPath {
-                print("  git common dir: \(commonDir)")
+                print("  \(style.dim("git common dir:")) \(style.path(commonDir))")
             }
             if let hookPath = status.hookFilePath {
-                print("  hook file: \(hookPath)")
+                print("  \(style.dim("hook file:")) \(style.path(hookPath))")
             }
             if status.chainsExistingGlobalHooksPath {
-                print("  chaining: using existing global core.hooksPath")
+                print("  \(style.tip("\(style.infoIcon) chaining: using existing global core.hooksPath"))")
             }
         }
     }

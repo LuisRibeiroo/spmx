@@ -15,10 +15,12 @@ enum PSPMEntrypoint {
 
         let env = ProcessInfo.processInfo.environment
         let verboseEnabled = env["PSPM_VERBOSE"] == "1" || env["PSPM_VERBOSE"]?.lowercased() == "true"
+        let stderrStyle = TerminalStyle.stderr
         let verboseLogger: (@Sendable (String) -> Void)?
         if verboseEnabled {
             verboseLogger = { message in
-                FileHandle.standardError.write(Data("[pspm:\(role.rawValue)] \(message)\n".utf8))
+                let formatted = stderrStyle.gray("[pspm:\(role.rawValue)] \(message)")
+                FileHandle.standardError.write(Data("\(formatted)\n".utf8))
             }
         } else {
             verboseLogger = nil
@@ -34,7 +36,8 @@ enum PSPMEntrypoint {
             )
             Foundation.exit(outcome.exitCode)
         } catch {
-            FileHandle.standardError.write(Data("pspm (\(role.rawValue) shim): \(error.localizedDescription)\n".utf8))
+            let formatted = stderrStyle.stepError("pspm (\(role.rawValue) shim)", detail: error.localizedDescription)
+            FileHandle.standardError.write(Data("\(formatted)\n".utf8))
             Foundation.exit(1)
         }
     }

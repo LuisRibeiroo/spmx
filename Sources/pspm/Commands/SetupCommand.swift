@@ -18,15 +18,51 @@ struct SetupCommand: ParsableCommand {
         let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
         let binaryURL = resolveExecutableURL(homeDirectory: homeDirectory)
         let shell = ProcessInfo.processInfo.environment["SHELL"]
+        let style = TerminalStyle.stdout
+
+        print(style.heading("pspm setup"))
 
         let result = try SetupManager.setup(
             noModifyPath: noModifyPath,
             binaryPath: binaryURL,
             homeDirectory: homeDirectory,
-            shell: shell
+            shell: shell,
+            stepObserver: { event in
+                switch event {
+                case .running(let step, let detail):
+                    if style.isEnabled {
+                        let suffix = detail.map { " \(style.gray("(\($0))"))" } ?? ""
+                        let line = "\(style.stepRunning(step))\(suffix)"
+                        FileHandle.standardOutput.write(Data("\r\u{1B}[2K\(line)".utf8))
+                        fflush(Darwin.stdout)
+                    }
+                case .completed(let step, let detail):
+                    let detailText = detail.map { style.cyan($0) }
+                    let line = style.stepSuccess(step, detail: detailText)
+                    if style.isEnabled {
+                        FileHandle.standardOutput.write(Data("\r\u{1B}[2K\(line)\n".utf8))
+                    } else {
+                        print(line)
+                    }
+                case .skipped(let step, let detail):
+                    let line = style.stepSkipped(step, detail: detail)
+                    if style.isEnabled {
+                        FileHandle.standardOutput.write(Data("\r\u{1B}[2K\(line)\n".utf8))
+                    } else {
+                        print(line)
+                    }
+                }
+            }
         )
 
-        print(result.summaryBanner())
+        print("")
+        print("  \(style.gray("Store:"))             \(style.blue(result.storeDirectory.path))")
+        print("  \(style.gray("Compilation Cache:")) \(style.blue(result.compilationCacheDirectory.path))")
+        print("  \(style.gray("Shims:"))             \(style.blue(result.shimsDirectory.path))")
+        print("")
+        print(style.successText("pspm is ready!") + " " + style.gray("Existing and new Flutter, Xcode, and SwiftPM builds now use the global cache."))
+        print("")
+        print(result.tipsSection(style: style))
     }
 
     private func resolveExecutableURL(homeDirectory: URL) -> URL {

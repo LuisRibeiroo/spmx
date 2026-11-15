@@ -118,38 +118,47 @@ public struct SetupResult: Sendable, Equatable {
     }
 
     /// Human-readable post-install / setup summary banner.
-    public func summaryBanner() -> String {
+    public func summaryBanner(style: TerminalStyle = .stdout) -> String {
         let shimNames = SetupManager.shimNames.joined(separator: ", ")
         var lines: [String] = [
-            "pspm setup complete!",
+            "\(style.successIcon) \(style.successText("pspm setup complete!"))",
             "",
-            "Directories:",
-            "  Store:             \(storeDirectory.path)",
-            "  Compilation Cache: \(compilationCacheDirectory.path)",
-            "  Shims:             \(shimsDirectory.path)",
-            "",
-            "Shims (active by default):",
-            "  \(shimNames) -> \(binaryPath.path)",
-            "  Existing and new Flutter, Xcode, and SwiftPM builds will use the global cache automatically.",
-            ""
+            style.section("Installation:"),
+            style.stepSuccess("Directories:", detail: "\(style.cyan(pspmDirectory.path)) \(style.gray("(store, compilation-cache, bin, shims)"))"),
+            "    \(style.gray("Store:"))             \(style.blue(storeDirectory.path))",
+            "    \(style.gray("Compilation Cache:")) \(style.blue(compilationCacheDirectory.path))",
+            "    \(style.gray("Shims:"))             \(style.blue(shimsDirectory.path))",
+            style.stepSuccess("Shims (active by default):", detail: "\(style.cyan(shimNames)) \(style.gray("->")) \(style.italic(binaryPath.path))"),
+            "    \(style.gray("Existing and new Flutter, Xcode, and SwiftPM builds will use the global cache automatically."))"
         ]
 
         if let modifiedShellRC {
-            lines.append("Shell PATH configured:")
-            lines.append("  Updated \(modifiedShellRC.path)")
-            lines.append("  Activate now by running: \(activationCommand)")
+            lines.append(style.stepSuccess("Shell PATH configured:", detail: style.magenta(modifiedShellRC.path)))
         } else {
-            lines.append("Shell PATH was not modified (--no-modify-path):")
-            lines.append("  Add shims to your PATH manually by running:")
-            lines.append("    \(activationCommand)")
+            lines.append(style.stepSkipped("Shell PATH was not modified (--no-modify-path):", detail: "skipped RC update"))
         }
 
         lines.append("")
-        lines.append("Git Hooks (disabled by default):")
-        lines.append("  pspm never modifies your Git hooks without consent.")
-        lines.append("  Enable optional post-checkout hooks so `git worktree add` pre-warms SourcePackages")
-        lines.append("  immediately (even before opening Xcode GUI):")
-        lines.append("    pspm hooks enable --global")
+        lines.append(tipsSection(style: style))
+
+        return lines.joined(separator: "\n")
+    }
+
+    /// Low-focus gray tips section displayed after setup completes.
+    public func tipsSection(style: TerminalStyle = .stdout) -> String {
+        var lines: [String] = []
+        lines.append(style.tipItalic("Tips:"))
+
+        if modifiedShellRC != nil {
+            lines.append("  \(style.tip("›")) \(style.tip("Activate in this shell now:")) \(style.tipCommand(activationCommand))")
+        } else {
+            lines.append("  \(style.tip("›")) \(style.tip("Add shims to your PATH manually:")) \(style.tipCommand(activationCommand))")
+        }
+
+        lines.append("  \(style.tip("›")) \(style.tip("Git Hooks (disabled by default): pspm never modifies your Git hooks without consent."))")
+        lines.append("    \(style.tipItalic("Pre-warm SourcePackages on `git worktree add` (even before opening Xcode GUI):"))")
+        lines.append("      \(style.tipCommand("pspm hooks enable --global"))")
+        lines.append("  \(style.tip("›")) \(style.tip("Verify your environment anytime with:")) \(style.tipCommand("pspm doctor"))")
 
         return lines.joined(separator: "\n")
     }
@@ -178,6 +187,13 @@ public struct UninstallResult: Sendable, Equatable {
     }
 }
 
+/// Step progress events emitted during `SetupManager.setup(...)`.
+public enum SetupStepEvent: Sendable, Equatable {
+    case running(step: String, detail: String?)
+    case completed(step: String, detail: String?)
+    case skipped(step: String, detail: String?)
+}
+
 /// Manages global `pspm` directory initialization, shim symlinks, shell RC integration, and uninstall.
 public struct SetupManager: Sendable {
     public static let shimNames: [String] = ["flutter", "xcodebuild", "swift"]
@@ -193,7 +209,8 @@ public struct SetupManager: Sendable {
         binaryPath: URL? = nil,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         shell: String? = ProcessInfo.processInfo.environment["SHELL"],
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        stepObserver: (@Sendable (SetupStepEvent) -> Void)? = nil
     ) throws -> SetupResult {
         let pspmDir = homeDirectory.appendingPathComponent(".pspm")
         let binDir = pspmDir.appendingPathComponent("bin")
@@ -201,21 +218,25 @@ public struct SetupManager: Sendable {
         let storeDir = pspmDir.appendingPathComponent("store")
         let compilationCacheDir = pspmDir.appendingPathComponent("compilation-cache")
 
+        stepObserver?(.running(step: "Initializing directories", detail: pspmDir.path))
         for directory in [binDir, shimsDir, storeDir, compilationCacheDir] {
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         }
+        stepObserver?(.completed(step: "Directories initialized", detail: pspmDir.path))
 
         let targetBinary = binaryPath ?? binDir.appendingPathComponent("pspm")
         guard !targetBinary.path.isEmpty else {
             throw SetupError.emptyBinaryPath
         }
 
+        stepObserver?(.running(step: "Linking PATH shims", detail: shimNames.joined(separator: ", ")))
         var createdShims: [URL] = []
         for shimName in shimNames {
             let shimURL = shimsDir.appendingPathComponent(shimName)
             try createOrUpdateSymlink(at: shimURL, destination: targetBinary, fileManager: fileManager)
             createdShims.append(shimURL)
         }
+        stepObserver?(.completed(step: "Shims linked", detail: "\(shimNames.joined(separator: ", ")) -> \(targetBinary.path)"))
 
         let detectedShell = ShellKind.detect(from: shell)
         let modifiedRC: URL?
@@ -224,11 +245,14 @@ public struct SetupManager: Sendable {
         if noModifyPath {
             modifiedRC = nil
             activationCommand = detectedShell.pathExportLines()
+            stepObserver?(.skipped(step: "Shell PATH configuration", detail: "--no-modify-path"))
         } else {
             let rcURL = detectedShell.rcFileURL(homeDirectory: homeDirectory)
+            stepObserver?(.running(step: "Configuring shell PATH", detail: rcURL.path))
             try upsertBlock(detectedShell.managedBlock(), in: rcURL, fileManager: fileManager)
             modifiedRC = rcURL
             activationCommand = detectedShell.activationCommand
+            stepObserver?(.completed(step: "Shell PATH configured", detail: rcURL.path))
         }
 
         return SetupResult(

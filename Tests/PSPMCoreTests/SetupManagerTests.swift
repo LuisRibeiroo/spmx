@@ -175,6 +175,51 @@ struct SetupManagerTests {
         #expect(banner.contains("pspm hooks enable --global"))
         #expect(banner.contains("git worktree add"))
         #expect(banner.contains(result.activationCommand))
+
+        let ansiBanner = result.summaryBanner(style: .ansi)
+        #expect(ansiBanner.contains("✓"))
+        #expect(ansiBanner.contains("\u{1B}[1;32m"))
+        #expect(ansiBanner.contains("\u{1B}[90;3mTips:\u{1B}[0m"))
+        #expect(ansiBanner.contains("\u{1B}[90;1mpspm hooks enable --global\u{1B}[0m"))
+    }
+
+    @Test("setup emits running, completed, and skipped step events")
+    func setupStepObserverEvents() throws {
+        let home = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        let binary = home.appendingPathComponent(".pspm/bin/pspm")
+        try FileManager.default.createDirectory(at: binary.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("binary".utf8).write(to: binary)
+
+        final class EventBox: @unchecked Sendable {
+            private let lock = NSLock()
+            private var storage: [SetupStepEvent] = []
+            func append(_ event: SetupStepEvent) {
+                lock.lock()
+                storage.append(event)
+                lock.unlock()
+            }
+            var items: [SetupStepEvent] {
+                lock.lock()
+                defer { lock.unlock() }
+                return storage
+            }
+        }
+
+        let box = EventBox()
+        _ = try SetupManager.setup(
+            noModifyPath: true,
+            binaryPath: binary,
+            homeDirectory: home,
+            shell: "/bin/zsh",
+            stepObserver: { box.append($0) }
+        )
+
+        let events = box.items
+        #expect(events.contains { if case .running = $0 { return true }; return false })
+        #expect(events.contains { if case .completed = $0 { return true }; return false })
+        #expect(events.contains { if case .skipped = $0 { return true }; return false })
     }
 
     @Test("uninstall without purge preserves store and compilation-cache; with purge removes them")

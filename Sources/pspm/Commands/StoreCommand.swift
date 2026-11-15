@@ -32,12 +32,13 @@ struct StoreCommand: ParsableCommand {
         )
 
         func run() throws {
+            let style = TerminalStyle.stdout
             let report = try StoreManager().status()
-            print("Global Store Status")
-            print("  Store path:         \(report.storePath)")
-            print("  Checkouts:          \(report.checkoutsCount) (\(formatBytes(report.checkoutsSizeBytes)))")
-            print("  Artifacts:          \(report.artifactsCount) (\(formatBytes(report.artifactsSizeBytes)))")
-            print("  Prebuilts:          \(report.prebuiltsCount) (\(formatBytes(report.prebuiltsSizeBytes)))")
+            print(style.heading("Global Store Status"))
+            print("  \(style.dim("Store path:"))         \(style.path(report.storePath))")
+            print("  \(style.dim("Checkouts:"))          \(style.bold("\(report.checkoutsCount)")) \(style.dim("(\(formatBytes(report.checkoutsSizeBytes)))"))")
+            print("  \(style.dim("Artifacts:"))          \(style.bold("\(report.artifactsCount)")) \(style.dim("(\(formatBytes(report.artifactsSizeBytes)))"))")
+            print("  \(style.dim("Prebuilts:"))          \(style.bold("\(report.prebuiltsCount)")) \(style.dim("(\(formatBytes(report.prebuiltsSizeBytes)))"))")
 
             for group in report.prebuiltsByToolchain {
                 var toolchainLabel = group.toolchainHash
@@ -49,13 +50,16 @@ struct StoreCommand: ParsableCommand {
                         toolchainLabel += " [\(shortSwift)]"
                     }
                 }
-                print("    - \(toolchainLabel): \(group.count) prebuilt(s) (\(formatBytes(group.sizeBytes)))")
+                print("    \(style.gray("-")) \(style.italic(style.gray(toolchainLabel))): \(group.count) prebuilt(s) \(style.dim("(\(formatBytes(group.sizeBytes)))"))")
             }
 
-            print("  Logical store size: \(formatBytes(report.logicalStoreSizeBytes))")
-            print("  Compilation cache:  \(report.compilationCachePath) (\(formatBytes(report.compilationCacheSizeBytes)))")
-            print("  Registered projects:\(report.totalRegisteredProjectsCount) total (\(report.activeProjectsCount) active, \(report.missingProjectsCount) missing on disk)")
-            print("  Est. CoW savings:   \(formatBytes(report.estimatedCoWSavingsBytes))")
+            print("  \(style.dim("Logical store size:")) \(style.bold(formatBytes(report.logicalStoreSizeBytes)))")
+            print("  \(style.dim("Compilation cache:"))  \(style.path(report.compilationCachePath)) \(style.dim("(\(formatBytes(report.compilationCacheSizeBytes)))"))")
+            let missingSuffix = report.missingProjectsCount > 0
+                ? style.yellow("\(report.missingProjectsCount) missing on disk")
+                : style.gray("0 missing on disk")
+            print("  \(style.dim("Registered projects:")) \(style.bold("\(report.totalRegisteredProjectsCount)")) total (\(style.green("\(report.activeProjectsCount) active")), \(missingSuffix))")
+            print("  \(style.dim("Est. CoW savings:"))   \(style.green(style.bold(formatBytes(report.estimatedCoWSavingsBytes))))")
         }
     }
 
@@ -84,33 +88,34 @@ struct StoreCommand: ParsableCommand {
         }
 
         func run() throws {
+            let style = TerminalStyle.stdout
             let report = try StoreManager().prune(
                 options: PruneOptions(dryRun: dryRun, olderThanDays: olderThan)
             )
-            let prefix = report.dryRun ? "[dry-run] " : ""
-            print("\(prefix)Prune summary (older than \(olderThan) day(s)):")
-            print("  Missing projects removed:   \(report.removedMissingProjects.count)")
+            let prefix = report.dryRun ? "\(style.yellow(style.bold("[dry-run]"))) " : ""
+            print("\(prefix)\(style.heading("Prune summary")) \(style.dim("(older than \(olderThan) day(s))")):")
+            print("  \(style.dim("Missing projects removed:"))   \(style.bold("\(report.removedMissingProjects.count)"))")
             for path in report.removedMissingProjects {
-                print("    - \(path)")
+                print("    \(style.gray("-")) \(style.path(path))")
             }
-            print("  Unreferenced checkouts:     \(report.removedCheckouts.count)")
+            print("  \(style.dim("Unreferenced checkouts:"))     \(style.bold("\(report.removedCheckouts.count)"))")
             for path in report.removedCheckouts {
-                print("    - \(path)")
+                print("    \(style.gray("-")) \(style.path(path))")
             }
-            print("  Unreferenced artifacts:     \(report.removedArtifacts.count)")
+            print("  \(style.dim("Unreferenced artifacts:"))     \(style.bold("\(report.removedArtifacts.count)"))")
             for path in report.removedArtifacts {
-                print("    - \(path)")
+                print("    \(style.gray("-")) \(style.path(path))")
             }
-            print("  Unreferenced prebuilts:     \(report.removedPrebuilts.count)")
+            print("  \(style.dim("Unreferenced prebuilts:"))     \(style.bold("\(report.removedPrebuilts.count)"))")
             for path in report.removedPrebuilts {
-                print("    - \(path)")
+                print("    \(style.gray("-")) \(style.path(path))")
             }
-            print("  Compilation cache entries:  \(report.removedCompilationCacheEntries.count)")
+            print("  \(style.dim("Compilation cache entries:"))  \(style.bold("\(report.removedCompilationCacheEntries.count)"))")
             for path in report.removedCompilationCacheEntries {
-                print("    - \(path)")
+                print("    \(style.gray("-")) \(style.path(path))")
             }
             let verb = report.dryRun ? "Would reclaim" : "Reclaimed"
-            print("  \(verb): \(formatBytes(report.reclaimedBytes))")
+            print("  \(style.bold("\(verb):")) \(style.green(style.bold(formatBytes(report.reclaimedBytes))))")
         }
     }
 

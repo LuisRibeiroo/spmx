@@ -59,9 +59,10 @@ struct HarvestCommand: ParsableCommand {
             workspacePath: workspace
         )
 
+        let style = TerminalStyle.stdout
         let verboseLogger: (@Sendable (String) -> Void)?
         if verbose {
-            verboseLogger = { message in print("[verbose] \(message)") }
+            verboseLogger = { message in print(style.gray("[verbose] \(message)")) }
         } else {
             verboseLogger = nil
         }
@@ -86,33 +87,36 @@ struct HarvestCommand: ParsableCommand {
 
         guard !quiet else { return }
 
-        print("Harvested \(result.project.type.rawValue) project at \(result.project.rootPath)")
-        print("  Source:    \(result.sourcePackagesURL.path)")
-        print("  Checkouts: \(result.harvestedCheckouts.count) inspected")
-        print("  Artifacts: \(result.harvestedArtifacts.count) inspected")
-        print("  Prebuilts: \(result.harvestedPrebuilts.count) inspected")
+        print("\(style.green(style.bold("\(style.successIcon) Harvested"))) \(style.bold(result.project.type.rawValue)) project at \(style.path(result.project.rootPath))")
+        print("  \(style.dim("Source:"))    \(style.path(result.sourcePackagesURL.path))")
+        print("  \(style.dim("Checkouts:")) \(style.bold("\(result.harvestedCheckouts.count)")) inspected")
+        print("  \(style.dim("Artifacts:")) \(style.bold("\(result.harvestedArtifacts.count)")) inspected")
+        print("  \(style.dim("Prebuilts:")) \(style.bold("\(result.harvestedPrebuilts.count)")) inspected")
         if !result.skippedItems.isEmpty {
-            print("  Skipped:   \(result.skippedItems.count) incomplete/partial item(s)")
+            print("  \(style.dim("Skipped:"))   \(style.yellow("\(result.skippedItems.count)")) incomplete/partial item(s)")
         }
 
         if verbose {
             if let toolchainHash = result.toolchainHash {
-                print("  Toolchain hash: \(toolchainHash)")
+                print("  \(style.dim("Toolchain hash:")) \(style.italic(toolchainHash))")
             }
             for item in result.harvestedCheckouts {
-                let state = item.alreadyCached ? "cached" : "stored (\(item.cloneMethod?.rawValue ?? "ok"))"
-                print("  [checkout] \(item.identity)@\(item.revision) -> \(state)")
+                let state = item.alreadyCached ? style.gray("cached") : style.green("stored (\(item.cloneMethod?.rawValue ?? "ok"))")
+                let icon = item.alreadyCached ? style.gray(style.skippedIcon) : style.green(style.successIcon)
+                print("  \(icon) \(style.dim("[checkout]")) \(style.bold(item.identity))@\(item.revision) -> \(state)")
             }
             for item in result.harvestedArtifacts {
-                let state = item.alreadyCached ? "cached" : "stored (\(item.cloneMethod?.rawValue ?? "ok"))"
-                print("  [artifact] \(item.identity)/\(item.targetName) -> \(state)")
+                let state = item.alreadyCached ? style.gray("cached") : style.green("stored (\(item.cloneMethod?.rawValue ?? "ok"))")
+                let icon = item.alreadyCached ? style.gray(style.skippedIcon) : style.green(style.successIcon)
+                print("  \(icon) \(style.dim("[artifact]")) \(style.bold(item.identity))/\(item.targetName) -> \(state)")
             }
             for item in result.harvestedPrebuilts {
-                let state = item.alreadyCached ? "cached" : "stored (\(item.cloneMethod?.rawValue ?? "ok"))"
-                print("  [prebuilt] \(item.identity)@\(item.versionOrChecksum) -> \(state)")
+                let state = item.alreadyCached ? style.gray("cached") : style.green("stored (\(item.cloneMethod?.rawValue ?? "ok"))")
+                let icon = item.alreadyCached ? style.gray(style.skippedIcon) : style.green(style.successIcon)
+                print("  \(icon) \(style.dim("[prebuilt]")) \(style.bold(item.identity))@\(item.versionOrChecksum) -> \(state)")
             }
             for item in result.skippedItems {
-                print("  [skipped \(item.kind)] \(item.identifier): \(item.reason)")
+                print("  \(style.yellow(style.warningIcon)) \(style.gray("[skipped \(item.kind)] \(item.identifier): \(item.reason)"))")
             }
         }
     }

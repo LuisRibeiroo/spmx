@@ -74,9 +74,10 @@ struct HydrateCommand: ParsableCommand {
             workspacePath: arguments.workspace
         )
 
+        let style = TerminalStyle.stdout
         let verboseLogger: (@Sendable (String) -> Void)?
         if arguments.verbose {
-            verboseLogger = { message in print("[verbose] \(message)") }
+            verboseLogger = { message in print(style.gray("[verbose] \(message)")) }
         } else {
             verboseLogger = nil
         }
@@ -103,35 +104,35 @@ struct HydrateCommand: ParsableCommand {
         let result = try engine.hydrate(project: detected, options: options)
         guard !arguments.quiet else { return }
 
-        printSummary(result, verbose: arguments.verbose)
+        printSummary(result, verbose: arguments.verbose, style: style)
     }
 
-    private static func printSummary(_ result: HydrateResult, verbose: Bool) {
-        print("Hydrated \(result.project.type.rawValue) project at \(result.project.rootPath)")
-        print("  Target:          \(result.sourcePackagesURL.path)")
-        print("  Checkouts:       \(result.hydratedCheckouts.count) cloned, \(result.skippedCheckouts.count) skipped")
-        print("  Artifacts:       \(result.hydratedArtifacts.count) cloned")
-        print("  Prebuilts:       \(result.hydratedPrebuilts.count) cloned")
+    private static func printSummary(_ result: HydrateResult, verbose: Bool, style: TerminalStyle) {
+        print("\(style.green(style.bold("\(style.successIcon) Hydrated"))) \(style.bold(result.project.type.rawValue)) project at \(style.path(result.project.rootPath))")
+        print("  \(style.dim("Target:"))          \(style.path(result.sourcePackagesURL.path))")
+        print("  \(style.dim("Checkouts:"))       \(style.bold("\(result.hydratedCheckouts.count)")) cloned, \(style.gray("\(result.skippedCheckouts.count) skipped"))")
+        print("  \(style.dim("Artifacts:"))       \(style.bold("\(result.hydratedArtifacts.count)")) cloned")
+        print("  \(style.dim("Prebuilts:"))       \(style.bold("\(result.hydratedPrebuilts.count)")) cloned")
         if let wsURL = result.workspaceStateURL {
-            let status = result.didUpdateWorkspaceState ? "updated" : "unchanged"
-            print("  workspace-state: \(wsURL.path) (\(status))")
+            let status = result.didUpdateWorkspaceState ? style.green("updated") : style.gray("unchanged")
+            print("  \(style.dim("workspace-state:")) \(style.path(wsURL.path)) (\(status))")
         }
 
         if verbose {
             if let toolchainHash = result.toolchainHash {
-                print("  Toolchain hash:  \(toolchainHash)")
+                print("  \(style.dim("Toolchain hash:"))  \(style.italic(toolchainHash))")
             }
             for item in result.hydratedCheckouts {
-                print("  [checkout+] \(item.identity)@\(item.revision) (\(item.cloneMethod.rawValue)) -> \(item.destinationURL.path)")
+                print("  \(style.green(style.successIcon)) \(style.dim("[checkout+]")) \(style.bold(item.identity))@\(item.revision) \(style.gray("(\(item.cloneMethod.rawValue))")) -> \(style.path(item.destinationURL.path))")
             }
             for item in result.skippedCheckouts {
-                print("  [checkout=] \(item.identity) (\(item.reason.rawValue))")
+                print("  \(style.gray(style.skippedIcon)) \(style.gray("[checkout=] \(item.identity) (\(item.reason.rawValue))"))")
             }
             for item in result.hydratedArtifacts {
-                print("  [artifact+] \(item.identity)/\(item.targetName) (\(item.cloneMethod.rawValue)) -> \(item.destinationURL.path)")
+                print("  \(style.green(style.successIcon)) \(style.dim("[artifact+]")) \(style.bold(item.identity))/\(item.targetName) \(style.gray("(\(item.cloneMethod.rawValue))")) -> \(style.path(item.destinationURL.path))")
             }
             for item in result.hydratedPrebuilts {
-                print("  [prebuilt+] \(item.identity)@\(item.versionOrChecksum) (\(item.cloneMethod.rawValue)) -> \(item.destinationURL.path)")
+                print("  \(style.green(style.successIcon)) \(style.dim("[prebuilt+]")) \(style.bold(item.identity))@\(item.versionOrChecksum) \(style.gray("(\(item.cloneMethod.rawValue))")) -> \(style.path(item.destinationURL.path))")
             }
         }
     }

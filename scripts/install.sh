@@ -7,6 +7,57 @@ CHECKSUM_NAME="pspm-macos-universal.tar.gz.sha256"
 INSTALL_DIR="$HOME/.pspm/bin"
 BINARY_PATH="$INSTALL_DIR/pspm"
 
+# ANSI styling helpers (disabled automatically when non-TTY or NO_COLOR is set)
+USE_COLOR=0
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != "dumb" ]; then
+    USE_COLOR=1
+fi
+if [ -n "${FORCE_COLOR:-}" ] && [ "${FORCE_COLOR:-0}" != "0" ] && [ -z "${NO_COLOR:-}" ]; then
+    USE_COLOR=1
+fi
+
+if [ "$USE_COLOR" -eq 1 ]; then
+    C_RESET='\033[0m'
+    C_BOLD='\033[1m'
+    C_ITALIC='\033[3m'
+    C_RED='\033[1;31m'
+    C_GREEN='\033[1;32m'
+    C_YELLOW='\033[1;33m'
+    C_CYAN='\033[1;36m'
+    C_PATH='\033[36m'
+    C_GRAY='\033[90m'
+else
+    C_RESET=''
+    C_BOLD=''
+    C_ITALIC=''
+    C_RED=''
+    C_GREEN=''
+    C_YELLOW=''
+    C_CYAN=''
+    C_PATH=''
+    C_GRAY=''
+fi
+
+step_running() {
+    printf '  %b▸%b %b%s%b\n' "$C_CYAN" "$C_RESET" "$C_CYAN" "$1" "$C_RESET"
+}
+
+step_success() {
+    if [ -n "${2:-}" ]; then
+        printf '  %b✓%b %b%s%b %b%s%b\n' "$C_GREEN" "$C_RESET" "$C_BOLD" "$1" "$C_RESET" "$C_PATH" "$2" "$C_RESET"
+    else
+        printf '  %b✓%b %b%s%b\n' "$C_GREEN" "$C_RESET" "$C_BOLD" "$1" "$C_RESET"
+    fi
+}
+
+step_error() {
+    printf '  %b✗%b %b%s%b\n' "$C_RED" "$C_RESET" "$C_RED" "$1" "$C_RESET" >&2
+}
+
+step_tip() {
+    printf '  %b› %b%s%b\n' "$C_GRAY" "$C_ITALIC" "$1" "$C_RESET"
+}
+
 NO_MODIFY_PATH=0
 if [ "${PSPM_NO_MODIFY_PATH:-0}" = "1" ] || [ "${PSPM_NO_MODIFY_PATH:-}" = "true" ]; then
     NO_MODIFY_PATH=1
@@ -32,15 +83,17 @@ EOF
             exit 0
             ;;
         *)
-            printf 'Unknown option: %s\n' "$arg" >&2
+            step_error "Unknown option: $arg"
             exit 1
             ;;
     esac
 done
 
+printf '%bpspm installer%b\n' "$C_CYAN" "$C_RESET"
+
 OS="$(uname -s)"
 if [ "$OS" != "Darwin" ]; then
-    printf 'Error: pspm currently supports macOS (Darwin) only (detected: %s).\n' "$OS" >&2
+    step_error "pspm currently supports macOS (Darwin) only (detected: $OS)."
     exit 1
 fi
 
@@ -49,18 +102,19 @@ case "$ARCH" in
     arm64|x86_64)
         ;;
     *)
-        printf 'Error: unsupported macOS architecture: %s (expected arm64 or x86_64).\n' "$ARCH" >&2
+        step_error "Unsupported macOS architecture: $ARCH (expected arm64 or x86_64)."
         exit 1
         ;;
 esac
+step_success "Platform detected" "${OS} (${ARCH})"
 
 if ! command -v curl >/dev/null 2>&1; then
-    printf 'Error: curl is required to install pspm.\n' >&2
+    step_error "curl is required to install pspm."
     exit 1
 fi
 
 if ! command -v shasum >/dev/null 2>&1; then
-    printf 'Error: shasum is required to verify the downloaded archive.\n' >&2
+    step_error "shasum is required to verify the downloaded archive."
     exit 1
 fi
 
@@ -80,33 +134,35 @@ trap cleanup EXIT INT TERM
 ARCHIVE_FILE="${TMP_DIR}/${ARCHIVE_NAME}"
 CHECKSUM_FILE="${TMP_DIR}/${CHECKSUM_NAME}"
 
-printf 'Downloading pspm (%s, %s) from %s...\n' "$OS" "$ARCH" "$BASE_URL"
+step_running "Downloading pspm from ${BASE_URL}..."
 curl -fsSL "${BASE_URL}/${ARCHIVE_NAME}" -o "$ARCHIVE_FILE"
 curl -fsSL "${BASE_URL}/${CHECKSUM_NAME}" -o "$CHECKSUM_FILE"
+step_success "Downloaded archive" "$ARCHIVE_NAME"
 
+step_running "Verifying SHA-256 checksum..."
 EXPECTED_SHA="$(awk '{print $1}' "$CHECKSUM_FILE" | head -n 1)"
 ACTUAL_SHA="$(shasum -a 256 "$ARCHIVE_FILE" | awk '{print $1}')"
 
 if [ -z "$EXPECTED_SHA" ] || [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
-    printf 'Error: SHA-256 checksum verification failed!\n' >&2
-    printf '  Expected: %s\n' "${EXPECTED_SHA:-<empty>}" >&2
-    printf '  Actual:   %s\n' "$ACTUAL_SHA" >&2
+    step_error "SHA-256 checksum verification failed!"
+    printf '    Expected: %s\n' "${EXPECTED_SHA:-<empty>}" >&2
+    printf '    Actual:   %s\n' "$ACTUAL_SHA" >&2
     exit 1
 fi
+step_success "Checksum verified" "$ACTUAL_SHA"
 
-printf 'Checksum verified (%s).\n' "$ACTUAL_SHA"
-
+step_running "Installing binary to ${BINARY_PATH}..."
 tar -xzf "$ARCHIVE_FILE" -C "$TMP_DIR"
 if [ ! -f "${TMP_DIR}/pspm" ]; then
-    printf 'Error: extracted archive did not contain pspm binary.\n' >&2
+    step_error "Extracted archive did not contain pspm binary."
     exit 1
 fi
 
 mkdir -p "$INSTALL_DIR"
 cp "${TMP_DIR}/pspm" "$BINARY_PATH"
 chmod 755 "$BINARY_PATH"
-
-printf 'Installed pspm to %s\n\n' "$BINARY_PATH"
+step_success "Installed binary" "$BINARY_PATH"
+printf '\n'
 
 if [ "$NO_MODIFY_PATH" -eq 1 ]; then
     "$BINARY_PATH" setup --no-modify-path
