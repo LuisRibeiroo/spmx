@@ -167,6 +167,32 @@ struct MigrationManagerTests {
         #expect(!store.hasCheckout(identity: "busy-dep", revision: "rev-busy"))
     }
 
+    @Test("defaults to dry-run preview with deduplication enabled")
+    func defaultsToDryRunAndDeduplicate() throws {
+        let root = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let project = root.appendingPathComponent("default-pkg")
+        try createSwiftPMProject(at: project, identity: "dep-default", revision: "rev-def", cleanCheckout: true)
+
+        let store = GlobalStore(rootURL: root.appendingPathComponent("store"))
+        let manager = MigrationManager(
+            store: store,
+            toolchainProvider: { Self.fixedToolchain },
+            homeDirectory: root
+        )
+
+        let defaults = MigrationOptions(searchRoots: [root.path])
+        #expect(defaults.dryRun)
+        #expect(defaults.deduplicate)
+
+        let report = try manager.migrate(options: defaults)
+        #expect(report.dryRun)
+        #expect(report.deduplicate)
+        #expect(report.totalEstimatedReclaimedBytes > 0)
+        #expect(!FileManager.default.fileExists(atPath: store.indexURL.path))
+    }
+
     // MARK: - Helpers
 
     private func makeTempDir() throws -> URL {

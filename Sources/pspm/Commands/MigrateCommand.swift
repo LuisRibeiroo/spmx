@@ -19,16 +19,29 @@ struct MigrateCommand: ParsableCommand {
     var home: Bool = false
 
     @Flag(
+        name: [.long, .customLong("execute"), .customLong("no-dry-run")],
+        help: "Apply the migration (harvest into store and deduplicate via APFS CoW). Defaults to dry-run preview."
+    )
+    var apply: Bool = false
+
+    @Flag(
         name: .long,
-        help: "Preview discovered projects and estimated space savings without modifying files."
+        help: "Preview discovered projects and estimated space savings without modifying files (default)."
     )
     var dryRun: Bool = false
 
     @Flag(
-        name: [.long, .customLong("reclaim")],
-        help: "Replace clean SourcePackages/.build entries with APFS Copy-on-Write clones from the store after harvesting."
+        inversion: .prefixedNo,
+        exclusivity: .exclusive,
+        help: "Replace clean SourcePackages/.build entries with APFS Copy-on-Write clones after harvesting (enabled by default; pass --no-deduplicate to harvest only)."
     )
-    var deduplicate: Bool = false
+    var deduplicate: Bool = true
+
+    @Flag(
+        name: .long,
+        help: "Only harvest packages into the global store without deduplicating existing project caches."
+    )
+    var harvestOnly: Bool = false
 
     @Flag(
         name: .long,
@@ -74,26 +87,26 @@ struct MigrateCommand: ParsableCommand {
             verboseLogger = nil
         }
 
-        if !quiet {
-            let modeBadge = dryRun ? " \(style.yellow(style.bold("[dry-run]")))" : ""
+        let isDryRun = dryRun || !apply
+        let isDedup = deduplicate && !harvestOnly
+        let isQuiet = quiet
+
+        if !isQuiet {
+            let modeBadge = isDryRun ? " \(style.yellow(style.bold("[dry-run]")))" : ""
             print("\(style.heading("pspm migrate"))\(modeBadge)")
         }
 
         let manager = MigrationManager()
         let options = MigrationOptions(
             searchRoots: searchRoots,
-            dryRun: dryRun,
-            deduplicate: deduplicate,
+            dryRun: isDryRun,
+            deduplicate: isDedup,
             maxDepth: maxDepth,
             excludePatterns: exclude,
             includeGitWorktreeDiscovery: true,
             installRepoHooks: installHooks,
             verboseLogger: verboseLogger
         )
-
-        let isQuiet = quiet
-        let isDryRun = dryRun
-        let isDedup = deduplicate
 
         let report = try manager.migrate(options: options) { event in
             guard !isQuiet else { return }
@@ -193,17 +206,17 @@ struct MigrateCommand: ParsableCommand {
         print("")
         var tips: [String] = []
         if report.dryRun && report.projectsWithExistingCacheCount > 0 {
-            let dedupFlag = report.deduplicate ? " --deduplicate" : ""
+            let modeSuffix = report.deduplicate ? "" : " --no-deduplicate"
             let scopeArg = home ? " --home" : (path.map { " \($0)" } ?? "")
             tips.append(style.formatInlineCode(
-                "Run `pspm migrate\(scopeArg)\(dedupFlag)` without `--dry-run` to apply migration.",
+                "Run `pspm migrate\(scopeArg) --apply\(modeSuffix)` to apply migration.",
                 baseCodes: ["90"],
                 codeCodes: ["90", "1"]
             ))
         } else if !report.deduplicate && report.totalExistingCacheBytes > 0 {
             let scopeArg = home ? " --home" : (path.map { " \($0)" } ?? "")
             tips.append(style.formatInlineCode(
-                "Re-run with `pspm migrate\(scopeArg) --deduplicate` to replace duplicated caches with APFS CoW clones and reclaim disk space.",
+                "Re-run with `pspm migrate\(scopeArg) --apply --deduplicate` to replace duplicated caches with APFS CoW clones and reclaim disk space.",
                 baseCodes: ["90"],
                 codeCodes: ["90", "1"]
             ))

@@ -14,8 +14,8 @@ public struct MigrationOptions: Sendable {
 
     public init(
         searchRoots: [String] = [FileManager.default.currentDirectoryPath],
-        dryRun: Bool = false,
-        deduplicate: Bool = false,
+        dryRun: Bool = true,
+        deduplicate: Bool = true,
         maxDepth: Int = 6,
         excludePatterns: [String] = [],
         includeGitWorktreeDiscovery: Bool = true,
