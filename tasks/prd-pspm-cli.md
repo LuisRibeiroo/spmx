@@ -58,15 +58,15 @@ Para oferecer experiência **Zero-Config**, o `pspm` instala **shims no `PATH`**
 
 **Acceptance Criteria:**
 
-- [ ] Detectar automaticamente a raiz e o tipo de projeto a partir do diretório atual (ou via flag `--project`/`--workspace`):
+- [x] Detectar automaticamente a raiz e o tipo de projeto a partir do diretório atual (ou via flag `--project`/`--workspace`):
   - **Flutter:** presença de `pubspec.yaml` com `ios/Runner.xcworkspace` e/ou `macos/Runner.xcworkspace`.
   - **Xcode:** presença de `*.xcworkspace` (prioritário) ou `*.xcodeproj`.
   - **SwiftPM puro:** presença de `Package.swift`.
-- [ ] Localizar `Package.resolved` nos caminhos padrão (`<workspace>/xcshareddata/swiftpm/Package.resolved`, `<project>/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`, ou `./Package.resolved`).
-- [ ] Fazer parse dos schemas `Package.resolved` versão `1`, `2` e `3` preservando `identity`, `kind` (`remoteSourceControl`, `registry`, `localSourceControl`), `location`, `revision` (commit SHA), `version` e `branch`.
-- [ ] Fazer parse de `workspace-state.json` para identificar `artifacts` (`binaryTarget` / `.xcframework`, com `packageRef`, `targetName`, `checksum` e URL/path de origem) e `prebuilts` (binários pré-compilados de Swift Macros como `swift-syntax` presentes em `SourcePackages/prebuilts/`).
-- [ ] Testes unitários cobrindo fixtures reais de `Package.resolved` v1, v2, v3, `workspace-state.json` com `artifacts` + `prebuilts` e estrutura de projeto Flutter + Xcode + SwiftPM puro.
-- [ ] `swift build` e `swift test` passam.
+- [x] Localizar `Package.resolved` nos caminhos padrão (`<workspace>/xcshareddata/swiftpm/Package.resolved`, `<project>/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`, ou `./Package.resolved`).
+- [x] Fazer parse dos schemas `Package.resolved` versão `1`, `2` e `3` preservando `identity`, `kind` (`remoteSourceControl`, `registry`, `localSourceControl`), `location`, `revision` (commit SHA), `version` e `branch`.
+- [x] Fazer parse de `workspace-state.json` para identificar `artifacts` (`binaryTarget` / `.xcframework`, com `packageRef`, `targetName`, `checksum` e URL/path de origem) e `prebuilts` (binários pré-compilados de Swift Macros como `swift-syntax` presentes em `SourcePackages/prebuilts/`).
+- [x] Testes unitários cobrindo fixtures reais de `Package.resolved` v1, v2, v3, `workspace-state.json` com `artifacts` + `prebuilts` e estrutura de projeto Flutter + Xcode + SwiftPM puro.
+- [x] `swift build` e `swift test` passam.
 
 ---
 
@@ -76,16 +76,16 @@ Para oferecer experiência **Zero-Config**, o `pspm` instala **shims no `PATH`**
 
 **Acceptance Criteria:**
 
-- [ ] Implementar wrapper seguro em Swift chamando `<sys/clonefile.h>` (`clonefile(src, dst, 0)`), com staging atômico (clona para path temporário no mesmo diretório pai e move/substitui atomicamente).
-- [ ] Implementar fallback automático para cópia recursiva padrão (`FileManager.copyItem`) caso `clonefile` retorne `ENOTSUP` (volume não-APFS) ou `EXDEV` (store e `DerivedData` em volumes distintos), registrando aviso em modo verbose (`--verbose`).
-- [ ] Definir layout do store em `~/.pspm/store` (sobrescrevível via `PSPM_STORE_DIR`):
+- [x] Implementar wrapper seguro em Swift chamando `<sys/clonefile.h>` (`clonefile(src, dst, 0)`), com staging atômico (clona para path temporário no mesmo diretório pai e move/substitui atomicamente).
+- [x] Implementar fallback automático para cópia recursiva padrão (`FileManager.copyItem`) caso `clonefile` retorne `ENOTSUP` (volume não-APFS) ou `EXDEV` (store e `DerivedData` em volumes distintos), registrando aviso em modo verbose (`--verbose`).
+- [x] Definir layout do store em `~/.pspm/store` (sobrescrevível via `PSPM_STORE_DIR`):
   - `~/.pspm/store/checkouts/<identity>-<revision>/`
   - `~/.pspm/store/artifacts/<identity>/<targetName>-<checksum>/`
   - `~/.pspm/store/prebuilts/<swift-version-hash>/<package-identity>-<version-or-checksum>/` (indexado com hash da versão do Swift/Xcode obtida via `swift --version` / `xcodebuild -version` para evitar incompatibilidade de ABI/módulos ao atualizar o Xcode)
   - `~/.pspm/store/index.json` (metadados de projetos/worktrees vinculados, fingerprint do toolchain e último acesso para `prune`).
-- [ ] Proteger escritas no store por pacote usando lock de arquivo POSIX (`flock`) com timeout configurável, garantindo segurança quando múltiplos worktrees executam `harvest`/`hydrate` ao mesmo tempo.
-- [ ] Testes unitários validando `clonefile()`, fallback, atomicidade, particionamento por versão do Swift/Xcode em `prebuilts/` e escrita concorrente com múltiplas tasks em paralelo.
-- [ ] `swift build` e `swift test` passam.
+- [x] Proteger escritas no store por pacote usando lock de arquivo POSIX (`flock`) com timeout configurável, garantindo segurança quando múltiplos worktrees executam `harvest`/`hydrate` ao mesmo tempo.
+- [x] Testes unitários validando `clonefile()`, fallback, atomicidade, particionamento por versão do Swift/Xcode em `prebuilts/` e escrita concorrente com múltiplas tasks em paralelo.
+- [x] `swift build` e `swift test` passam.
 
 ---
 
@@ -160,18 +160,18 @@ Para oferecer experiência **Zero-Config**, o `pspm` instala **shims no `PATH`**
 
 **Acceptance Criteria:**
 
-- [ ] Git hooks iniciam **desativados por padrão** após a instalação (o `pspm` nunca altera `git config --global core.hooksPath` nem arquivos `.git/hooks/` sem consentimento explícito do usuário).
-- [ ] Comando `pspm hooks enable [--global | --repo]`:
+- [x] Git hooks iniciam **desativados por padrão** após a instalação (o `pspm` nunca altera `git config --global core.hooksPath` nem arquivos `.git/hooks/` sem consentimento explícito do usuário).
+- [x] Comando `pspm hooks enable [--global | --repo]`:
   - Em modo `--repo` (padrão dentro de um repo Git): adiciona bloco delimitado por `# >>> pspm hook >>>` / `# <<< pspm hook <<<` ao `.git/hooks/post-checkout` preservando integralmente qualquer hook preexistente (ex: Lefthook, Husky, hooks manuais).
   - Em modo `--global`: configura diretório de hooks globais (ou encadeia caso `core.hooksPath` já esteja definido pelo usuário, avisando e mantendo compatibilidade).
   - O script do hook verifica se trata-se de criação de worktree / checkout de branch em projeto Flutter ou Swift (`if [ "$3" = "1" ]`) e dispara `pspm hydrate --quiet` (com opção `--async` se desejado).
-- [ ] Comando `pspm hooks disable [--global | --repo]` remove apenas o bloco delimitado pelo `pspm`, deixando outros hooks intactos.
-- [ ] Comando `pspm hooks status` exibe se hooks globais/locais estão ativos ou inativos.
-- [ ] Ao finalizar a instalação (`install.sh` e `pspm setup`), exibir banner informativo explicando:
+- [x] Comando `pspm hooks disable [--global | --repo]` remove apenas o bloco delimitado pelo `pspm`, deixando outros hooks intactos.
+- [x] Comando `pspm hooks status` exibe se hooks globais/locais estão ativos ou inativos.
+- [x] Ao finalizar a instalação (`install.sh` e `pspm setup`), exibir banner informativo explicando:
   - Que os shims já estão ativos por padrão;
   - A capacidade e vantagem dos Git hooks ao criar worktrees (`git worktree add` já nasce com `SourcePackages` hidratado);
   - O comando exato para ativar caso o dev queira (`pspm hooks enable --global`).
-- [ ] Testes unitários validando inserção, encadeamento com hook existente e remoção limpa do bloco `# >>> pspm hook >>>`.
+- [x] Testes unitários validando inserção, encadeamento com hook existente e remoção limpa do bloco `# >>> pspm hook >>>`.
 
 ---
 
@@ -196,13 +196,13 @@ Para oferecer experiência **Zero-Config**, o `pspm` instala **shims no `PATH`**
 
 **Acceptance Criteria:**
 
-- [ ] Script `scripts/install.sh` (compatível com `curl -fsSL ... | sh`):
+- [x] Script `scripts/install.sh` (compatível com `curl -fsSL ... | sh`):
   - Detecta arquitetura (`arm64` / `x86_64`) e OS (`Darwin`), baixa o release tarball + verifica checksum SHA-256.
   - Instala o binário em `~/.pspm/bin/pspm` e cria os symlinks de shim em `~/.pspm/shims/` (`flutter`, `xcodebuild`, `swift`).
   - Executa `pspm setup`, que adiciona `export PATH="$HOME/.pspm/shims:$HOME/.pspm/bin:$PATH"` ao perfil do shell detectado (`~/.zshrc`, `~/.bashrc`, `~/.config/fish/config.fish`) de forma idempotente (com suporte a `--no-modify-path`).
   - Exibe resumo pós-instalação mostrando os shims ativados e a recomendação opcional de `pspm hooks enable --global`.
-- [ ] Comando `pspm uninstall` remove shims, entradas idempotentes no shell RC e opcionalmente o `~/.pspm/store` (mediante flag `--purge` ou confirmação).
-- [ ] Workflow de CI no GitHub Actions (`.github/workflows/release.yml`):
+- [x] Comando `pspm uninstall` remove shims, entradas idempotentes no shell RC e opcionalmente o `~/.pspm/store` (mediante flag `--purge` ou confirmação).
+- [x] Workflow de CI no GitHub Actions (`.github/workflows/release.yml`):
   - Roda testes (`swift test`), compila Universal Binary (`swift build -c release --arch arm64 --arch x86_64`), empacota `pspm-macos-universal.tar.gz` + `.sha256` e publica GitHub Release.
   - Documentação e template da Fórmula Homebrew (`Formula/pspm.rb`) pronta para tap (`brew install <org>/tap/pspm`), com bloco `caveats` instruindo a adicionar `~/.pspm/shims` ao `PATH` (ou rodar `pspm setup`) e mencionando o opt-in de hooks.
 
