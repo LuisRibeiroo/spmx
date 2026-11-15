@@ -8,7 +8,7 @@ Living tracker for PRDs in `~/projects/pspm`.
 
 | PRD | Status | Stories | File |
 | :--- | :--- | :--- | :--- |
-| **pspm — Performant Swift Package Manager (CLI)** | Draft / Ready for Implementation | `US-001` – `US-009` | [prd-pspm-cli.md](./prd-pspm-cli.md) |
+| **pspm — Performant Swift Package Manager (CLI)** | Implemented (v1) | `US-001` – `US-009` | [prd-pspm-cli.md](./prd-pspm-cli.md) |
 
 ---
 
@@ -19,9 +19,9 @@ Living tracker for PRDs in `~/projects/pspm`.
 - [x] **US-003:** Content-Addressable Store Global (`~/.pspm/store`) com `checkouts`, `artifacts`, `prebuilts`, Hash de Toolchain e Engine APFS `clonefile()`
 - [x] **US-004:** Hidratação (`hydrate`) e Colheita (`harvest`) do `SourcePackages` (`checkouts`, `artifacts`, `prebuilts`) e `workspace-state.json`
 - [x] **US-005:** Integração Específica com Projetos Flutter (`FlutterGeneratedPluginSwiftPackage`)
-- [ ] **US-006:** Sistema de Shims Transparentes no `PATH` + Cache de Compilação Nativo (LLVM CAS) no `xcodebuild`/`swift`
+- [x] **US-006:** Sistema de Shims Transparentes no `PATH` + Cache de Compilação Nativo (LLVM CAS) no `xcodebuild`/`swift`
 - [x] **US-007:** Git Hooks Opt-in para Worktrees (`pspm hooks enable | disable | status`)
-- [ ] **US-008:** Comandos de Gerenciamento, Inspeção e Diagnóstico (`store`, `status`, `doctor`) incluindo `~/.pspm/compilation-cache`
+- [x] **US-008:** Comandos de Gerenciamento, Inspeção e Diagnóstico (`store`, `status`, `doctor`) incluindo `~/.pspm/compilation-cache`
 - [x] **US-009:** Instalador One-Liner (`curl | sh`) e Distribuição via Homebrew
 
 ---

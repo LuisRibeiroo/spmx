@@ -131,26 +131,26 @@ Para oferecer experiência **Zero-Config**, o `pspm` instala **shims no `PATH`**
 
 **Acceptance Criteria:**
 
-- [ ] Arquitetura de binário único multicall (estilo `puro`/BusyBox): ao iniciar, `pspm` inspeciona `URL(fileURLWithPath: CommandLine.arguments[0]).lastPathComponent`:
+- [x] Arquitetura de binário único multicall (estilo `puro`/BusyBox): ao iniciar, `pspm` inspeciona `URL(fileURLWithPath: CommandLine.arguments[0]).lastPathComponent`:
   - `pspm`: executa a CLI do `pspm`.
   - `flutter`: executa fluxo de shim Flutter.
   - `xcodebuild`: executa fluxo de shim `xcodebuild`.
   - `swift`: executa fluxo de shim SwiftPM.
-- [ ] Symlinks criados por padrão em `~/.pspm/shims/{flutter,xcodebuild,swift}` apontando para `~/.pspm/bin/pspm`.
-- [ ] Resolução do binário real sem loop infinito: o shim filtra o diretório `~/.pspm/shims` do `PATH` ao procurar o próximo executável válido (`flutter`, `xcodebuild` ou `swift`), mantendo compatibilidade total com `puro`, `fvm`, `asdf`, `mise`, `xcodes` e `/usr/bin/xcodebuild`.
-- [ ] **Shim `flutter`:**
+- [x] Symlinks criados por padrão em `~/.pspm/shims/{flutter,xcodebuild,swift}` apontando para `~/.pspm/bin/pspm`.
+- [x] Resolução do binário real sem loop infinito: o shim filtra o diretório `~/.pspm/shims` do `PATH` ao procurar o próximo executável válido (`flutter`, `xcodebuild` ou `swift`), mantendo compatibilidade total com `puro`, `fvm`, `asdf`, `mise`, `xcodes` e `/usr/bin/xcodebuild`.
+- [x] **Shim `flutter`:**
   - Só atua quando subcomando envolver iOS/macOS build/run (`run`, `build`, `test` em plataforma Apple, ou `pub get` quando `--no-pspm` não for passado); para subcomandos irrelevantes (`--version`, `doctor`, `analyze`, `build apk`), delega diretamente (`execv`) com overhead **< 5 ms**.
   - Seta variável de ambiente `PSPM_FLUTTER_SHIM_ACTIVE=1` ao invocar o `flutter` real, evitando hidratação duplicada redundante quando o `flutter` chamar `xcodebuild` internamente, mantendo apenas a colheita (`harvest`) ao final caso novos pacotes sejam baixados.
-- [ ] **Shim `xcodebuild`:**
+- [x] **Shim `xcodebuild`:**
   - Faz parsing leve dos flags `-workspace`, `-project`, `-clonedSourcePackagesDirPath`, `COMPILATION_CACHE_*` e ações (`-resolvePackageDependencies`, `build`, `archive`, `test`).
   - Se não houver `-clonedSourcePackagesDirPath` explícito passado pelo usuário/CI, hidrata automaticamente o `DerivedData/.../SourcePackages` alvo antes de executar o `/usr/bin/xcodebuild` real e executa `harvest` ao término se o comando resolver ou buildar pacotes.
   - Em ações de build (`build`, `archive`, `test`) no Xcode 16+ / Swift 6+, quando não desativado via `PSPM_NO_COMPILE_CACHE=1` e o usuário não tiver passado flags explícitas de cache, injeta flags nativas de Compilation Cache (LLVM CAS) compartilhado apontando para `~/.pspm/compilation-cache` (ex.: `COMPILATION_CACHE_ENABLE_CACHING=YES`, `COMPILATION_CACHE_ENABLE_PLUGIN_CACHING=YES`, `COMPILATION_CACHE_REMOTE_SERVICE_PATH` / caminho local conforme versão do Xcode suportada).
   - Respeita variável de bypass `PSPM_DISABLE=1` para desativar temporariamente qualquer shim.
-- [ ] **Shim `swift`:**
+- [x] **Shim `swift`:**
   - Intercepta `swift build`, `swift test`, `swift run` e `swift package resolve` quando houver `Package.swift` no diretório, hidratando `.build/` antes e fazendo `harvest` depois.
   - Quando suportado pelo toolchain Swift 6+ e `PSPM_NO_COMPILE_CACHE=1` não estiver setado, habilita cache de compilação global (`--enable-build-cache` / path em `~/.pspm/compilation-cache` quando aplicável).
-- [ ] Todos os códigos de saída (`exit code`), `stdin`, `stdout` e `stderr` (incluindo TTY/cores) do comando real são preservados integralmente.
-- [ ] Testes automatizados validando resolução de `PATH`, anti-loop, injeção/bypass de `COMPILATION_CACHE_*` (`PSPM_NO_COMPILE_CACHE=1`), preservação de exit codes e bypass total com `PSPM_DISABLE=1`.
+- [x] Todos os códigos de saída (`exit code`), `stdin`, `stdout` e `stderr` (incluindo TTY/cores) do comando real são preservados integralmente.
+- [x] Testes automatizados validando resolução de `PATH`, anti-loop, injeção/bypass de `COMPILATION_CACHE_*` (`PSPM_NO_COMPILE_CACHE=1`), preservação de exit codes e bypass total com `PSPM_DISABLE=1`.
 
 ---
 
@@ -181,12 +181,12 @@ Para oferecer experiência **Zero-Config**, o `pspm` instala **shims no `PATH`**
 
 **Acceptance Criteria:**
 
-- [ ] `pspm store path`: imprime o caminho absoluto do store global (`~/.pspm/store`).
-- [ ] `pspm store status`: lista total de `checkouts`, `artifacts` e `prebuilts` armazenados (agrupados por toolchain quando aplicável), tamanho lógico total no store, tamanho de `~/.pspm/compilation-cache`, número de worktrees/projetos registrados e estimativa de espaço economizado via Copy-on-Write.
-- [ ] `pspm store prune [--dry-run] [--older-than <dias>]`: verifica worktrees/projetos registrados em `index.json` (removendo entradas cujos diretórios não existem mais no disco), apaga pacotes (`checkouts`, `artifacts`, `prebuilts`) não referenciados por nenhum projeto/worktree ativo e aplica limpeza por idade/tamanho no `~/.pspm/compilation-cache`.
-- [ ] `pspm status` (no diretório de um projeto): mostra tipo de projeto detectado, versão do Xcode/Swift ativa, caminho calculado do `DerivedData`, quantos pacotes/prebuilts do `Package.resolved` já estão em cache no store vs. pendentes e estado do Compilation Cache.
-- [ ] `pspm doctor`: verifica sistema de arquivos APFS, presença do `xcodebuild`/Xcode, versão do Swift/suporte a LLVM CAS Compilation Cache, ordem do `PATH` (`~/.pspm/shims` antes de `flutter`, `xcodebuild`, `swift`), integridade do `~/.pspm/store` e `~/.pspm/compilation-cache`, compatibilidade com `puro`/`fvm` e estado dos Git hooks.
-- [ ] Testes unitários cobrindo lógica de `prune` (com `--dry-run`, incluindo `prebuilts` e `compilation-cache`) e checagens do `doctor`.
+- [x] `pspm store path`: imprime o caminho absoluto do store global (`~/.pspm/store`).
+- [x] `pspm store status`: lista total de `checkouts`, `artifacts` e `prebuilts` armazenados (agrupados por toolchain quando aplicável), tamanho lógico total no store, tamanho de `~/.pspm/compilation-cache`, número de worktrees/projetos registrados e estimativa de espaço economizado via Copy-on-Write.
+- [x] `pspm store prune [--dry-run] [--older-than <dias>]`: verifica worktrees/projetos registrados em `index.json` (removendo entradas cujos diretórios não existem mais no disco), apaga pacotes (`checkouts`, `artifacts`, `prebuilts`) não referenciados por nenhum projeto/worktree ativo e aplica limpeza por idade/tamanho no `~/.pspm/compilation-cache`.
+- [x] `pspm status` (no diretório de um projeto): mostra tipo de projeto detectado, versão do Xcode/Swift ativa, caminho calculado do `DerivedData`, quantos pacotes/prebuilts do `Package.resolved` já estão em cache no store vs. pendentes e estado do Compilation Cache.
+- [x] `pspm doctor`: verifica sistema de arquivos APFS, presença do `xcodebuild`/Xcode, versão do Swift/suporte a LLVM CAS Compilation Cache, ordem do `PATH` (`~/.pspm/shims` antes de `flutter`, `xcodebuild`, `swift`), integridade do `~/.pspm/store` e `~/.pspm/compilation-cache`, compatibilidade com `puro`/`fvm` e estado dos Git hooks.
+- [x] Testes unitários cobrindo lógica de `prune` (com `--dry-run`, incluindo `prebuilts` e `compilation-cache`) e checagens do `doctor`.
 
 ---
 
