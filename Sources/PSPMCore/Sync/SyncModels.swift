@@ -31,6 +31,7 @@ public enum SyncError: Error, LocalizedError, Equatable, Sendable {
 public struct HydrateOptions: Sendable {
     public var sourcePackagesOverride: String?
     public var force: Bool
+    public var deduplicateCleanEntries: Bool
     public var includeArtifacts: Bool
     public var includePrebuilts: Bool
     public var rewriteWorkspaceState: Bool
@@ -40,6 +41,7 @@ public struct HydrateOptions: Sendable {
     public init(
         sourcePackagesOverride: String? = nil,
         force: Bool = false,
+        deduplicateCleanEntries: Bool = false,
         includeArtifacts: Bool = true,
         includePrebuilts: Bool = true,
         rewriteWorkspaceState: Bool = true,
@@ -48,6 +50,7 @@ public struct HydrateOptions: Sendable {
     ) {
         self.sourcePackagesOverride = sourcePackagesOverride
         self.force = force
+        self.deduplicateCleanEntries = deduplicateCleanEntries
         self.includeArtifacts = includeArtifacts
         self.includePrebuilts = includePrebuilts
         self.rewriteWorkspaceState = rewriteWorkspaceState

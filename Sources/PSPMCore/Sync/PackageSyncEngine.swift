@@ -153,17 +153,19 @@ public struct PackageSyncEngine: Sendable {
             if itemExists(at: destinationURL) {
                 let isEmpty = isDirectoryEmpty(at: destinationURL)
                 if !isEmpty && !options.force {
-                    let reason: SkippedCheckoutReason = isGitWorkingTreeDirty(at: destinationURL)
-                        ? .locallyModified
-                        : .alreadyExists
-                    options.verboseLogger?("Preserving existing checkout '\(folderName)' (\(reason.rawValue))")
-                    skippedCheckouts.append(SkippedCheckout(
-                        identity: identity,
-                        revision: revision,
-                        destinationURL: destinationURL,
-                        reason: reason
-                    ))
-                    continue
+                    let isDirty = isGitWorkingTreeDirty(at: destinationURL)
+                    if !options.deduplicateCleanEntries || isDirty {
+                        let reason: SkippedCheckoutReason = isDirty ? .locallyModified : .alreadyExists
+                        options.verboseLogger?("Preserving existing checkout '\(folderName)' (\(reason.rawValue))")
+                        skippedCheckouts.append(SkippedCheckout(
+                            identity: identity,
+                            revision: revision,
+                            destinationURL: destinationURL,
+                            reason: reason
+                        ))
+                        continue
+                    }
+                    options.verboseLogger?("Deduplicating clean checkout '\(folderName)' via store clone")
                 }
             }
 
@@ -205,7 +207,10 @@ public struct PackageSyncEngine: Sendable {
                     checksum: artifact.checksum
                 )
 
-                if itemExists(at: destinationURL) && !isDirectoryEmpty(at: destinationURL) && !options.force {
+                if itemExists(at: destinationURL)
+                    && !isDirectoryEmpty(at: destinationURL)
+                    && !options.force
+                    && !(options.deduplicateCleanEntries && hasInStore) {
                     availableArtifactEntries.append(artifact)
                     continue
                 }
@@ -257,7 +262,10 @@ public struct PackageSyncEngine: Sendable {
                     versionOrChecksum: prebuilt.versionOrChecksum
                 )
 
-                if itemExists(at: destinationURL) && !isDirectoryEmpty(at: destinationURL) && !options.force {
+                if itemExists(at: destinationURL)
+                    && !isDirectoryEmpty(at: destinationURL)
+                    && !options.force
+                    && !(options.deduplicateCleanEntries && hasInStore) {
                     availablePrebuiltEntries.append(prebuilt)
                     continue
                 }

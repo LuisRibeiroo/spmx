@@ -107,6 +107,20 @@ public struct FileLock: Sendable {
         try await FileLock(lockFileURL: lockFileURL, timeout: timeout, pollInterval: pollInterval).withLock(body)
     }
 
+    /// Probes without blocking whether an existing lock file at `path` is currently held via `flock(2)`.
+    public static func isLocked(atPath path: String) -> Bool {
+        let fd = Darwin.open(path, O_RDONLY)
+        guard fd >= 0 else {
+            return false
+        }
+        defer { _ = Darwin.close(fd) }
+        if posixFlock(fd, LOCK_EX | LOCK_NB) != 0 {
+            return errno == EWOULDBLOCK
+        }
+        _ = posixFlock(fd, LOCK_UN)
+        return false
+    }
+
     // MARK: - Private Helpers
 
     private func openLockFile() throws -> Int32 {

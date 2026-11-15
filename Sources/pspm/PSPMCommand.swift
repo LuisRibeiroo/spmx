@@ -53,6 +53,7 @@ struct PSPMCommand: ParsableCommand {
             HydrateCommand.self,
             InstallCommand.self,
             HarvestCommand.self,
+            MigrateCommand.self,
             StoreCommand.self,
             StatusCommand.self,
             DoctorCommand.self,
