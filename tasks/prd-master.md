@@ -27,6 +27,7 @@ Regras:
 | PRD | Status | Stories | File |
 | :--- | :--- | :--- | :--- |
 | **pspm — Performant Swift Package Manager (CLI)** | Implemented (v1) | `US-001` – `US-009` | [prd-pspm-cli.md](./prd-pspm-cli.md) |
+| **pspm — Landing Page + Docs + Benchmarks** | Planned | `US-001` – `US-010` | [prd-site.md](./prd-site.md) |
 
 ---
 
@@ -41,6 +42,21 @@ Regras:
 - [x] **US-007:** Git Hooks Opt-in para Worktrees (`pspm hooks enable | disable | status`)
 - [x] **US-008:** Comandos de Gerenciamento, Inspeção e Diagnóstico (`store`, `status`, `doctor`) incluindo `~/.pspm/compilation-cache`
 - [x] **US-009:** Instalador One-Liner (`curl | sh`) e Distribuição via Homebrew
+
+---
+
+## User Stories Summary (`prd-site.md`)
+
+- [ ] **US-001:** Scaffold do Site (Next.js + Tailwind v4 + Fumadocs + Tokens)
+- [ ] **US-002:** Harness de Benchmarks Locais (`bench/`)
+- [ ] **US-003:** Pipeline de Dados de Benchmark para o Site
+- [ ] **US-004:** Landing Page
+- [ ] **US-005:** Componente `StoreDiagram` Compartilhado
+- [ ] **US-006:** Documentação (Fumadocs)
+- [ ] **US-007:** Página `/benchmarks`
+- [ ] **US-008:** Kit de SEO e Descoberta por Agentes
+- [ ] **US-009:** Qualidade — Lighthouse CI, Acessibilidade e Mobile
+- [ ] **US-010:** Deploy e Domínio
 
 ---
 
