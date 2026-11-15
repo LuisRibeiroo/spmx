@@ -113,7 +113,9 @@ struct MigrateCommand: ParsableCommand {
             switch event {
             case .scanning(let root):
                 if style.isEnabled {
-                    let line = style.stepRunning("Scanning \(style.path(root))...")
+                    let maxPath = max(20, Self.terminalColumns() - 16)
+                    let displayRoot = Self.middleTruncate(root, maxLength: maxPath)
+                    let line = style.stepRunning("Scanning \(style.path(displayRoot))...")
                     FileHandle.standardOutput.write(Data("\r\u{1B}[2K\(line)".utf8))
                     fflush(Darwin.stdout)
                 } else {
@@ -123,7 +125,10 @@ struct MigrateCommand: ParsableCommand {
                 break
             case .processing(let projectRoot, let type):
                 if style.isEnabled {
-                    let line = style.stepRunning("Inspecting \(type.rawValue) at \(style.path(projectRoot))...")
+                    let prefixOverhead = 18 + type.rawValue.count
+                    let maxPath = max(20, Self.terminalColumns() - prefixOverhead)
+                    let displayRoot = Self.middleTruncate(projectRoot, maxLength: maxPath)
+                    let line = style.stepRunning("Inspecting \(type.rawValue) at \(style.path(displayRoot))...")
                     FileHandle.standardOutput.write(Data("\r\u{1B}[2K\(line)".utf8))
                     fflush(Darwin.stdout)
                 }
@@ -245,5 +250,28 @@ struct MigrateCommand: ParsableCommand {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         return formatter.string(fromByteCount: Int64(clamping: bytes))
+    }
+
+    private static func terminalColumns() -> Int {
+        var ws = winsize()
+        if ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0 {
+            return Int(ws.ws_col)
+        }
+        if let envCols = ProcessInfo.processInfo.environment["COLUMNS"],
+           let parsed = Int(envCols),
+           parsed > 0 {
+            return parsed
+        }
+        return 80
+    }
+
+    private static func middleTruncate(_ value: String, maxLength: Int) -> String {
+        guard value.count > maxLength, maxLength > 5 else {
+            return value
+        }
+        let keep = maxLength - 3
+        let headCount = keep / 2
+        let tailCount = keep - headCount
+        return "\(value.prefix(headCount))...\(value.suffix(tailCount))"
     }
 }
