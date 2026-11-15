@@ -9,6 +9,9 @@ struct PSPMCommand: ParsableCommand {
         version: "0.1.0",
         subcommands: [
             DerivedDataPathCommand.self,
+            HydrateCommand.self,
+            InstallCommand.self,
+            HarvestCommand.self,
             HooksCommand.self,
             SetupCommand.self,
             UninstallCommand.self
