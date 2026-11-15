@@ -1,0 +1,14 @@
+# Swift / SwiftPM
+.DS_Store
+/.build
+/Packages
+xcuserdata/
+DerivedData/
+.swiftpm/config/package.resolved
+.swiftpm/xcode/package.xcworkspace/xcuserdata/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*~
