@@ -197,8 +197,22 @@ public struct ProjectStatusInspector: Sendable {
                     currentDirectory: fileManager.currentDirectoryPath,
                     fileManager: fileManager
                 ).standardizedFileURL
-                let spURL = ddURL.appendingPathComponent("SourcePackages").standardizedFileURL
-                return (ddURL.path, spURL.path)
+                let ddSPURL = ddURL.appendingPathComponent("SourcePackages").standardizedFileURL
+                if DiagnosticsSupport.isDirectory(atPath: ddSPURL.path, fileManager: fileManager) {
+                    return (ddURL.path, ddSPURL.path)
+                }
+
+                // Flutter CLI builds store SourcePackages under `<root>/build/<platform>/SourcePackages`.
+                if detected.type == .flutter {
+                    let syncEngine = PackageSyncEngine(store: store, fileManager: fileManager)
+                    let candidates = (try? syncEngine.resolveCandidateSourcePackagesURLs(for: detected)) ?? []
+                    if let existingSP = candidates.first(where: {
+                        DiagnosticsSupport.isDirectory(atPath: $0.path, fileManager: fileManager)
+                    }) {
+                        return (ddURL.path, existingSP.path)
+                    }
+                }
+                return (ddURL.path, ddSPURL.path)
             }
 
             let fallbackBuild = URL(fileURLWithPath: detected.rootPath)

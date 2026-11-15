@@ -320,20 +320,31 @@ public struct ShimDispatcher: Sendable {
         syncEngine: PackageSyncEngine
     ) -> Bool {
         let targetProjects = resolveFlutterTargetProjects(from: project, platformFilter: platformFilter)
+        let fileManager = FileManager.default
         var anyHydrated = false
 
         for targetProject in targetProjects {
             guard targetProject.packageResolvedPath != nil || !targetProject.allPackageResolvedPaths.isEmpty else {
                 continue
             }
-            do {
-                _ = try syncEngine.hydrate(
-                    project: targetProject,
-                    options: HydrateOptions(verboseLogger: verboseLogger)
-                )
-                anyHydrated = true
-            } catch {
-                verboseLogger?("Flutter hydrate skipped for '\(targetProject.rootPath)': \(error.localizedDescription)")
+            let primaryURL = try? syncEngine.resolveSourcePackagesURL(for: targetProject)
+            let candidates = (try? syncEngine.resolveCandidateSourcePackagesURLs(for: targetProject)) ?? []
+            let destinations = candidates.filter { url in
+                url.path == primaryURL?.path || fileManager.fileExists(atPath: url.path)
+            }
+            for destinationURL in destinations {
+                do {
+                    _ = try syncEngine.hydrate(
+                        project: targetProject,
+                        options: HydrateOptions(
+                            sourcePackagesOverride: destinationURL.path,
+                            verboseLogger: verboseLogger
+                        )
+                    )
+                    anyHydrated = true
+                } catch {
+                    verboseLogger?("Flutter hydrate skipped for '\(targetProject.rootPath)': \(error.localizedDescription)")
+                }
             }
         }
 
@@ -350,19 +361,20 @@ public struct ShimDispatcher: Sendable {
         var anyHarvested = false
 
         for targetProject in targetProjects {
-            guard let sourcePackagesURL = try? syncEngine.resolveSourcePackagesURL(for: targetProject),
-                  fileManager.fileExists(atPath: sourcePackagesURL.path)
-            else {
-                continue
-            }
-            do {
-                _ = try syncEngine.harvest(
-                    project: targetProject,
-                    options: HarvestOptions(verboseLogger: verboseLogger)
-                )
-                anyHarvested = true
-            } catch {
-                verboseLogger?("Flutter harvest warning for '\(targetProject.rootPath)': \(error.localizedDescription)")
+            let candidates = (try? syncEngine.resolveCandidateSourcePackagesURLs(for: targetProject)) ?? []
+            for sourcePackagesURL in candidates where fileManager.fileExists(atPath: sourcePackagesURL.path) {
+                do {
+                    _ = try syncEngine.harvest(
+                        project: targetProject,
+                        options: HarvestOptions(
+                            sourcePackagesOverride: sourcePackagesURL.path,
+                            verboseLogger: verboseLogger
+                        )
+                    )
+                    anyHarvested = true
+                } catch {
+                    verboseLogger?("Flutter harvest warning for '\(targetProject.rootPath)': \(error.localizedDescription)")
+                }
             }
         }
 

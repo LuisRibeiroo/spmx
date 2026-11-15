@@ -193,6 +193,50 @@ struct MigrationManagerTests {
         #expect(!FileManager.default.fileExists(atPath: store.indexURL.path))
     }
 
+    @Test("discovers, measures, harvests, and deduplicates Flutter CLI build/ios/SourcePackages caches")
+    func migratesFlutterLocalBuildSourcePackages() throws {
+        let root = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let flutterApp = root.appendingPathComponent("slide")
+        try createFlutterProjectWithLocalBuildSourcePackages(
+            at: flutterApp,
+            identity: "firebase-ios-sdk",
+            revision: "revflutter1"
+        )
+
+        let store = GlobalStore(rootURL: root.appendingPathComponent("store"))
+        let status = try ProjectStatusInspector(store: store, toolchainProvider: { Self.fixedToolchain })
+            .inspect(projectPath: flutterApp.path)
+        let expectedSP = flutterApp.appendingPathComponent("build/ios/SourcePackages").standardizedFileURL
+        #expect(status.sourcePackagesPath == expectedSP.path)
+
+        let manager = MigrationManager(
+            store: store,
+            toolchainProvider: { Self.fixedToolchain },
+            homeDirectory: root
+        )
+
+        let dryReport = try manager.migrate(options: MigrationOptions(
+            searchRoots: [root.path],
+            dryRun: true,
+            deduplicate: true
+        ))
+        #expect(dryReport.projectsWithExistingCacheCount == 1)
+        #expect(dryReport.totalExistingCacheBytes >= 4096)
+        #expect(dryReport.totalEstimatedReclaimedBytes == dryReport.totalExistingCacheBytes)
+
+        let applyReport = try manager.migrate(options: MigrationOptions(
+            searchRoots: [root.path],
+            dryRun: false,
+            deduplicate: true
+        ))
+        #expect(applyReport.projectsWithExistingCacheCount == 1)
+        #expect(applyReport.totalHarvestedItemsCount == 1)
+        #expect(applyReport.totalDeduplicatedItemsCount == 1)
+        #expect(store.hasCheckout(identity: "firebase-ios-sdk", revision: "revflutter1"))
+    }
+
     // MARK: - Helpers
 
     private func makeTempDir() throws -> URL {
@@ -200,6 +244,25 @@ struct MigrationManagerTests {
             .appendingPathComponent("pspm-migrate-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
+    }
+
+    private func createFlutterProjectWithLocalBuildSourcePackages(
+        at root: URL,
+        identity: String,
+        revision: String
+    ) throws {
+        let fm = FileManager.default
+        let workspace = root.appendingPathComponent("ios/Runner.xcworkspace")
+        try fm.createDirectory(at: workspace.appendingPathComponent("xcshareddata/swiftpm"), withIntermediateDirectories: true)
+        try Data("name: slide\n".utf8).write(to: root.appendingPathComponent("pubspec.yaml"))
+
+        try populateResolvedAndSourcePackages(
+            packageResolvedURL: workspace.appendingPathComponent("xcshareddata/swiftpm/Package.resolved"),
+            sourcePackagesURL: root.appendingPathComponent("build/ios/SourcePackages"),
+            identity: identity,
+            revision: revision,
+            cleanCheckout: true
+        )
     }
 
     private func createSwiftPMProject(
@@ -213,6 +276,23 @@ struct MigrationManagerTests {
         try Data("// swift-tools-version: 6.0\nimport PackageDescription\nlet package = Package(name: \"Sample\")\n".utf8)
             .write(to: root.appendingPathComponent("Package.swift"))
 
+        try populateResolvedAndSourcePackages(
+            packageResolvedURL: root.appendingPathComponent("Package.resolved"),
+            sourcePackagesURL: root.appendingPathComponent(".build"),
+            identity: identity,
+            revision: revision,
+            cleanCheckout: cleanCheckout
+        )
+    }
+
+    private func populateResolvedAndSourcePackages(
+        packageResolvedURL: URL,
+        sourcePackagesURL: URL,
+        identity: String,
+        revision: String,
+        cleanCheckout: Bool
+    ) throws {
+        let fm = FileManager.default
         let resolvedJSON = """
         {
           "pins" : [
@@ -229,10 +309,9 @@ struct MigrationManagerTests {
           "version" : 2
         }
         """
-        try Data(resolvedJSON.utf8).write(to: root.appendingPathComponent("Package.resolved"))
+        try Data(resolvedJSON.utf8).write(to: packageResolvedURL)
 
-        let buildDir = root.appendingPathComponent(".build")
-        let checkoutDir = buildDir.appendingPathComponent("checkouts/\(identity)")
+        let checkoutDir = sourcePackagesURL.appendingPathComponent("checkouts/\(identity)")
         try fm.createDirectory(at: checkoutDir, withIntermediateDirectories: true)
         try Data(repeating: 0x5A, count: 4096).write(to: checkoutDir.appendingPathComponent("Source.swift"))
 
@@ -270,7 +349,7 @@ struct MigrationManagerTests {
           "version" : 7
         }
         """
-        try Data(workspaceStateJSON.utf8).write(to: buildDir.appendingPathComponent("workspace-state.json"))
+        try Data(workspaceStateJSON.utf8).write(to: sourcePackagesURL.appendingPathComponent("workspace-state.json"))
     }
 
     private func runGit(_ args: [String], in directory: URL) throws {

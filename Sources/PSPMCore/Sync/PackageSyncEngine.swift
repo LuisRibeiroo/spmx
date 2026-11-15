@@ -78,6 +78,84 @@ public struct PackageSyncEngine: Sendable {
         }
     }
 
+    /// Resolves all candidate `SourcePackages` or `.build` directories for a project, deduplicated in order.
+    ///
+    /// For `.flutter` projects, Flutter CLI passes `-clonedSourcePackagesDirPath build/<platform>/SourcePackages`
+    /// to `xcodebuild`, so existing caches commonly live inside `<projectRoot>/build/ios/SourcePackages` or
+    /// `<projectRoot>/build/macos/SourcePackages` in addition to Xcode `DerivedData/.../SourcePackages`.
+    public func resolveCandidateSourcePackagesURLs(
+        for detectedProject: DetectedProject,
+        overridePath: String? = nil
+    ) throws -> [URL] {
+        if let overridePath,
+           !overridePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return [try resolveSourcePackagesURL(for: detectedProject, overridePath: overridePath)]
+        }
+
+        switch detectedProject.type {
+        case .swiftPackage:
+            return [try resolveSourcePackagesURL(for: detectedProject)]
+
+        case .xcode:
+            var candidates: [URL] = []
+            var seen = Set<String>()
+            if let primary = try? resolveSourcePackagesURL(for: detectedProject),
+               seen.insert(primary.path).inserted {
+                candidates.append(primary)
+            }
+            let localBuildSP = URL(fileURLWithPath: detectedProject.rootPath)
+                .appendingPathComponent("build/SourcePackages")
+                .standardizedFileURL
+            if fileManager.fileExists(atPath: localBuildSP.path),
+               seen.insert(localBuildSP.path).inserted {
+                candidates.append(localBuildSP)
+            }
+            if candidates.isEmpty {
+                // Trigger missingContainerPath error if no DerivedData containerPath exists.
+                return [try resolveSourcePackagesURL(for: detectedProject)]
+            }
+            return candidates
+
+        case .flutter:
+            var candidates: [URL] = []
+            var seen = Set<String>()
+
+            if let primary = try? resolveSourcePackagesURL(for: detectedProject),
+               seen.insert(primary.path).inserted {
+                candidates.append(primary)
+            }
+
+            let rootURL = URL(fileURLWithPath: detectedProject.rootPath)
+            let platforms: [String]
+            if let flutterTargets = detectedProject.flutterInfo?.targets, !flutterTargets.isEmpty {
+                if let containerPath = detectedProject.containerPath,
+                   let matchedTarget = flutterTargets.first(where: { $0.preferredContainerPath == containerPath }) {
+                    platforms = [matchedTarget.platform.rawValue]
+                } else {
+                    platforms = Array(Set(flutterTargets.map(\.platform.rawValue))).sorted()
+                }
+            } else {
+                platforms = ["ios", "macos"]
+            }
+
+            for platform in platforms {
+                let flutterBuildSP = rootURL
+                    .appendingPathComponent("build")
+                    .appendingPathComponent(platform)
+                    .appendingPathComponent("SourcePackages")
+                    .standardizedFileURL
+                if seen.insert(flutterBuildSP.path).inserted {
+                    candidates.append(flutterBuildSP)
+                }
+            }
+
+            if candidates.isEmpty {
+                return [try resolveSourcePackagesURL(for: detectedProject)]
+            }
+            return candidates
+        }
+    }
+
     // MARK: - Hydrate
 
     /// Materializes cached `checkouts`, `artifacts`, toolchain-matched `prebuilts`, and a

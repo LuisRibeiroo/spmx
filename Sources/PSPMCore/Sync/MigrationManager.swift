@@ -389,15 +389,16 @@ public struct MigrationManager: Sendable {
         activeCommands: [String]
     ) -> MigratedProjectOutcome {
         let targets = expandedTargets(for: project)
-        var resolvedSourcePackagesURLs: [URL] = []
+        var targetAndSPPairs: [(target: DetectedProject, spURL: URL)] = []
         var seenSPPaths: Set<String> = []
 
         for target in targets {
-            if let spURL = try? syncEngine.resolveSourcePackagesURL(for: target),
-               seenSPPaths.insert(spURL.path).inserted {
-                resolvedSourcePackagesURLs.append(spURL)
+            let candidates = (try? syncEngine.resolveCandidateSourcePackagesURLs(for: target)) ?? []
+            for spURL in candidates where seenSPPaths.insert(spURL.path).inserted {
+                targetAndSPPairs.append((target: target, spURL: spURL))
             }
         }
+        let resolvedSourcePackagesURLs = targetAndSPPairs.map(\.spURL)
 
         let existingCacheBytes = resolvedSourcePackagesURLs.reduce(UInt64(0)) { total, url in
             total + cacheSubdirectoriesSizeBytes(at: url)
@@ -454,16 +455,18 @@ public struct MigrationManager: Sendable {
         var estimatedReclaimed: UInt64 = 0
         var warningNotes: [String] = []
 
-        for target in targets {
-            guard let spURL = try? syncEngine.resolveSourcePackagesURL(for: target),
-                  cacheSubdirectoriesSizeBytes(at: spURL) > 0 else {
+        for (target, spURL) in targetAndSPPairs {
+            guard cacheSubdirectoriesSizeBytes(at: spURL) > 0 else {
                 continue
             }
 
             do {
                 let harvestResult = try syncEngine.harvest(
                     project: target,
-                    options: HarvestOptions(verboseLogger: options.verboseLogger)
+                    options: HarvestOptions(
+                        sourcePackagesOverride: spURL.path,
+                        verboseLogger: options.verboseLogger
+                    )
                 )
                 harvestedCheckouts += harvestResult.harvestedCheckouts.count
                 harvestedArtifacts += harvestResult.harvestedArtifacts.count
@@ -474,6 +477,7 @@ public struct MigrationManager: Sendable {
                     let dedupResult = try syncEngine.hydrate(
                         project: target,
                         options: HydrateOptions(
+                            sourcePackagesOverride: spURL.path,
                             force: false,
                             deduplicateCleanEntries: true,
                             rewriteWorkspaceState: false,
