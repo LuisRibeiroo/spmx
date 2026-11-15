@@ -56,6 +56,10 @@ struct SetupCommand: ParsableCommand {
         )
 
         print("")
+        print("  \(style.gray("Binary:"))            \(style.blue(result.binaryPath.path))")
+        if let localBinSymlink = result.localBinSymlink {
+            print("  \(style.gray("PATH link:"))         \(style.blue(localBinSymlink.path))")
+        }
         print("  \(style.gray("Store:"))             \(style.blue(result.storeDirectory.path))")
         print("  \(style.gray("Compilation Cache:")) \(style.blue(result.compilationCacheDirectory.path))")
         print("  \(style.gray("Shims:"))             \(style.blue(result.shimsDirectory.path))")

@@ -92,6 +92,7 @@ public struct SetupResult: Sendable, Equatable {
     public let detectedShell: ShellKind
     public let modifiedShellRC: URL?
     public let activationCommand: String
+    public let localBinSymlink: URL?
 
     public init(
         pspmDirectory: URL,
@@ -103,7 +104,8 @@ public struct SetupResult: Sendable, Equatable {
         shimPaths: [URL],
         detectedShell: ShellKind,
         modifiedShellRC: URL?,
-        activationCommand: String
+        activationCommand: String,
+        localBinSymlink: URL? = nil
     ) {
         self.pspmDirectory = pspmDirectory
         self.binDirectory = binDirectory
@@ -115,6 +117,7 @@ public struct SetupResult: Sendable, Equatable {
         self.detectedShell = detectedShell
         self.modifiedShellRC = modifiedShellRC
         self.activationCommand = activationCommand
+        self.localBinSymlink = localBinSymlink
     }
 
     /// Human-readable post-install / setup summary banner.
@@ -209,6 +212,7 @@ public struct SetupManager: Sendable {
         binaryPath: URL? = nil,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         shell: String? = ProcessInfo.processInfo.environment["SHELL"],
+        environment: [String: String] = ProcessInfo.processInfo.environment,
         fileManager: FileManager = .default,
         stepObserver: (@Sendable (SetupStepEvent) -> Void)? = nil
     ) throws -> SetupResult {
@@ -224,9 +228,25 @@ public struct SetupManager: Sendable {
         }
         stepObserver?(.completed(step: "Directories initialized", detail: pspmDir.path))
 
-        let targetBinary = binaryPath ?? binDir.appendingPathComponent("pspm")
-        guard !targetBinary.path.isEmpty else {
+        let installedBinary = binDir.appendingPathComponent("pspm")
+        let requestedBinary = binaryPath ?? installedBinary
+        guard !requestedBinary.path.isEmpty else {
             throw SetupError.emptyBinaryPath
+        }
+
+        let targetBinary: URL
+        let resolvedRequested = requestedBinary.standardizedFileURL.resolvingSymlinksInPath()
+        let resolvedInstalled = installedBinary.standardizedFileURL.resolvingSymlinksInPath()
+
+        if resolvedRequested.path == resolvedInstalled.path {
+            targetBinary = installedBinary
+        } else if fileManager.isExecutableFile(atPath: resolvedRequested.path) {
+            stepObserver?(.running(step: "Installing pspm binary", detail: installedBinary.path))
+            try installBinary(from: resolvedRequested, to: installedBinary, fileManager: fileManager)
+            stepObserver?(.completed(step: "Binary installed", detail: installedBinary.path))
+            targetBinary = installedBinary
+        } else {
+            targetBinary = requestedBinary
         }
 
         stepObserver?(.running(step: "Linking PATH shims", detail: shimNames.joined(separator: ", ")))
@@ -237,6 +257,19 @@ public struct SetupManager: Sendable {
             createdShims.append(shimURL)
         }
         stepObserver?(.completed(step: "Shims linked", detail: "\(shimNames.joined(separator: ", ")) -> \(targetBinary.path)"))
+
+        var localBinSymlink: URL?
+        let localBinDir = homeDirectory.appendingPathComponent(".local/bin").standardizedFileURL
+        if fileManager.isExecutableFile(atPath: targetBinary.path),
+           isDirectoryOnPATH(localBinDir, environment: environment, homeDirectory: homeDirectory) {
+            let localBinLink = localBinDir.appendingPathComponent("pspm")
+            if shouldManageLocalBinLink(at: localBinLink, pspmDirectory: pspmDir, fileManager: fileManager) {
+                try fileManager.createDirectory(at: localBinDir, withIntermediateDirectories: true)
+                try createOrUpdateSymlink(at: localBinLink, destination: targetBinary, fileManager: fileManager)
+                localBinSymlink = localBinLink
+                stepObserver?(.completed(step: "Linked pspm in PATH", detail: localBinLink.path))
+            }
+        }
 
         let detectedShell = ShellKind.detect(from: shell)
         let modifiedRC: URL?
@@ -265,11 +298,13 @@ public struct SetupManager: Sendable {
             shimPaths: createdShims,
             detectedShell: detectedShell,
             modifiedShellRC: modifiedRC,
-            activationCommand: activationCommand
+            activationCommand: activationCommand,
+            localBinSymlink: localBinSymlink
         )
     }
 
-    /// Removes `~/.pspm/shims`, `~/.pspm/bin/pspm`, and `# >>> pspm >>>` blocks from shell RC files.
+    /// Removes `~/.pspm/shims`, `~/.pspm/bin/pspm`, managed `~/.local/bin/pspm` symlink,
+    /// and `# >>> pspm >>>` blocks from shell RC files.
     /// Removes `~/.pspm/store` and `~/.pspm/compilation-cache` only when `purge` is `true`.
     public static func uninstall(
         purge: Bool = false,
@@ -284,6 +319,11 @@ public struct SetupManager: Sendable {
 
         let removedShims = try removeIfExists(at: shimsDir, fileManager: fileManager)
         let removedBinary = try removeIfExists(at: binaryURL, fileManager: fileManager)
+
+        let localBinLink = homeDirectory.appendingPathComponent(".local/bin/pspm")
+        if isSymlinkPointingInside(localBinLink, directory: pspmDir, fileManager: fileManager) {
+            _ = try? removeIfExists(at: localBinLink, fileManager: fileManager)
+        }
 
         var cleanedRCs: [URL] = []
         for shellKind in ShellKind.allCases {
@@ -310,6 +350,80 @@ public struct SetupManager: Sendable {
     }
 
     // MARK: - Helpers
+
+    private static func installBinary(
+        from sourceURL: URL,
+        to destinationURL: URL,
+        fileManager: FileManager
+    ) throws {
+        let tempURL = destinationURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(".pspm.tmp.\(UUID().uuidString)")
+        defer { try? fileManager.removeItem(at: tempURL) }
+
+        try fileManager.copyItem(at: sourceURL, to: tempURL)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tempURL.path)
+
+        if (try? fileManager.attributesOfItem(atPath: destinationURL.path)) != nil {
+            try fileManager.removeItem(at: destinationURL)
+        }
+        try fileManager.moveItem(at: tempURL, to: destinationURL)
+    }
+
+    private static func isDirectoryOnPATH(
+        _ directoryURL: URL,
+        environment: [String: String],
+        homeDirectory: URL
+    ) -> Bool {
+        guard let pathEnv = environment["PATH"], !pathEnv.isEmpty else {
+            return false
+        }
+        let targetResolved = directoryURL.standardizedFileURL.resolvingSymlinksInPath().path
+        let targetStandardized = directoryURL.standardizedFileURL.path
+        let tildePrefix = "~/"
+        let homePath = homeDirectory.path
+
+        for rawEntry in pathEnv.split(separator: ":") {
+            var entry = String(rawEntry)
+            if entry.hasPrefix(tildePrefix) {
+                entry = homePath + "/" + String(entry.dropFirst(tildePrefix.count))
+            }
+            let entryURL = URL(fileURLWithPath: entry).standardizedFileURL
+            if entryURL.path == targetStandardized || entryURL.resolvingSymlinksInPath().path == targetResolved {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func shouldManageLocalBinLink(
+        at linkURL: URL,
+        pspmDirectory: URL,
+        fileManager: FileManager
+    ) -> Bool {
+        guard (try? fileManager.attributesOfItem(atPath: linkURL.path)) != nil else {
+            return true
+        }
+        return isSymlinkPointingInside(linkURL, directory: pspmDirectory, fileManager: fileManager)
+    }
+
+    private static func isSymlinkPointingInside(
+        _ linkURL: URL,
+        directory: URL,
+        fileManager: FileManager
+    ) -> Bool {
+        guard let rawDest = try? fileManager.destinationOfSymbolicLink(atPath: linkURL.path) else {
+            return false
+        }
+        let resolvedDest: URL
+        if rawDest.hasPrefix("/") {
+            resolvedDest = URL(fileURLWithPath: rawDest).standardizedFileURL
+        } else {
+            resolvedDest = linkURL.deletingLastPathComponent().appendingPathComponent(rawDest).standardizedFileURL
+        }
+        let dirPath = directory.standardizedFileURL.path
+        return resolvedDest.path == dirPath || resolvedDest.path.hasPrefix(dirPath + "/")
+    }
 
     private static func createOrUpdateSymlink(
         at shimURL: URL,

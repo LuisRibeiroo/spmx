@@ -222,6 +222,44 @@ struct SetupManagerTests {
         #expect(events.contains { if case .skipped = $0 { return true }; return false })
     }
 
+    @Test("setup copies external executable into ~/.pspm/bin/pspm, links ~/.local/bin when on PATH, and uninstall cleans only managed links")
+    func copiesBinaryAndLinksLocalBin() throws {
+        let home = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        let fm = FileManager.default
+        let externalBinary = home.appendingPathComponent("build/pspm")
+        try fm.createDirectory(at: externalBinary.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("#!/bin/sh\necho pspm\n".utf8).write(to: externalBinary)
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: externalBinary.path)
+
+        let localBinDir = home.appendingPathComponent(".local/bin")
+        let envWithLocalBin = ["PATH": "\(localBinDir.path):/usr/bin:/bin"]
+
+        let result = try SetupManager.setup(
+            noModifyPath: true,
+            binaryPath: externalBinary,
+            homeDirectory: home,
+            shell: "/bin/zsh",
+            environment: envWithLocalBin
+        )
+
+        let installedBinary = home.appendingPathComponent(".pspm/bin/pspm")
+        #expect(result.binaryPath.standardizedFileURL.path == installedBinary.standardizedFileURL.path)
+        #expect(fm.isExecutableFile(atPath: installedBinary.path))
+
+        let shimDest = try fm.destinationOfSymbolicLink(atPath: home.appendingPathComponent(".pspm/shims/swift").path)
+        #expect(shimDest == installedBinary.path)
+
+        let localBinLink = localBinDir.appendingPathComponent("pspm")
+        #expect(result.localBinSymlink?.path == localBinLink.path)
+        let localDest = try fm.destinationOfSymbolicLink(atPath: localBinLink.path)
+        #expect(localDest == installedBinary.path)
+
+        _ = try SetupManager.uninstall(purge: true, homeDirectory: home)
+        #expect((try? fm.attributesOfItem(atPath: localBinLink.path)) == nil)
+    }
+
     @Test("uninstall without purge preserves store and compilation-cache; with purge removes them")
     func uninstallWithAndWithoutPurge() throws {
         let home = try makeTempDir()
