@@ -95,18 +95,18 @@ Para oferecer experiência **Zero-Config**, o `pspm` instala **shims no `PATH`**
 
 **Acceptance Criteria:**
 
-- [ ] **Comando `pspm hydrate` (alias `pspm install`):**
+- [x] **Comando `pspm hydrate` (alias `pspm install`):**
   - Lê `Package.resolved` (e opcionalmente cache de manifesto/artifacts/prebuilts associados às mesmas dependências e à versão ativa do Swift/Xcode).
   - Para cada pin encontrado no store global, clona via `clonefile()` para `<SourcePackages>/checkouts/<identity>` (ou `.build/checkouts/<identity>`), os artefatos correspondentes para `<SourcePackages>/artifacts/<identity>/<target>/` (ou `.build/artifacts/...`) e os binários de macros compatíveis com o toolchain atual para `<SourcePackages>/prebuilts/` (ou `.build/prebuilts/`).
   - Gera/atualiza `<SourcePackages>/workspace-state.json` reescrevendo caminhos locais/absolutos (especialmente `artifacts[].path` e eventuais paths de `prebuilts`) para apontar para o `SourcePackages` do worktree atual, evitando referências quebradas a outro worktree.
   - Nunca sobrescreve um checkout modificado manualmente pelo usuário sem flag `--force`.
-- [ ] **Comando `pspm harvest`:**
+- [x] **Comando `pspm harvest`:**
   - Inspeciona `<SourcePackages>/checkouts`, `<SourcePackages>/artifacts`, `<SourcePackages>/prebuilts` e `workspace-state.json` após execução do Xcode/SwiftPM.
   - Para qualquer pacote, artefato ou prebuilt válido (com checksum/revision completos e sem marcador `.partial`) ausente no `~/.pspm/store`, clona via `clonefile()` para o store global (com fingerprint do toolchain ativo para `prebuilts`) sob lock `flock`.
   - Registra o diretório do projeto/worktree no índice do store (`index.json`) para rastreamento de `prune`.
-- [ ] Suporte completo tanto para `DerivedData/.../SourcePackages` (Xcode/Flutter) quanto para `.build/` (SwiftPM CLI puro).
-- [ ] Testes de integração simulando Worktree A (popula cache + `harvest`) → Worktree B (`hydrate` sem rede) validando `checkouts`, `artifacts`, `prebuilts` e `workspace-state.json` com paths reescritos corretamente.
-- [ ] `swift build` e `swift test` passam.
+- [x] Suporte completo tanto para `DerivedData/.../SourcePackages` (Xcode/Flutter) quanto para `.build/` (SwiftPM CLI puro).
+- [x] Testes de integração simulando Worktree A (popula cache + `harvest`) → Worktree B (`hydrate` sem rede) validando `checkouts`, `artifacts`, `prebuilts` e `workspace-state.json` com paths reescritos corretamente.
+- [x] `swift build` e `swift test` passam.
 
 ---
 
@@ -116,12 +116,12 @@ Para oferecer experiência **Zero-Config**, o `pspm` instala **shims no `PATH`**
 
 **Acceptance Criteria:**
 
-- [ ] Detectar presença de configuração SPM no Flutter (`ios/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage` ou `pubspec.yaml` + `.flutter-plugins-dependencies` / configuração SwiftPM habilitada).
-- [ ] Ao hidratar um novo worktree Flutter onde `ios/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Package.swift` ainda não existe, executar `flutter pub get` (via binário real do Flutter, sem loop de shim) antes de hidratar o `SourcePackages` do Xcode.
-- [ ] Armazenar no índice do store um hash das dependências nativas declaradas em `.flutter-plugins-dependencies` + `Package.swift` locais; quando um novo worktree possui o mesmo hash e ainda não tem `Package.resolved` gerado (caso esteja git-ignored ou desatualizado no worktree), restaurar o `Package.resolved` compatível antes do build.
-- [ ] Suportar tanto target `ios/` (`Runner.xcworkspace`) quanto target `macos/` (`Runner.xcworkspace`) em projetos Flutter multiplataforma.
-- [ ] Testes unitários com fixture de projeto Flutter simulando criação de worktree limpo sem `ephemeral/`.
-- [ ] `swift build` e `swift test` passam.
+- [x] Detectar presença de configuração SPM no Flutter (`ios/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage` ou `pubspec.yaml` + `.flutter-plugins-dependencies` / configuração SwiftPM habilitada).
+- [x] Ao hidratar um novo worktree Flutter onde `ios/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Package.swift` ainda não existe, executar `flutter pub get` (via binário real do Flutter, sem loop de shim) antes de hidratar o `SourcePackages` do Xcode.
+- [x] Armazenar no índice do store um hash das dependências nativas declaradas em `.flutter-plugins-dependencies` + `Package.swift` locais; quando um novo worktree possui o mesmo hash e ainda não tem `Package.resolved` gerado (caso esteja git-ignored ou desatualizado no worktree), restaurar o `Package.resolved` compatível antes do build.
+- [x] Suportar tanto target `ios/` (`Runner.xcworkspace`) quanto target `macos/` (`Runner.xcworkspace`) em projetos Flutter multiplataforma.
+- [x] Testes unitários com fixture de projeto Flutter simulando criação de worktree limpo sem `ephemeral/`.
+- [x] `swift build` e `swift test` passam.
 
 ---
 
