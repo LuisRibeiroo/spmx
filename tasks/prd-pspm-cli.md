@@ -4,6 +4,7 @@
 **Status:** Draft (Pronto para Implementação)  
 **Repositório Alvo:** `~/projects/pspm` (Open Source)  
 **Licença Sugerida:** MIT ou Apache 2.0  
+**Ícone Principal:** [`assets/icon.svg`](../assets/icon.svg) (vetor) · [`assets/icon.png`](../assets/icon.png) (820×940) — ver *Brand Assets* em [prd-master.md](./prd-master.md)  
 
 ---
 

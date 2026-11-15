@@ -2,6 +2,24 @@
 
 Living tracker for PRDs in `~/projects/pspm`.
 
+<p align="center"><img src="../assets/icon.png" alt="pspm icon" width="96"></p>
+
+---
+
+## Brand Assets
+
+O **ícone principal** do `pspm` é a caixa laranja *pixel-art* (isométrica, aberta, com a "pena/chama" saindo do topo). Esta é a **fonte única de verdade** para qualquer uso de identidade visual do projeto:
+
+| Arquivo | Formato | Dimensões | Uso recomendado |
+| :--- | :--- | :--- | :--- |
+| [`assets/icon.svg`](../assets/icon.svg) | SVG vetorial (`crispEdges`, `viewBox` 41×47, gradiente laranja) | escalável (base 410×470) | **Fonte primária.** README, site, documentação, Homebrew tap, qualquer contexto que aceite vetor. |
+| [`assets/icon.png`](../assets/icon.png) | PNG RGBA com transparência | 820×940 | Raster derivado do SVG. Social preview do GitHub, avatar, release notes, contextos que não aceitam SVG. |
+
+Regras:
+- Sempre referenciar `assets/icon.svg` / `assets/icon.png` por caminho relativo; **não duplicar** nem recolorir o ícone em outros diretórios.
+- Em escala, manter proporção (41:47) e renderizar com `image-rendering: pixelated` (PNG) para preservar as bordas da pixel-art.
+- Ao alterar o ícone, atualizar **os dois arquivos juntos** (PNG é exportado do SVG).
+
 ---
 
 ## Active & Planned PRDs
