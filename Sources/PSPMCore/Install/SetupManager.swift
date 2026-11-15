@@ -153,15 +153,15 @@ public struct SetupResult: Sendable, Equatable {
         lines.append(style.tipItalic("Tips:"))
 
         if modifiedShellRC != nil {
-            lines.append("  \(style.tip("›")) \(style.tip("Activate in this shell now:")) \(style.tipCommand(activationCommand))")
+            lines.append("  \(style.tip("›")) \(style.tip("Activate in this shell now:")) \(style.tipCommand("`\(activationCommand)`"))")
         } else {
-            lines.append("  \(style.tip("›")) \(style.tip("Add shims to your PATH manually:")) \(style.tipCommand(activationCommand))")
+            lines.append("  \(style.tip("›")) \(style.tip("Add shims to your PATH manually:")) \(style.tipCommand("`\(activationCommand)`"))")
         }
 
         lines.append("  \(style.tip("›")) \(style.tip("Git Hooks (disabled by default): pspm never modifies your Git hooks without consent."))")
-        lines.append("    \(style.tipItalic("Pre-warm SourcePackages on `git worktree add` (even before opening Xcode GUI):"))")
-        lines.append("      \(style.tipCommand("pspm hooks enable --global"))")
-        lines.append("  \(style.tip("›")) \(style.tip("Verify your environment anytime with:")) \(style.tipCommand("pspm doctor"))")
+        lines.append("    \(style.formatInlineCode("Pre-warm SourcePackages on `git worktree add` (even before opening Xcode GUI):", baseCodes: ["90", "3"], codeCodes: ["90", "1"]))")
+        lines.append("      \(style.tipCommand("`pspm hooks enable --global`"))")
+        lines.append("  \(style.tip("›")) \(style.tip("Verify your environment anytime with:")) \(style.tipCommand("`pspm doctor`"))")
 
         return lines.joined(separator: "\n")
     }

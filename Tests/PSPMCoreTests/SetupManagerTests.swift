@@ -180,7 +180,7 @@ struct SetupManagerTests {
         #expect(ansiBanner.contains("✓"))
         #expect(ansiBanner.contains("\u{1B}[1;32m"))
         #expect(ansiBanner.contains("\u{1B}[90;3mTips:\u{1B}[0m"))
-        #expect(ansiBanner.contains("\u{1B}[90;1mpspm hooks enable --global\u{1B}[0m"))
+        #expect(ansiBanner.contains("\u{1B}[90;1m`pspm hooks enable --global`\u{1B}[0m"))
     }
 
     @Test("setup emits running, completed, and skipped step events")

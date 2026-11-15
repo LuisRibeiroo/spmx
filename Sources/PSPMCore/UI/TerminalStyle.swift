@@ -92,6 +92,40 @@ public struct TerminalStyle: Sendable, Equatable {
     public func tipItalic(_ text: String) -> String { wrap(text, codes: ["90", "3"]) }
     public func tipCommand(_ text: String) -> String { wrap(text, codes: ["90", "1"]) }
 
+    /// Styles backtick-delimited inline code segments (e.g., `` `pspm setup` ``) while preserving the backticks.
+    public func formatInlineCode(
+        _ text: String,
+        baseCodes: [String] = [],
+        codeCodes: [String] = ["36"]
+    ) -> String {
+        guard isEnabled, text.contains("`") else {
+            return wrap(text, codes: baseCodes)
+        }
+
+        var output = ""
+        var index = text.startIndex
+        while index < text.endIndex {
+            if let openTick = text[index...].firstIndex(of: "`") {
+                let afterOpen = text.index(after: openTick)
+                if afterOpen < text.endIndex, let closeTick = text[afterOpen...].firstIndex(of: "`") {
+                    let prefix = String(text[index..<openTick])
+                    if !prefix.isEmpty {
+                        output += wrap(prefix, codes: baseCodes)
+                    }
+                    let codeEnd = text.index(after: closeTick)
+                    let codeToken = String(text[openTick..<codeEnd])
+                    output += wrap(codeToken, codes: codeCodes)
+                    index = codeEnd
+                    continue
+                }
+            }
+            let remainder = String(text[index..<text.endIndex])
+            output += wrap(remainder, codes: baseCodes)
+            break
+        }
+        return output
+    }
+
     // MARK: - Status Icons & Step Lines
 
     public var runningIcon: String { wrap("▸", codes: ["1", "36"]) }

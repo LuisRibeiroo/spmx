@@ -148,8 +148,8 @@ public struct DoctorDiagnostics: Sendable {
             return DoctorCheck(
                 name: "Xcode / xcodebuild",
                 severity: .warn,
-                summary: "Failed to execute 'xcodebuild -version'.",
-                remediation: "Install Xcode and run 'sudo xcode-select -s /Applications/Xcode.app/Contents/Developer' if building iOS/macOS targets."
+                summary: "Failed to execute `xcodebuild -version`.",
+                remediation: "Install Xcode and run `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` if building iOS/macOS targets."
             )
         }
 
@@ -160,8 +160,8 @@ public struct DoctorDiagnostics: Sendable {
             return DoctorCheck(
                 name: "Xcode / xcodebuild",
                 severity: .warn,
-                summary: "xcodebuild is unavailable (\(detail)).",
-                remediation: "Install Xcode or select an active developer directory via 'sudo xcode-select -s /Applications/Xcode.app/Contents/Developer'."
+                summary: "`xcodebuild` is unavailable (\(detail)).",
+                remediation: "Install Xcode or select an active developer directory via `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`."
             )
         }
 
@@ -181,8 +181,8 @@ public struct DoctorDiagnostics: Sendable {
             return DoctorCheck(
                 name: "Swift & Compilation Cache",
                 severity: .fail,
-                summary: "Unable to run 'swift --version'.",
-                remediation: "Install Xcode or the Swift toolchain and ensure 'swift' is in PATH."
+                summary: "Unable to run `swift --version`.",
+                remediation: "Install Xcode or the Swift toolchain and ensure `swift` is in PATH."
             )
         }
 
@@ -192,8 +192,8 @@ public struct DoctorDiagnostics: Sendable {
             return DoctorCheck(
                 name: "Swift & Compilation Cache",
                 severity: .fail,
-                summary: "'swift --version' returned empty output.",
-                remediation: "Verify your active Swift toolchain with 'xcrun swift --version'."
+                summary: "`swift --version` returned empty output.",
+                remediation: "Verify your active Swift toolchain with `xcrun swift --version`."
             )
         }
 
@@ -238,7 +238,7 @@ public struct DoctorDiagnostics: Sendable {
                 name: "PATH Shims Ordering",
                 severity: .fail,
                 summary: "Shims directory '\(shimsDir)' is missing from PATH.",
-                remediation: "Run 'pspm setup' or add 'export PATH=\"$HOME/.pspm/shims:$HOME/.pspm/bin:$PATH\"' to your shell profile."
+                remediation: "Run `pspm setup` or add `export PATH=\"$HOME/.pspm/shims:$HOME/.pspm/bin:$PATH\"` to your shell profile."
             )
         }
 
@@ -251,7 +251,7 @@ public struct DoctorDiagnostics: Sendable {
                 name: "PATH Shims Ordering",
                 severity: .fail,
                 summary: "Missing or non-executable shim(s) in '\(shimsDir)': \(missingShims.joined(separator: ", ")).",
-                remediation: "Run 'pspm setup' to create executable shims in '\(shimsDir)'."
+                remediation: "Run `pspm setup` to create executable shims in '\(shimsDir)'."
             )
         }
 
@@ -300,7 +300,7 @@ public struct DoctorDiagnostics: Sendable {
                 name: "Store & Cache Integrity",
                 severity: .warn,
                 summary: "Global store directory does not exist yet at '\(store.rootURL.path)'.",
-                remediation: "Run 'pspm setup' or 'pspm hydrate' to initialize the store."
+                remediation: "Run `pspm setup` or `pspm hydrate` to initialize the store."
             )
         }
 
@@ -329,7 +329,7 @@ public struct DoctorDiagnostics: Sendable {
                     name: "Store & Cache Integrity",
                     severity: .fail,
                     summary: "Store index '\(store.indexURL.path)' is unreadable or corrupted: \(error.localizedDescription)",
-                    remediation: "Back up and remove '\(store.indexURL.path)', then re-run 'pspm harvest' in active worktrees."
+                    remediation: "Back up and remove '\(store.indexURL.path)', then re-run `pspm harvest` in active worktrees."
                 )
             }
         }
@@ -348,7 +348,7 @@ public struct DoctorDiagnostics: Sendable {
                 name: "Store & Cache Integrity",
                 severity: .warn,
                 summary: "Store '\(store.rootURL.path)' is missing subdirectories: \(missingSubdirs.joined(separator: ", ")).",
-                remediation: "Run 'pspm setup' or 'pspm hydrate' to recreate missing store directories."
+                remediation: "Run `pspm setup` or `pspm hydrate` to recreate missing store directories."
             )
         }
 
@@ -357,7 +357,7 @@ public struct DoctorDiagnostics: Sendable {
                 name: "Store & Cache Integrity",
                 severity: .warn,
                 summary: "Store '\(store.rootURL.path)' is healthy, but compilation cache directory '\(compilationCacheURL.path)' does not exist yet.",
-                remediation: "Run 'pspm setup' to create '\(compilationCacheURL.path)'."
+                remediation: "Run `pspm setup` to create '\(compilationCacheURL.path)'."
             )
         }
 
@@ -429,15 +429,15 @@ public struct DoctorDiagnostics: Sendable {
             return DoctorCheck(
                 name: "puro / fvm Interoperability",
                 severity: .warn,
-                summary: "Detected \(toolsLabel) ahead of '\(shimsDir)' in PATH (\(shadowingDirs.joined(separator: ", "))); 'flutter' commands will bypass the flutter shim.",
-                remediation: "Place '\(shimsDir)' before \(toolsLabel) in PATH. Note: even with 'puro flutter run', '~/.pspm/shims/xcodebuild' still intercepts Xcode/SPM builds."
+                summary: "Detected \(toolsLabel) ahead of '\(shimsDir)' in PATH (\(shadowingDirs.joined(separator: ", "))); `flutter` commands will bypass the flutter shim.",
+                remediation: "Place '\(shimsDir)' before \(toolsLabel) in PATH. Note: even with `puro flutter run`, `~/.pspm/shims/xcodebuild` still intercepts Xcode/SPM builds."
             )
         }
 
         return DoctorCheck(
             name: "puro / fvm Interoperability",
             severity: .pass,
-            summary: "Detected \(toolsLabel) after '\(shimsDir)' in PATH (compatible; note that invoking 'puro flutter ...' directly bypasses the flutter shim, while '~/.pspm/shims/xcodebuild' still caches Apple SPM builds)."
+            summary: "Detected \(toolsLabel) after '\(shimsDir)' in PATH (compatible; note that invoking `puro flutter ...` directly bypasses the flutter shim, while `~/.pspm/shims/xcodebuild` still caches Apple SPM builds)."
         )
     }
 
@@ -467,7 +467,7 @@ public struct DoctorDiagnostics: Sendable {
                     name: "Git Hooks",
                     severity: .warn,
                     summary: "Repository post-checkout hook at '\(status.repo.hookFilePath ?? "")' is not executable (\(repoLabel), \(globalLabel)).",
-                    remediation: "Run 'chmod +x \"\(status.repo.hookFilePath ?? ".git/hooks/post-checkout")\"'."
+                    remediation: "Run `chmod +x \"\(status.repo.hookFilePath ?? ".git/hooks/post-checkout")\"`."
                 )
             }
 
@@ -476,7 +476,7 @@ public struct DoctorDiagnostics: Sendable {
                     name: "Git Hooks",
                     severity: .warn,
                     summary: "Global post-checkout hook at '\(status.global.hookFilePath ?? "")' is not executable (\(repoLabel), \(globalLabel)).",
-                    remediation: "Run 'chmod +x \"\(status.global.hookFilePath ?? "~/.pspm/git-hooks/post-checkout")\"'."
+                    remediation: "Run `chmod +x \"\(status.global.hookFilePath ?? "~/.pspm/git-hooks/post-checkout")\"`."
                 )
             }
 
@@ -492,14 +492,14 @@ public struct DoctorDiagnostics: Sendable {
                 name: "Git Hooks",
                 severity: .pass,
                 summary: "Git post-checkout hooks are inactive by default (\(repoLabel), \(globalLabel)).",
-                remediation: "Optional: run 'pspm hooks enable --global' to pre-warm SourcePackages on 'git worktree add'."
+                remediation: "Optional: run `pspm hooks enable --global` to pre-warm SourcePackages on `git worktree add`."
             )
         } catch {
             return DoctorCheck(
                 name: "Git Hooks",
                 severity: .warn,
                 summary: "Failed to inspect Git hooks: \(error.localizedDescription)",
-                remediation: "Run 'pspm hooks status' to inspect hook files."
+                remediation: "Run `pspm hooks status` to inspect hook files."
             )
         }
     }

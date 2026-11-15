@@ -18,18 +18,20 @@ struct DoctorCommand: ParsableCommand {
             let nameText: String
             switch check.severity {
             case .pass:
-                badge = style.bold(style.green("\(style.successIcon) PASS"))
+                badge = style.successText("[✓ PASS]")
                 nameText = style.bold(check.name)
             case .warn:
-                badge = style.bold(style.yellow("\(style.warningIcon) WARN"))
+                badge = style.warningText("[! WARN]")
                 nameText = style.yellow(style.bold(check.name))
             case .fail:
-                badge = style.bold(style.red("\(style.errorIcon) FAIL"))
+                badge = style.errorText("[✗ FAIL]")
                 nameText = style.red(style.bold(check.name))
             }
-            print("  \(badge) \(nameText): \(check.summary)")
+            let summaryText = style.formatInlineCode(check.summary, baseCodes: [], codeCodes: ["36"])
+            print("  \(badge) \(nameText): \(summaryText)")
             if let remediation = check.remediation {
-                print("         \(style.tip("\(style.infoIcon) \(remediation)"))")
+                let tipBody = style.formatInlineCode(remediation, baseCodes: ["90"], codeCodes: ["90", "1"])
+                print("           \(style.tip("›")) \(tipBody)")
             }
         }
 

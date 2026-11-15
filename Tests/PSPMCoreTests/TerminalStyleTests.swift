@@ -59,5 +59,9 @@ struct TerminalStyleTests {
         let success = style.stepSuccess("Shims", detail: "swift, xcodebuild")
         #expect(success.contains("✓"))
         #expect(success.contains("\u{1B}[1;32m"))
+
+        let inlineTip = style.formatInlineCode("Run `pspm setup` or `pspm hydrate`.", baseCodes: ["90"], codeCodes: ["90", "1"])
+        #expect(inlineTip == "\u{1B}[90mRun \u{1B}[0m\u{1B}[90;1m`pspm setup`\u{1B}[0m\u{1B}[90m or \u{1B}[0m\u{1B}[90;1m`pspm hydrate`\u{1B}[0m\u{1B}[90m.\u{1B}[0m")
+        #expect(TerminalStyle.plain.formatInlineCode("Run `pspm setup`.") == "Run `pspm setup`.")
     }
 }
