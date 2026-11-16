@@ -10,12 +10,15 @@ import { StoreDiagram } from "@/components/StoreDiagram";
 import { TARGETS, diskResult, entries, hydrateHeadline, isSample, machine, results, shimResult } from "@/lib/benchmarks";
 import { formatDuration, formatPercent } from "@/lib/format";
 import { meta, versionBadge } from "@/lib/meta";
+import { pageMetadata } from "@/lib/seo";
 import { REPO_URL, SITE } from "@/lib/site";
 
-export const metadata: Metadata = {
-  title: { absolute: `${SITE.name} — ${SITE.tagline}` },
-  alternates: { canonical: "/" },
-};
+export const metadata: Metadata = pageMetadata({
+  title: `${SITE.name} — ${SITE.tagline}`,
+  description: SITE.metaDescription,
+  path: "/",
+  images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: `${SITE.name}: ${SITE.tagline}` }],
+});
 
 const FAQ: FaqItem[] = [
   {

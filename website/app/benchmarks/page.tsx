@@ -4,13 +4,14 @@ import { BenchBars } from "@/components/BenchBars";
 import { isSample, machine, results, TARGETS } from "@/lib/benchmarks";
 import { formatBytes, formatDuration, formatPercent } from "@/lib/format";
 import { breadcrumbs } from "@/lib/jsonld";
+import { brandTitle, pageMetadata } from "@/lib/seo";
 import { REPO_URL } from "@/lib/site";
 
-export const metadata: Metadata = {
-  title: "Benchmarks",
+export const metadata: Metadata = pageMetadata({
+  title: brandTitle("Benchmarks: worktree clone time and disk use"),
   description: "Methodology, raw data and reproduction steps for every pspm benchmark scenario.",
-  alternates: { canonical: "/benchmarks" },
-};
+  path: "/benchmarks",
+});
 
 export default function BenchmarksPage() {
   const m = results.methodology;
@@ -26,6 +27,9 @@ export default function BenchmarksPage() {
       <p className="mt-5 max-w-2xl text-lead text-ink-muted">
         Every number on this site is read from one JSON file produced by a local, reproducible harness. Scenarios
         that miss their target are published here too; they are just not promoted to a headline.
+      </p>
+      <p className="mt-3 text-sm text-ink-muted">
+        Last measured <time dateTime={results.date}>{results.date.slice(0, 10)}</time> with pspm {results.pspm}.
       </p>
       {isSample ? (
         <p role="note" className="mt-6 max-w-2xl rounded-md border border-warn px-4 py-3 text-warn">

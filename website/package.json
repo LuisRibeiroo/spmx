@@ -9,6 +9,8 @@
     "postinstall": "fumadocs-mdx",
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "node scripts/check-site-url.mjs",
+    "deploy:preview": "SITE_URL=${PREVIEW_URL:-https://preview.pspm-website.pages.dev} npm run build && npm exec --yes --package=wrangler -- wrangler pages deploy out --project-name pspm-website --branch preview",
     "start": "npx serve out -l 3000",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

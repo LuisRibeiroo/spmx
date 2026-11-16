@@ -12,7 +12,7 @@ const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
   title: { default: `${SITE.name} — ${SITE.tagline}`, template: `%s · ${SITE.name}` },
-  description: SITE.description,
+  description: SITE.metaDescription,
   applicationName: SITE.name,
   alternates: { canonical: "/" },
   icons: { icon: "/icon.svg", apple: "/icon.png" },

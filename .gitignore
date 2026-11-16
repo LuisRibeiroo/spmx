@@ -7,6 +7,9 @@ DerivedData/
 .swiftpm/config/package.resolved
 .swiftpm/xcode/package.xcworkspace/xcuserdata/
 
+# SEO audit output (/seo-audit)
+*-audit/
+
 # Editor / IDE
 .vscode/
 .idea/
