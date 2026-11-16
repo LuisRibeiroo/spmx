@@ -36,6 +36,8 @@ public struct HydrateOptions: Sendable {
     public var includePrebuilts: Bool
     public var rewriteWorkspaceState: Bool
     public var registerProject: Bool
+    public var commandTimeout: TimeInterval?
+    public var progressHandler: (@Sendable (String) -> Void)?
     public var verboseLogger: (@Sendable (String) -> Void)?
 
     public init(
@@ -46,6 +48,8 @@ public struct HydrateOptions: Sendable {
         includePrebuilts: Bool = true,
         rewriteWorkspaceState: Bool = true,
         registerProject: Bool = true,
+        commandTimeout: TimeInterval? = CommandExecutor.resolveDefaultTimeout(),
+        progressHandler: (@Sendable (String) -> Void)? = nil,
         verboseLogger: (@Sendable (String) -> Void)? = nil
     ) {
         self.sourcePackagesOverride = sourcePackagesOverride
@@ -55,6 +59,8 @@ public struct HydrateOptions: Sendable {
         self.includePrebuilts = includePrebuilts
         self.rewriteWorkspaceState = rewriteWorkspaceState
         self.registerProject = registerProject
+        self.commandTimeout = commandTimeout
+        self.progressHandler = progressHandler
         self.verboseLogger = verboseLogger
     }
 }
@@ -64,17 +70,23 @@ public struct HarvestOptions: Sendable {
     public var sourcePackagesOverride: String?
     public var overwriteStore: Bool
     public var registerProject: Bool
+    public var commandTimeout: TimeInterval?
+    public var progressHandler: (@Sendable (String) -> Void)?
     public var verboseLogger: (@Sendable (String) -> Void)?
 
     public init(
         sourcePackagesOverride: String? = nil,
         overwriteStore: Bool = false,
         registerProject: Bool = true,
+        commandTimeout: TimeInterval? = CommandExecutor.resolveDefaultTimeout(),
+        progressHandler: (@Sendable (String) -> Void)? = nil,
         verboseLogger: (@Sendable (String) -> Void)? = nil
     ) {
         self.sourcePackagesOverride = sourcePackagesOverride
         self.overwriteStore = overwriteStore
         self.registerProject = registerProject
+        self.commandTimeout = commandTimeout
+        self.progressHandler = progressHandler
         self.verboseLogger = verboseLogger
     }
 }
@@ -85,6 +97,7 @@ public enum SkippedCheckoutReason: String, Sendable, Equatable, Codable {
     case alreadyExists
     case missingRevision
     case notInStore
+    case timedOut
 }
 
 /// Details of a checkout materialized into a project's `SourcePackages/checkouts` (or `.build/checkouts`).

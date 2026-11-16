@@ -10,6 +10,7 @@ public struct MigrationOptions: Sendable {
     public var excludePatterns: [String]
     public var includeGitWorktreeDiscovery: Bool
     public var installRepoHooks: Bool
+    public var commandTimeout: TimeInterval?
     public var verboseLogger: (@Sendable (String) -> Void)?
 
     public init(
@@ -20,6 +21,7 @@ public struct MigrationOptions: Sendable {
         excludePatterns: [String] = [],
         includeGitWorktreeDiscovery: Bool = true,
         installRepoHooks: Bool = false,
+        commandTimeout: TimeInterval? = CommandExecutor.resolveDefaultTimeout(),
         verboseLogger: (@Sendable (String) -> Void)? = nil
     ) {
         self.searchRoots = searchRoots
@@ -29,6 +31,7 @@ public struct MigrationOptions: Sendable {
         self.excludePatterns = excludePatterns
         self.includeGitWorktreeDiscovery = includeGitWorktreeDiscovery
         self.installRepoHooks = installRepoHooks
+        self.commandTimeout = commandTimeout
         self.verboseLogger = verboseLogger
     }
 }
@@ -99,6 +102,7 @@ public enum MigrationProgressEvent: Sendable, Equatable {
     case scanning(root: String)
     case discovered(projectRoot: String, type: ProjectType)
     case processing(projectRoot: String, type: ProjectType)
+    case stage(projectRoot: String, type: ProjectType, detail: String)
     case completed(MigratedProjectOutcome)
 }
 
@@ -214,6 +218,7 @@ public struct MigrationManager: Sendable {
             maxDepth: max(0, options.maxDepth),
             excludePatterns: options.excludePatterns,
             includeGitWorktrees: options.includeGitWorktreeDiscovery,
+            commandTimeout: options.commandTimeout,
             verboseLogger: options.verboseLogger,
             progressObserver: progressObserver
         )
@@ -227,7 +232,8 @@ public struct MigrationManager: Sendable {
             let outcome = processProject(
                 project,
                 options: options,
-                activeCommands: activeCommands
+                activeCommands: activeCommands,
+                progressObserver: progressObserver
             )
             outcomes.append(outcome)
             progressObserver?(.completed(outcome))
@@ -247,6 +253,7 @@ public struct MigrationManager: Sendable {
         maxDepth: Int = 6,
         excludePatterns: [String] = [],
         includeGitWorktrees: Bool = true,
+        commandTimeout: TimeInterval? = CommandExecutor.resolveDefaultTimeout(),
         verboseLogger: (@Sendable (String) -> Void)? = nil,
         progressObserver: (@Sendable (MigrationProgressEvent) -> Void)? = nil
     ) -> [DetectedProject] {
@@ -281,6 +288,8 @@ public struct MigrationManager: Sendable {
             if includeGitWorktrees {
                 collectGitWorktreeRoots(
                     at: rootURL,
+                    commandTimeout: commandTimeout,
+                    verboseLogger: verboseLogger,
                     inspectedGitDirs: &inspectedGitDirs,
                     discoveredWorktrees: &pendingGitWorktreeRoots
                 )
@@ -316,6 +325,8 @@ public struct MigrationManager: Sendable {
                     if includeGitWorktrees {
                         collectGitWorktreeRoots(
                             at: itemURL.deletingLastPathComponent(),
+                            commandTimeout: commandTimeout,
+                            verboseLogger: verboseLogger,
                             inspectedGitDirs: &inspectedGitDirs,
                             discoveredWorktrees: &pendingGitWorktreeRoots
                         )
@@ -348,6 +359,8 @@ public struct MigrationManager: Sendable {
                 if includeGitWorktrees, fileManager.fileExists(atPath: itemURL.appendingPathComponent(".git").path) {
                     collectGitWorktreeRoots(
                         at: itemURL,
+                        commandTimeout: commandTimeout,
+                        verboseLogger: verboseLogger,
                         inspectedGitDirs: &inspectedGitDirs,
                         discoveredWorktrees: &pendingGitWorktreeRoots
                     )
@@ -386,7 +399,8 @@ public struct MigrationManager: Sendable {
     private func processProject(
         _ project: DetectedProject,
         options: MigrationOptions,
-        activeCommands: [String]
+        activeCommands: [String],
+        progressObserver: (@Sendable (MigrationProgressEvent) -> Void)? = nil
     ) -> MigratedProjectOutcome {
         let targets = expandedTargets(for: project)
         var targetAndSPPairs: [(target: DetectedProject, spURL: URL)] = []
@@ -400,6 +414,7 @@ public struct MigrationManager: Sendable {
         }
         let resolvedSourcePackagesURLs = targetAndSPPairs.map(\.spURL)
 
+        progressObserver?(.stage(projectRoot: project.rootPath, type: project.type, detail: "measuring cache size"))
         let existingCacheBytes = resolvedSourcePackagesURLs.reduce(UInt64(0)) { total, url in
             total + cacheSubdirectoriesSizeBytes(at: url)
         }
@@ -455,16 +470,27 @@ public struct MigrationManager: Sendable {
         var estimatedReclaimed: UInt64 = 0
         var warningNotes: [String] = []
 
+        let stageReporter: (@Sendable (String) -> Void)? = progressObserver.map { observer in
+            let rootPath = project.rootPath
+            let projectType = project.type
+            return { detail in
+                observer(.stage(projectRoot: rootPath, type: projectType, detail: detail))
+            }
+        }
+
         for (target, spURL) in targetAndSPPairs {
             guard cacheSubdirectoriesSizeBytes(at: spURL) > 0 else {
                 continue
             }
 
             do {
+                stageReporter?("harvesting cache")
                 let harvestResult = try syncEngine.harvest(
                     project: target,
                     options: HarvestOptions(
                         sourcePackagesOverride: spURL.path,
+                        commandTimeout: options.commandTimeout,
+                        progressHandler: stageReporter,
                         verboseLogger: options.verboseLogger
                     )
                 )
@@ -474,6 +500,7 @@ public struct MigrationManager: Sendable {
 
                 if options.deduplicate,
                    (target.packageResolvedPath ?? target.allPackageResolvedPaths.first) != nil {
+                    stageReporter?("deduplicating via CoW")
                     let dedupResult = try syncEngine.hydrate(
                         project: target,
                         options: HydrateOptions(
@@ -482,6 +509,8 @@ public struct MigrationManager: Sendable {
                             deduplicateCleanEntries: true,
                             rewriteWorkspaceState: false,
                             registerProject: false,
+                            commandTimeout: options.commandTimeout,
+                            progressHandler: stageReporter,
                             verboseLogger: options.verboseLogger
                         )
                     )
@@ -489,7 +518,12 @@ public struct MigrationManager: Sendable {
                     deduplicatedArtifacts += dedupResult.hydratedArtifacts.count
                     deduplicatedPrebuilts += dedupResult.hydratedPrebuilts.count
                     skippedModified += dedupResult.skippedCheckouts.filter { $0.reason == .locallyModified }.count
+                    let timedOutCheckouts = dedupResult.skippedCheckouts.filter { $0.reason == .timedOut }
+                    if !timedOutCheckouts.isEmpty {
+                        warningNotes.append("git status timed out for \(timedOutCheckouts.count) checkout(s)")
+                    }
 
+                    stageReporter?("calculating reclaimed space")
                     for item in dedupResult.hydratedCheckouts {
                         estimatedReclaimed += DiagnosticsSupport.directorySizeBytes(at: item.destinationURL, fileManager: fileManager)
                     }
@@ -508,7 +542,11 @@ public struct MigrationManager: Sendable {
 
         var recordedFlutter = false
         if project.type == .flutter {
-            let integrator = FlutterSPMIntegrator(store: store)
+            stageReporter?("caching Flutter Package.resolved")
+            let integrator = FlutterSPMIntegrator(
+                store: store,
+                commandRunner: ProcessFlutterCommandRunner(timeout: options.commandTimeout)
+            )
             if integrator.isFlutterSPMProject(project),
                let recorded = try? integrator.recordResolvedDependencies(project: project),
                !recorded.isEmpty {
@@ -519,7 +557,11 @@ public struct MigrationManager: Sendable {
         var installedHook = false
         if options.installRepoHooks,
            fileManager.fileExists(atPath: URL(fileURLWithPath: project.rootPath).appendingPathComponent(".git").path) {
-            let hooksManager = GitHooksManager(homeDirectory: homeDirectory)
+            stageReporter?("installing repo Git hook")
+            let hooksManager = GitHooksManager(
+                gitRunner: SystemGitRunner(timeout: options.commandTimeout),
+                homeDirectory: homeDirectory
+            )
             if (try? hooksManager.enable(scope: .repo, workingDirectory: project.rootPath)) != nil {
                 installedHook = true
             }
@@ -637,33 +679,38 @@ public struct MigrationManager: Sendable {
 
     private func collectGitWorktreeRoots(
         at repositoryDirectory: URL,
+        commandTimeout: TimeInterval?,
+        verboseLogger: (@Sendable (String) -> Void)?,
         inspectedGitDirs: inout Set<String>,
         discoveredWorktrees: inout [String]
     ) {
         let resolvedRepo = repositoryDirectory.standardizedFileURL.resolvingSymlinksInPath().path
         guard inspectedGitDirs.insert(resolvedRepo).inserted else { return }
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["-C", resolvedRepo, "worktree", "list", "--porcelain"]
-        let stdoutPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = Pipe()
+        var env = ProcessInfo.processInfo.environment
+        if env["GIT_TERMINAL_PROMPT"] == nil {
+            env["GIT_TERMINAL_PROMPT"] = "0"
+        }
 
         do {
-            try process.run()
-            let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0,
-                  let output = String(data: data, encoding: .utf8) else {
-                return
-            }
-            for line in output.split(separator: "\n") where line.hasPrefix("worktree ") {
+            let result = try CommandExecutor.run(
+                executablePath: "/usr/bin/git",
+                arguments: ["-C", resolvedRepo, "worktree", "list", "--porcelain"],
+                environment: env,
+                timeout: commandTimeout
+            )
+            guard result.exitCode == 0 else { return }
+            for line in result.stdout.split(separator: "\n") where line.hasPrefix("worktree ") {
                 let path = String(line.dropFirst("worktree ".count)).trimmingCharacters(in: .whitespacesAndNewlines)
                 if !path.isEmpty {
                     discoveredWorktrees.append(path)
                 }
             }
+        } catch let error as CommandExecutionError {
+            if case .timedOut(_, _, let seconds) = error {
+                verboseLogger?("Warning: git worktree discovery timed out after \(Int(seconds))s at '\(resolvedRepo)'")
+            }
+            return
         } catch {
             return
         }
@@ -695,22 +742,13 @@ public struct MigrationManager: Sendable {
     }
 
     public static func defaultActiveCommands() -> [String] {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/ps")
-        process.arguments = ["-ax", "-o", "command="]
-        let stdoutPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = Pipe()
-
         do {
-            try process.run()
-            let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0,
-                  let text = String(data: data, encoding: .utf8) else {
-                return []
-            }
-            return text.split(separator: "\n").map(String.init)
+            let result = try CommandExecutor.run(
+                executablePath: "/bin/ps",
+                arguments: ["-ax", "-o", "command="]
+            )
+            guard result.exitCode == 0 else { return [] }
+            return result.stdout.split(separator: "\n").map(String.init)
         } catch {
             return []
         }

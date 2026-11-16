@@ -204,25 +204,15 @@ public struct DefaultCompilationCacheProbe: CompilationCacheProbing, Sendable {
     }
 
     public static let defaultRunner: CommandRunner = { executablePath, arguments, environment in
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = arguments
-        process.environment = environment
-
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        try process.run()
-        let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-
+        let result = try CommandExecutor.run(
+            executablePath: executablePath,
+            arguments: arguments,
+            environment: environment
+        )
         return CommandResult(
-            exitCode: process.terminationStatus,
-            stdout: String(data: stdoutData, encoding: .utf8) ?? "",
-            stderr: String(data: stderrData, encoding: .utf8) ?? ""
+            exitCode: result.exitCode,
+            stdout: result.stdout,
+            stderr: result.stderr
         )
     }
 }

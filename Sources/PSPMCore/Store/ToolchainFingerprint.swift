@@ -84,31 +84,16 @@ public struct ToolchainFingerprint: Codable, Equatable, Hashable, Sendable {
         return String(hex.prefix(max(1, length)))
     }
 
-    /// Default command runner executing tools via `Foundation.Process`.
+    /// Default command runner executing tools via ``CommandExecutor`` with an execution timeout.
     public static let defaultCommandRunner: CommandRunner = { executable, arguments in
-        let process = Process()
-        if executable.hasPrefix("/") {
-            process.executableURL = URL(fileURLWithPath: executable)
-            process.arguments = arguments
-        } else {
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-            process.arguments = [executable] + arguments
-        }
-
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        try process.run()
-        let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-
+        let result = try CommandExecutor.run(
+            executablePath: executable,
+            arguments: arguments
+        )
         return CommandResult(
-            exitCode: process.terminationStatus,
-            stdout: String(data: stdoutData, encoding: .utf8) ?? "",
-            stderr: String(data: stderrData, encoding: .utf8) ?? ""
+            exitCode: result.exitCode,
+            stdout: result.stdout,
+            stderr: result.stderr
         )
     }
 

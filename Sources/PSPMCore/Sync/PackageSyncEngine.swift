@@ -202,8 +202,10 @@ public struct PackageSyncEngine: Sendable {
         var hydratedCheckouts: [HydratedCheckout] = []
         var skippedCheckouts: [SkippedCheckout] = []
 
-        for pin in resolved.pins {
+        let verb = options.deduplicateCleanEntries ? "deduplicating" : "hydrating"
+        for (pinIndex, pin) in resolved.pins.enumerated() {
             let identity = pin.identity.lowercased()
+            options.progressHandler?("\(verb) checkout \(pinIndex + 1)/\(resolved.pins.count) (\(identity))")
             guard let revision = pin.revision, !revision.isEmpty else {
                 skippedCheckouts.append(SkippedCheckout(
                     identity: identity,
@@ -231,9 +233,17 @@ public struct PackageSyncEngine: Sendable {
             if itemExists(at: destinationURL) {
                 let isEmpty = isDirectoryEmpty(at: destinationURL)
                 if !isEmpty && !options.force {
-                    let isDirty = isGitWorkingTreeDirty(at: destinationURL)
-                    if !options.deduplicateCleanEntries || isDirty {
-                        let reason: SkippedCheckoutReason = isDirty ? .locallyModified : .alreadyExists
+                    let treeStatus = checkGitWorkingTree(
+                        at: destinationURL,
+                        timeout: options.commandTimeout,
+                        verboseLogger: options.verboseLogger
+                    )
+                    if !options.deduplicateCleanEntries || treeStatus != .clean {
+                        let reason: SkippedCheckoutReason = switch treeStatus {
+                        case .dirty: .locallyModified
+                        case .timedOut: .timedOut
+                        case .clean: .alreadyExists
+                        }
                         options.verboseLogger?("Preserving existing checkout '\(folderName)' (\(reason.rawValue))")
                         skippedCheckouts.append(SkippedCheckout(
                             identity: identity,
@@ -273,7 +283,8 @@ public struct PackageSyncEngine: Sendable {
                 packageTemplates: packageTemplatesByIdentity
             )
 
-            for artifact in candidateArtifacts {
+            for (artifactIndex, artifact) in candidateArtifacts.enumerated() {
+                options.progressHandler?("\(verb) artifact \(artifactIndex + 1)/\(candidateArtifacts.count) (\(artifact.targetName))")
                 let destinationURL = sourcePackagesURL
                     .appendingPathComponent("artifacts")
                     .appendingPathComponent(artifact.relativeSubpath)
@@ -328,7 +339,8 @@ public struct PackageSyncEngine: Sendable {
                 workspaceTemplate: workspaceTemplate
             )
 
-            for prebuilt in candidatePrebuilts {
+            for (prebuiltIndex, prebuilt) in candidatePrebuilts.enumerated() {
+                options.progressHandler?("\(verb) prebuilt \(prebuiltIndex + 1)/\(candidatePrebuilts.count) (\(prebuilt.identity))")
                 let destinationURL = sourcePackagesURL
                     .appendingPathComponent("prebuilts")
                     .appendingPathComponent(prebuilt.relativeSubpath)
@@ -498,8 +510,10 @@ public struct PackageSyncEngine: Sendable {
                 options: [.skipsHiddenFiles]
             )) ?? []
 
-            for entryURL in entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            let sortedEntries = entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent })
+            for (entryIndex, entryURL) in sortedEntries.enumerated() {
                 let name = entryURL.lastPathComponent
+                options.progressHandler?("harvesting checkout \(entryIndex + 1)/\(sortedEntries.count) (\(name))")
                 if name.hasSuffix(".partial") {
                     skippedItems.append(SkippedHarvestItem(
                         kind: "checkout",
@@ -578,6 +592,7 @@ public struct PackageSyncEngine: Sendable {
             for (index, artifact) in workspaceState.artifacts.enumerated() {
                 let identity = artifact.packageRef.identity.lowercased()
                 let identifier = "\(identity)/\(artifact.targetName)"
+                options.progressHandler?("harvesting artifact \(index + 1)/\(workspaceState.artifacts.count) (\(artifact.targetName))")
 
                 guard let checksum = artifact.checksum, !checksum.isEmpty else {
                     options.verboseLogger?("Ignoring artifact '\(identifier)': missing checksum")
@@ -661,6 +676,7 @@ public struct PackageSyncEngine: Sendable {
 
             for (index, prebuilt) in workspaceState.prebuilts.enumerated() {
                 let identity = prebuilt.identity.lowercased()
+                options.progressHandler?("harvesting prebuilt \(index + 1)/\(workspaceState.prebuilts.count) (\(identity))")
                 let hasRevision = prebuilt.checkoutState?.revision?.isEmpty == false
                 let hasChecksum = prebuilt.checksum?.isEmpty == false
                 guard hasRevision || hasChecksum,
@@ -743,6 +759,7 @@ public struct PackageSyncEngine: Sendable {
         }
 
         // 4. Save per-package templates and sanitized workspace-state template
+        options.progressHandler?("saving workspace templates")
         var savedTemplateURL: URL?
 
         if let workspaceState, let rawWorkspaceRoot {
@@ -1617,26 +1634,43 @@ public struct PackageSyncEngine: Sendable {
         return false
     }
 
-    private func isGitWorkingTreeDirty(at directoryURL: URL) -> Bool {
+    private enum GitWorkingTreeStatus {
+        case clean
+        case dirty
+        case timedOut
+    }
+
+    private func checkGitWorkingTree(
+        at directoryURL: URL,
+        timeout: TimeInterval?,
+        verboseLogger: (@Sendable (String) -> Void)?
+    ) -> GitWorkingTreeStatus {
         let gitPath = directoryURL.appendingPathComponent(".git").path
         guard fileManager.fileExists(atPath: gitPath) else {
-            return false
+            return .clean
         }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["-C", directoryURL.path, "status", "--porcelain"]
-        let stdoutPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = Pipe()
+        var env = ProcessInfo.processInfo.environment
+        if env["GIT_TERMINAL_PROMPT"] == nil {
+            env["GIT_TERMINAL_PROMPT"] = "0"
+        }
         do {
-            try process.run()
-            let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return false }
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            return !output.isEmpty
+            let result = try CommandExecutor.run(
+                executablePath: "/usr/bin/git",
+                arguments: ["-C", directoryURL.path, "status", "--porcelain"],
+                environment: env,
+                timeout: timeout
+            )
+            guard result.exitCode == 0 else { return .clean }
+            let output = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            return output.isEmpty ? .clean : .dirty
+        } catch let error as CommandExecutionError {
+            if case .timedOut(_, _, let seconds) = error {
+                verboseLogger?("Warning: git status timed out after \(Int(seconds))s at '\(directoryURL.path)' — preserving checkout")
+                return .timedOut
+            }
+            return .clean
         } catch {
-            return false
+            return .clean
         }
     }
 

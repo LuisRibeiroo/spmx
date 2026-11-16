@@ -140,9 +140,14 @@ public protocol FlutterCommandRunning: Sendable {
     ) throws -> CommandResult
 }
 
-/// Default `Foundation.Process` runner for `flutter` CLI invocations.
+/// Default runner for `flutter` CLI invocations backed by ``CommandExecutor``.
+/// Resets the execution timeout whenever `flutter` emits stdout or stderr activity.
 public struct ProcessFlutterCommandRunner: FlutterCommandRunning, Sendable {
-    public init() {}
+    public let timeout: TimeInterval?
+
+    public init(timeout: TimeInterval? = CommandExecutor.resolveDefaultTimeout()) {
+        self.timeout = timeout
+    }
 
     public func run(
         executablePath: String,
@@ -150,26 +155,18 @@ public struct ProcessFlutterCommandRunner: FlutterCommandRunning, Sendable {
         workingDirectory: String,
         environment: [String: String]
     ) throws -> CommandResult {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = arguments
-        process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
-        process.environment = environment
-
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        try process.run()
-        let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-
+        let result = try CommandExecutor.run(
+            executablePath: executablePath,
+            arguments: arguments,
+            workingDirectory: workingDirectory,
+            environment: environment,
+            timeout: timeout,
+            resetTimeoutOnOutput: true
+        )
         return CommandResult(
-            exitCode: process.terminationStatus,
-            stdout: String(data: stdoutData, encoding: .utf8) ?? "",
-            stderr: String(data: stderrData, encoding: .utf8) ?? ""
+            exitCode: result.exitCode,
+            stdout: result.stdout,
+            stderr: result.stderr
         )
     }
 }

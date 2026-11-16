@@ -226,15 +226,22 @@ struct MigrationManagerTests {
         #expect(dryReport.totalExistingCacheBytes >= 4096)
         #expect(dryReport.totalEstimatedReclaimedBytes == dryReport.totalExistingCacheBytes)
 
+        let recordedStages = LockedStageList()
         let applyReport = try manager.migrate(options: MigrationOptions(
             searchRoots: [root.path],
             dryRun: false,
             deduplicate: true
-        ))
+        )) { event in
+            if case .stage(_, _, let detail) = event {
+                recordedStages.append(detail)
+            }
+        }
         #expect(applyReport.projectsWithExistingCacheCount == 1)
         #expect(applyReport.totalHarvestedItemsCount == 1)
         #expect(applyReport.totalDeduplicatedItemsCount == 1)
         #expect(store.hasCheckout(identity: "firebase-ios-sdk", revision: "revflutter1"))
+        #expect(recordedStages.containsSubstring("harvesting checkout 1/1"))
+        #expect(recordedStages.containsSubstring("deduplicating checkout 1/1"))
     }
 
     // MARK: - Helpers
@@ -362,5 +369,22 @@ struct MigrationManagerTests {
         try process.run()
         process.waitUntilExit()
         #expect(process.terminationStatus == 0)
+    }
+}
+
+private final class LockedStageList: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stages: [String] = []
+
+    func append(_ value: String) {
+        lock.lock()
+        stages.append(value)
+        lock.unlock()
+    }
+
+    func containsSubstring(_ needle: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return stages.contains { $0.contains(needle) }
     }
 }

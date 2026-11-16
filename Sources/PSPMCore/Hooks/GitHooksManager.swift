@@ -40,32 +40,30 @@ public protocol GitCommandRunning: Sendable {
     func runGit(arguments: [String], workingDirectory: String?) throws -> GitCommandResult
 }
 
-/// Default `GitCommandRunning` implementation backed by `Process` invoking `git`.
+/// Default `GitCommandRunning` implementation backed by ``CommandExecutor`` invoking `git`.
 public struct SystemGitRunner: GitCommandRunning {
-    public init() {}
+    public let timeout: TimeInterval?
+
+    public init(timeout: TimeInterval? = CommandExecutor.resolveDefaultTimeout()) {
+        self.timeout = timeout
+    }
 
     public func runGit(arguments: [String], workingDirectory: String?) throws -> GitCommandResult {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["git"] + arguments
-        if let workingDirectory {
-            process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory)
+        var env = ProcessInfo.processInfo.environment
+        if env["GIT_TERMINAL_PROMPT"] == nil {
+            env["GIT_TERMINAL_PROMPT"] = "0"
         }
-
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        try process.run()
-        let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-
+        let result = try CommandExecutor.run(
+            executablePath: "git",
+            arguments: arguments,
+            workingDirectory: workingDirectory,
+            environment: env,
+            timeout: timeout
+        )
         return GitCommandResult(
-            exitCode: process.terminationStatus,
-            stdout: String(data: stdoutData, encoding: .utf8) ?? "",
-            stderr: String(data: stderrData, encoding: .utf8) ?? ""
+            exitCode: result.exitCode,
+            stdout: result.stdout,
+            stderr: result.stderr
         )
     }
 }
