@@ -64,6 +64,7 @@ Regras:
 
 - **Proxy Binary Cache (`.xcframework` estilo `xccache`) no `FlutterGeneratedPluginSwiftPackage`:** Mantido fora da v1 devido aos riscos de ciclo de vida com `flutter_tools` (`ephemeral/`), acoplamento de slices do `Flutter.xcframework`, quebra de `Bundle.module`/`PrivacyInfo.xcprivacy` e símbolos duplicados; será avaliado na v2 apenas caso o Cache de Compilação LLVM CAS nativo da v1 não seja suficiente.
 - **Suporte Linux / `pspm open`:** Extensão opcional para Linux (`FICLONE`/hardlinks) e comando dedicado para abrir Xcode GUI pré-hidratado.
+- **Comando de instalação curto, sem o nome do usuário (site):** Servir o instalador pelo próprio site (`curl -fsSL https://<domínio>/install | sh`) em vez da URL `raw.githubusercontent.com/<usuário>/pspm/...`. O build do `website/` copiaria `scripts/install.sh` para `public/` e a landing/docs passariam a usar `SITE_URL` no comando (com fallback para a URL do GitHub quando a variável não estiver definida). Depende da definição do domínio (Open Question #1 de [prd-site.md](./prd-site.md)). Para o Homebrew, remover o nome do usuário exige uma organização no GitHub com repositório `homebrew-tap` (`brew install <org>/tap/pspm`) ou a entrada no `homebrew-core`, que exige notoriedade do projeto.
 
 ---
 
