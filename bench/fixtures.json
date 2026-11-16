@@ -1,0 +1,36 @@
+{
+  "fixtures": [
+    {
+      "id": "swift-macros",
+      "description": "Native Swift package with macros: swift-syntax and friends (prebuilts)",
+      "type": "swiftpm",
+      "repo": "https://github.com/pointfreeco/swift-composable-architecture.git",
+      "commit": "5b0890fabfd68a2d375d68502bc3f54a8548c494",
+      "tag": "1.23.1",
+      "subpath": ".",
+      "build": true
+    },
+    {
+      "id": "swiftpm-binary-sdk",
+      "description": "Heavy binary SDK through SwiftPM: Firebase (XCFramework artifacts)",
+      "type": "swiftpm",
+      "repo": "https://github.com/firebase/firebase-ios-sdk.git",
+      "commit": "793b67f4652e1a39d03fab6650033768afe6d15e",
+      "tag": "12.5.0",
+      "subpath": ".",
+      "build": false
+    },
+    {
+      "id": "flutter-firebase",
+      "description": "Flutter + SwiftPM with Firebase plugins (FlutterFire example app)",
+      "type": "flutter",
+      "repo": "https://github.com/firebase/flutterfire.git",
+      "commit": "d070e3698b6ddf1c0cb05104ab16f7af1c5661a6",
+      "tag": "firebase_core-v4.9.0",
+      "subpath": "packages/firebase_core/firebase_core/example",
+      "workspace": "ios/Runner.xcworkspace",
+      "scheme": "Runner",
+      "build": false
+    }
+  ]
+}
