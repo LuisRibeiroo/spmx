@@ -1,0 +1,13 @@
+{
+  "title": "pspm",
+  "pages": [
+    "index",
+    "getting-started",
+    "concepts",
+    "commands",
+    "guides",
+    "troubleshooting",
+    "faq",
+    "changelog"
+  ]
+}

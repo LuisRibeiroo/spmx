@@ -1,0 +1,34 @@
+---
+title: AI agents and parallel worktrees
+description: Give every coding agent its own worktree without paying for its own copy of every package.
+---
+
+Agents work best in isolation: one worktree per task, so edits and builds never collide. The cost has always been the setup, since every worktree re-resolves and re-downloads its packages.
+
+```bash
+pspm hooks enable --global
+for n in 1 2 3; do git worktree add ../agent-$n; done
+```
+
+Each worktree is hydrated from the store at creation time and shares disk blocks with the others.
+
+## Why it is safe in parallel
+
+- Writes to the store take a per-package `flock` and use atomic staging, so concurrent `hydrate` and `harvest` calls cannot corrupt an entry.
+- Worktrees get clones, not links. An agent editing a file in its worktree allocates new blocks only for that file and never changes the store or a sibling.
+- `hydrate` never overwrites a checkout modified in the worktree unless `--force` is given.
+
+## Reading these docs from an agent
+
+- [`/llms.txt`](/llms.txt) lists every page with a one-line description.
+- [`/llms-full.txt`](/llms-full.txt) is the whole documentation as one Markdown file.
+- Every page has a **Copy as Markdown** button.
+
+## Cleaning up
+
+When agent worktrees are removed, their packages become unreferenced:
+
+```bash
+git worktree remove ../agent-1
+pspm store prune --dry-run
+```

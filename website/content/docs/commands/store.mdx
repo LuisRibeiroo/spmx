@@ -1,0 +1,44 @@
+---
+title: pspm store
+description: Inspect and manage the global store and the compilation cache.
+---
+
+```bash
+pspm store path
+pspm store status        # default subcommand
+pspm store prune [--dry-run] [--older-than <days>]
+```
+
+## `store path`
+
+Prints the absolute path of the store (`~/.pspm/store`, or `PSPM_STORE_DIR`).
+
+## `store status`
+
+Lists checkouts, artifacts and prebuilts (prebuilts grouped by toolchain), the logical store size, the compilation cache location and size, how many projects are registered, and an estimate of the space copy-on-write saves.
+
+```text
+Global Store Status
+  Store path:         ~/.pspm/store
+  Checkouts:          1 (1.9 MB)
+  Artifacts:          0 (Zero bytes)
+  Prebuilts:          0 (Zero bytes)
+  Logical store size: 1.9 MB
+  Compilation cache:  ~/.pspm/compilation-cache (Zero bytes)
+  Registered projects: 2 total (2 active, 0 missing on disk)
+  Est. CoW savings:   3.8 MB
+```
+
+## `store prune`
+
+Drops registered projects whose folders no longer exist, deletes packages no active project references, and trims old compilation-cache files.
+
+| Option | Description |
+| :--- | :--- |
+| `--dry-run` | show what would be removed without deleting |
+| `--older-than <days>` | only remove unreferenced entries and cache files older than this. Default 30 |
+
+```bash
+pspm store prune --dry-run
+pspm store prune --older-than 7
+```

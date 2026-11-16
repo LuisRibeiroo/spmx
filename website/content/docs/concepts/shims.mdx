@@ -1,0 +1,33 @@
+---
+title: Shims
+description: How flutter, xcodebuild and swift are intercepted without changing your workflow.
+---
+
+After `pspm setup`, `~/.pspm/shims` contains `flutter`, `xcodebuild` and `swift`, all symlinks to one multicall binary. When it starts, it looks at the name it was invoked as and behaves accordingly, the way BusyBox and puro do.
+
+## Finding the real tool
+
+A shim removes `~/.pspm/shims` from `PATH` and runs the next matching executable. That keeps it compatible with puro, fvm, asdf, mise, xcodes and `/usr/bin/xcodebuild`. Exit codes, stdin, stdout and stderr, including TTY colors, pass through unchanged.
+
+## What each shim does
+
+| Shim | Acts on | Before | After |
+| :--- | :--- | :--- | :--- |
+| `flutter` | `run`, `build` and `test` for Apple platforms, and `pub get` | ensures the ephemeral SwiftPM package exists, hydrates the Runner workspace | harvests new packages |
+| `xcodebuild` | `-resolvePackageDependencies`, `build`, `archive`, `test` | hydrates `SourcePackages` unless you passed `-clonedSourcePackagesDirPath`; enables the compilation cache | harvests |
+| `swift` | `build`, `test`, `run`, `package resolve` with a `Package.swift` | hydrates `.build` | harvests |
+
+Every other subcommand, such as `flutter --version` or `swift --version`, is passed straight through.
+
+When `flutter` runs `xcodebuild` internally, it sets `PSPM_FLUTTER_SHIM_ACTIVE=1` so the `xcodebuild` shim skips a second hydration.
+
+## Switches
+
+| Variable | Effect |
+| :--- | :--- |
+| `PSPM_DISABLE=1` | bypass every shim |
+| `PSPM_NO_COMPILE_CACHE=1` | keep hydration, skip the compilation cache |
+| `PSPM_VERBOSE=1` | print what the shim is doing to stderr |
+| `PSPM_STORE_DIR` | move the store |
+| `PSPM_COMPILATION_CACHE_DIR` | move the compilation cache |
+| `PSPM_SHIMS_DIR` | move the shims directory |

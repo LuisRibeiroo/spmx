@@ -1,0 +1,39 @@
+---
+title: pspm hooks
+description: Opt in to a Git post-checkout hook that hydrates worktrees as they are created.
+---
+
+```bash
+pspm hooks enable  [--global | --repo] [--async]
+pspm hooks disable [--global | --repo]
+pspm hooks status  [--global | --repo]   # default subcommand
+```
+
+Hooks are **off by default**. pspm never touches `core.hooksPath` or `.git/hooks` without this command.
+
+## What the hook does
+
+On a fresh checkout (`git worktree add` or a first checkout of a branch) in a Flutter or Swift project, it runs `pspm hydrate --quiet`. That is what makes a new worktree ready before Xcode's GUI opens it, which shims alone cannot do.
+
+pspm writes a delimited block, `# >>> pspm hook >>>` to `# <<< pspm hook <<<`, and preserves any hook that was already there (Lefthook, Husky, hand-written). If `core.hooksPath` is already set it chains rather than replaces.
+
+## Options
+
+| Option | Applies to | Description |
+| :--- | :--- | :--- |
+| `--global` | enable, disable, status | use the global Git hooks configuration |
+| `--repo` | enable, disable, status | use the current repository. Default inside a Git repo |
+| `--async` | enable | run `pspm hydrate` in the background during checkout |
+
+`--global` and `--repo` cannot be combined on `enable`.
+
+## Examples
+
+```bash
+pspm hooks enable --global
+pspm hooks enable --repo --async
+pspm hooks status
+pspm hooks disable --global
+```
+
+`disable` removes only pspm's block and leaves other hooks intact.

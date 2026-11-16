@@ -1,0 +1,34 @@
+---
+title: Flutter with SwiftPM
+description: Use pspm in Flutter projects that build their iOS or macOS plugins through Swift Package Manager.
+---
+
+Flutter generates an ephemeral Swift package, `FlutterGeneratedPluginSwiftPackage`, that pulls in your plugins' native dependencies. Each new worktree needs it regenerated and resolved before Xcode can build.
+
+With the `flutter` shim active, `flutter run` and `flutter build ios` (or `macos`) do this for you:
+
+1. If `ios/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Package.swift` is missing, the shim runs `flutter pub get` with the real Flutter binary first.
+2. It hydrates the `SourcePackages` of `Runner.xcworkspace` from the store, and restores a compatible `Package.resolved` when the worktree has none.
+3. It runs the real `flutter`, which calls `xcodebuild`. The `xcodebuild` shim sees `PSPM_FLUTTER_SHIM_ACTIVE=1` and does not hydrate a second time.
+4. After the build, new packages are harvested into the store.
+
+Both the `ios/` and `macos/` targets are supported.
+
+```bash
+git worktree add ../app-feature
+cd ../app-feature
+flutter run
+pspm status ios/Runner.xcworkspace   # how many pins were already cached
+```
+
+<Callout type="info" title="Projects that still use CocoaPods">
+  pspm caches Swift Package Manager dependencies. A project that uses only a `Podfile` has nothing for it to manage in `Pods/`.
+</Callout>
+
+## Flutter CLI build folders
+
+The Flutter CLI can also keep a SourcePackages cache under `build/<platform>/SourcePackages`. pspm handles that location too, so `flutter build` and `flutter run` share the store the same way Xcode does.
+
+## puro and fvm
+
+`puro flutter ...` invokes the Flutter SDK directly and bypasses the `flutter` shim, although the `xcodebuild` shim still applies. Run plain `flutter` to get the full behavior. `pspm doctor` reports how your setup resolves.

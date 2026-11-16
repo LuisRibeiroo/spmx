@@ -1,0 +1,35 @@
+---
+title: pspm harvest
+description: Store resolved checkouts, artifacts and prebuilts from SourcePackages (or .build) into the global store.
+---
+
+```bash
+pspm harvest [<path>] [--project <project>] [--workspace <workspace>]
+             [--source-packages <dir>] [--quiet] [--verbose]
+```
+
+Inspects `checkouts`, `artifacts`, `prebuilts` and `workspace-state.json` after Xcode or SwiftPM ran. Every complete package (full revision or checksum, no `.partial` marker) that the store does not have yet is cloned into it under a file lock, with the active toolchain fingerprint for prebuilts. The project is registered in `index.json` so `prune` knows it is in use.
+
+## Arguments and options
+
+| Name | Description |
+| :--- | :--- |
+| `<path>` | project directory, `.xcworkspace`, `.xcodeproj` or `Package.swift`. Defaults to the current directory |
+| `--project <project>` | explicit `.xcodeproj`, `Package.swift` or project directory |
+| `--workspace <workspace>` | explicit `.xcworkspace` |
+| `--source-packages <dir>` | override the source `SourcePackages` (or `.build`) directory |
+| `-q`, `--quiet` | suppress standard output |
+| `-v`, `--verbose` | print detailed diagnostics |
+
+## Example
+
+```text
+$ pspm harvest
+pspm harvest [swiftPackage]
+Scope: ~/dev/app
+  Source: ~/dev/app/.build
+
+Progress: checkouts 1, artifacts 0, prebuilts 0
+
+Done in 0.4s
+```

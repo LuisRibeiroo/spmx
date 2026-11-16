@@ -1,0 +1,41 @@
+---
+title: pspm hydrate
+description: Populate SourcePackages (or .build) from the global store using APFS clones. Also available as pspm install.
+---
+
+```bash
+pspm hydrate [<path>] [--project <project>] [--workspace <workspace>]
+             [--source-packages <dir>] [--force] [--quiet] [--verbose]
+pspm install ...   # alias
+```
+
+Reads `Package.resolved`, and for every pin found in the store clones its checkout, artifacts and toolchain-compatible prebuilts into the project's `SourcePackages` (Xcode and Flutter) or `.build` (SwiftPM). It then rewrites `workspace-state.json` so absolute paths point at this worktree.
+
+A checkout you modified by hand is left alone unless you pass `--force`.
+
+## Arguments and options
+
+| Name | Description |
+| :--- | :--- |
+| `<path>` | project directory, `.xcworkspace`, `.xcodeproj` or `Package.swift`. Defaults to the current directory |
+| `--project <project>` | explicit `.xcodeproj`, `Package.swift` or project directory |
+| `--workspace <workspace>` | explicit `.xcworkspace` |
+| `--source-packages <dir>` | override the target `SourcePackages` (or `.build`) directory |
+| `--force` | overwrite existing checkouts, artifacts and prebuilts even if modified |
+| `-q`, `--quiet` | suppress standard output |
+| `-v`, `--verbose` | print per-package diagnostics, including whether each clone used APFS |
+
+## Example
+
+```text
+$ pspm hydrate
+pspm hydrate [swiftPackage]
+Scope: ~/dev/app-feature
+  Target: ~/dev/app-feature/.build
+
+Progress: checkouts 1 cloned, 0 skipped, artifacts 0, prebuilts 0, workspace-state updated
+
+Done in 0.4s
+```
+
+Shims call this for you. Run it by hand to pre-warm a worktree, or from the [Git hook](/docs/commands/hooks).

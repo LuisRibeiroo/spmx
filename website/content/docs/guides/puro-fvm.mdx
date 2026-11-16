@@ -1,0 +1,24 @@
+---
+title: puro and fvm
+description: How pspm coexists with Flutter version managers.
+---
+
+A shim finds the real tool by removing `~/.pspm/shims` from `PATH` and running the next match. That works with puro, fvm, asdf, mise and xcodes without configuration.
+
+## Order matters
+
+`~/.pspm/shims` must come before the directory that holds your `flutter`, `xcodebuild` and `swift`. `pspm setup` puts it first, and `pspm doctor` verifies it.
+
+## puro
+
+`puro flutter ...` runs the SDK directly, so it bypasses the `flutter` shim. The `xcodebuild` shim still applies to the builds it triggers, so Apple Swift package builds are still cached. Use plain `flutter` (with puro's environment on `PATH`) for the full behavior. `pspm doctor` reports whether it detected puro after the shims.
+
+## fvm
+
+Put fvm's active SDK `bin` directory on `PATH` after `~/.pspm/shims`, or run `fvm flutter` knowing it takes the same direct route as puro. 
+
+## Bypassing
+
+```bash
+PSPM_DISABLE=1 flutter run
+```

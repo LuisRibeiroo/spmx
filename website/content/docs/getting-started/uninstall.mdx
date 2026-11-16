@@ -1,0 +1,24 @@
+---
+title: Uninstall
+description: Remove pspm, its shims and its PATH entries, with or without the cached packages.
+---
+
+```bash
+pspm uninstall
+```
+
+This removes the shims, the pspm binary and the PATH lines that `pspm setup` added to your shell profile. It asks for confirmation first; pass `--yes` to skip the prompt.
+
+To also delete cached packages and the compilation cache:
+
+```bash
+pspm uninstall --purge
+```
+
+`--purge` removes `~/.pspm/store` and `~/.pspm/compilation-cache`. Your worktrees are not touched: their `SourcePackages` are real files, not links into the store, so they keep working.
+
+<Callout type="info">
+  If you enabled Git hooks, run `pspm hooks disable --global` (and `--repo` in any repository where you enabled them) before uninstalling.
+</Callout>
+
+See the [`uninstall` reference](/docs/commands/uninstall).

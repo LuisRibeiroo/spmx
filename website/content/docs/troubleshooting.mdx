@@ -1,0 +1,56 @@
+---
+title: Troubleshooting
+description: Fixes for the most common problems, starting with pspm doctor.
+---
+
+Start with the diagnosis:
+
+```bash
+pspm doctor
+```
+
+## The shims do nothing
+
+`pspm doctor` shows the **PATH Shims Ordering** check. `~/.pspm/shims` has to come before `flutter`, `xcodebuild` and `swift`:
+
+```bash
+export PATH="$HOME/.pspm/shims:$HOME/.pspm/bin:$PATH"
+```
+
+Open a new shell afterwards. Check with `which flutter`; it should point into `~/.pspm/shims`.
+
+## Packages are copied, not cloned
+
+The **APFS Filesystem** check failed: the store and the worktree are on different volumes, or the volume is not APFS. Move the store with `PSPM_STORE_DIR` to the same volume as your projects. Run `pspm hydrate --verbose` to see which method each package used.
+
+## A new worktree still downloads everything
+
+The store has nothing for those pins yet. Build once in any worktree so the shim can harvest, or run `pspm migrate <dir> --apply` to import existing caches. `pspm status` shows how many pins are cached.
+
+## The Xcode app does not benefit
+
+Xcode ignores your shell `PATH`. Enable the hook so worktrees are hydrated at creation:
+
+```bash
+pspm hooks enable --global
+```
+
+## My checkout changes were not replaced
+
+By design: `hydrate` never overwrites a checkout you modified. Pass `--force` to replace it.
+
+## Skip pspm for one command
+
+```bash
+PSPM_DISABLE=1 xcodebuild ...
+PSPM_NO_COMPILE_CACHE=1 xcodebuild ...
+PSPM_VERBOSE=1 flutter run          # print what the shim is doing
+```
+
+## The store is large
+
+```bash
+pspm store status
+pspm store prune --dry-run
+pspm store prune --older-than 7
+```

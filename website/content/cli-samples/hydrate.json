@@ -1,0 +1,18 @@
+{
+  "_comment": "Captured from `pspm hydrate` (TTY, spinner frames omitted) on a small SwiftPM project. Paths shortened. Re-capture when the CLI output format changes.",
+  "command": "pspm hydrate",
+  "cliVersion": "0.1.0",
+  "lines": [
+    [{ "t": "pspm hydrate", "c": "accent", "b": true }, { "t": " [swiftPackage]", "c": "muted" }],
+    [{ "t": "Scope:", "c": "muted" }, { "t": " ~/dev/app-feature" }],
+    [{ "t": "  Target:", "c": "muted" }, { "t": " ~/dev/app-feature/.build" }],
+    [],
+    [
+      { "t": "Progress:", "c": "muted" }, { "t": " checkouts " }, { "t": "1", "c": "accent", "b": true }, { "t": " cloned", "c": "muted" },
+      { "t": ", 0 skipped", "c": "muted" }, { "t": ", artifacts " }, { "t": "0", "c": "accent", "b": true },
+      { "t": ", prebuilts " }, { "t": "0", "c": "accent", "b": true }, { "t": ", workspace-state " }, { "t": "updated", "c": "muted" }
+    ],
+    [],
+    [{ "t": "Done", "c": "ok" }, { "t": " in 0.4s", "c": "muted" }]
+  ]
+}

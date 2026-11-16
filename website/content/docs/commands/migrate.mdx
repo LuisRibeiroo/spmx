@@ -1,0 +1,41 @@
+---
+title: pspm migrate
+description: Scan folders for existing projects and move their SwiftPM caches into the global store.
+---
+
+```bash
+pspm migrate [<path>] [--home] [--apply] [--dry-run] [--no-deduplicate]
+             [--harvest-only] [--install-hooks] [--max-depth <n>]
+             [--exclude <pattern> ...] [--verbose] [--quiet]
+```
+
+Finds Flutter, Xcode and SwiftPM projects and Git worktrees under a directory, harvests their packages into the store and, by default, replaces their clean `SourcePackages` or `.build` entries with copy-on-write clones.
+
+<Callout type="info" title="Dry run by default">
+  Without `--apply`, nothing changes: you get a preview of what was found and the estimated savings.
+</Callout>
+
+## Arguments and options
+
+| Name | Description |
+| :--- | :--- |
+| `<path>` | directory to scan. Defaults to the current directory |
+| `--home`, `--all` | scan your home directory |
+| `--apply`, `--execute`, `--no-dry-run` | apply the migration |
+| `--dry-run` | preview only (default) |
+| `--deduplicate` / `--no-deduplicate` | replace clean entries with clones after harvesting. On by default |
+| `--harvest-only` | harvest into the store without deduplicating projects |
+| `--install-hooks` | install repo-local post-checkout hooks in discovered Git repositories |
+| `--max-depth <n>` | maximum traversal depth. Default 6 |
+| `--exclude <pattern>` | skip directory names, path substrings or globs. Repeatable |
+| `-v`, `--verbose` | print details for every scanned path |
+| `-q`, `--quiet` | suppress normal output |
+
+## Examples
+
+```bash
+pspm migrate ~/dev                      # preview
+pspm migrate ~/dev --apply              # harvest and deduplicate
+pspm migrate ~/dev --apply --harvest-only
+pspm migrate --home --exclude node_modules --exclude Archive
+```

@@ -1,0 +1,25 @@
+---
+title: pspm setup
+description: Create ~/.pspm, link the shims and add them to your shell profile.
+---
+
+```bash
+pspm setup [--no-modify-path]
+```
+
+Creates the `~/.pspm` directories, symlinks `flutter`, `xcodebuild` and `swift` into `~/.pspm/shims`, and adds the shims and binary directories to your `PATH` in the detected shell profile (`~/.zshrc`, `~/.bashrc` or `~/.config/fish/config.fish`). It is idempotent: running it again changes nothing.
+
+## Options
+
+| Option | Description |
+| :--- | :--- |
+| `--no-modify-path` | do not edit any shell profile file |
+
+## Examples
+
+```bash
+pspm setup
+pspm setup --no-modify-path   # then export PATH yourself
+```
+
+Related: [Shims](/docs/concepts/shims), [Installation](/docs/getting-started/installation).

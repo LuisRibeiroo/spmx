@@ -1,0 +1,26 @@
+---
+title: APFS clonefile
+description: Why pspm clones with copy-on-write instead of copying or symlinking.
+---
+
+`clonefile()` is an APFS system call that creates a new file or directory whose contents share the same physical blocks as the source. Nothing is copied until one side is modified; then only the changed blocks are allocated.
+
+## Why not symlinks
+
+Xcode and Flutter tooling often fail on symlinks inside `SourcePackages/artifacts`: XCFramework signature validation, `xcodebuild` sandboxing and relative paths in `workspace-state.json` all assume real files. A clone looks like a normal directory tree, so none of that breaks.
+
+## Why not plain copies
+
+A plain copy duplicates every byte. With heavy binary SDKs, a handful of worktrees can cost gigabytes. A clone costs only metadata.
+
+## Fallback
+
+If `clonefile()` fails because the volume is not APFS (`ENOTSUP`) or the store and the worktree are on different volumes (`EXDEV`), pspm falls back to a regular recursive copy and mentions it with `--verbose`. Everything still works; you just lose the disk savings.
+
+## Measuring the cost
+
+`du` reports the logical size of a clone, so it overstates the real cost. To see physical usage, compare free space on the volume before and after, which is how the [benchmarks](/benchmarks) measure disk.
+
+```bash
+pspm store status   # includes an estimate of copy-on-write savings
+```

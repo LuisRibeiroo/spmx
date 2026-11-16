@@ -1,0 +1,47 @@
+---
+title: Quick start
+description: The whole workflow as one commented cheat sheet.
+---
+
+```bash
+# 1. One-time setup: directories, shims, PATH
+pspm setup
+
+# 2. Check that APFS, Xcode, PATH order and the store are healthy
+pspm doctor
+
+# 3. Optional: hydrate every new worktree the moment it is created
+pspm hooks enable --global
+
+# 4. Use Git worktrees the way you always did
+git worktree add ../app-feature
+cd ../app-feature
+
+# 5. Build. The shim hydrates SourcePackages first, harvests new packages after
+flutter run            # Flutter + SwiftPM
+xcodebuild -scheme App build   # native Xcode
+swift build            # SwiftPM CLI
+
+# Inspect what pspm knows about this project
+pspm status
+
+# See what the store holds and how much it saves
+pspm store status
+
+# Already have worktrees full of downloaded packages? Preview, then apply
+pspm migrate ~/dev
+pspm migrate ~/dev --apply
+
+# Reclaim space from packages no worktree uses any more
+pspm store prune --dry-run
+pspm store prune
+
+# Bypass pspm for one command
+PSPM_DISABLE=1 flutter run
+```
+
+## Where to go next
+
+- [How the global store works](/docs/concepts/global-store)
+- [Flutter with SwiftPM](/docs/guides/flutter-spm)
+- [Commands reference](/docs/commands/setup)

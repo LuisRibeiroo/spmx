@@ -1,0 +1,15 @@
+{
+  "title": "Commands",
+  "pages": [
+    "setup",
+    "hydrate",
+    "harvest",
+    "migrate",
+    "store",
+    "status",
+    "doctor",
+    "hooks",
+    "derived-data-path",
+    "uninstall"
+  ]
+}

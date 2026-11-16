@@ -1,0 +1,338 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+@source "../node_modules/fumadocs-ui/dist/**/*.js";
+
+/* ------------------------------------------------------------------ *
+ * Design tokens (OKLCH). Light values live in @theme; the `.dark`
+ * class re-declares them. The accent hue is pulled from the pspm icon
+ * (#ea6a38, ~H 40) — pnpm sits near H 60.
+ * Contrast is verified by `node scripts/check-contrast.mjs`.
+ * ------------------------------------------------------------------ */
+@theme {
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  --color-paper: oklch(0.995 0.003 85);
+  --color-paper-2: oklch(0.972 0.006 85);
+  --color-ink: oklch(0.2 0.01 60);
+  --color-ink-muted: oklch(0.44 0.012 60);
+  --color-accent: oklch(0.68 0.17 40);
+  --color-on-accent: oklch(0.18 0.02 40);
+  --color-accent-text: oklch(0.5 0.17 38);
+  --color-surface-warm: oklch(0.962 0.04 90);
+  --color-line: oklch(0.9 0.008 80);
+  --color-line-strong: oklch(0.62 0.01 80);
+  --color-ok: oklch(0.46 0.12 150);
+  --color-warn: oklch(0.5 0.12 75);
+  --color-err: oklch(0.5 0.19 25);
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-24: 6rem;
+  --space-32: 8rem;
+
+  --text-hero: clamp(2.25rem, 1.3rem + 4vw, 4rem);
+  --text-hero--line-height: 1.05;
+  --text-h2: clamp(1.625rem, 1.2rem + 1.6vw, 2.5rem);
+  --text-h2--line-height: 1.15;
+  --text-lead: 1.1875rem;
+  --text-lead--line-height: 1.55;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-draw: 1400ms;
+}
+
+.dark {
+  --color-paper: oklch(0.175 0.004 60);
+  --color-paper-2: oklch(0.215 0.005 60);
+  --color-ink: oklch(0.96 0.008 85);
+  --color-ink-muted: oklch(0.74 0.01 75);
+  --color-accent: oklch(0.72 0.16 42);
+  --color-on-accent: oklch(0.17 0.02 40);
+  --color-accent-text: oklch(0.8 0.14 52);
+  --color-surface-warm: oklch(0.225 0.03 85);
+  --color-line: oklch(0.3 0.008 60);
+  --color-line-strong: oklch(0.56 0.01 60);
+  --color-ok: oklch(0.78 0.14 150);
+  --color-warn: oklch(0.82 0.13 80);
+  --color-err: oklch(0.76 0.15 25);
+}
+
+/* Fumadocs reads its own variables; map them onto our tokens. */
+:root,
+.dark {
+  --color-fd-background: var(--color-paper);
+  --color-fd-foreground: var(--color-ink);
+  --color-fd-muted: var(--color-paper-2);
+  --color-fd-muted-foreground: var(--color-ink-muted);
+  --color-fd-popover: var(--color-paper);
+  --color-fd-popover-foreground: var(--color-ink);
+  --color-fd-card: var(--color-paper-2);
+  --color-fd-card-foreground: var(--color-ink);
+  --color-fd-border: var(--color-line);
+  --color-fd-primary: var(--color-accent-text);
+  --color-fd-primary-foreground: var(--color-paper);
+  --color-fd-secondary: var(--color-paper-2);
+  --color-fd-secondary-foreground: var(--color-ink);
+  --color-fd-accent: var(--color-surface-warm);
+  --color-fd-accent-foreground: var(--color-ink);
+  --color-fd-ring: var(--color-accent-text);
+}
+
+html,
+body {
+  overflow-x: clip;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-style: normal;
+  text-wrap: balance;
+}
+
+p,
+li {
+  text-wrap: pretty;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: color-mix(in oklch, var(--color-accent) 40%, transparent);
+}
+
+/* ---------------------------------------------------------------- *
+ * Layout helpers
+ * ---------------------------------------------------------------- */
+.container-page {
+  width: 100%;
+  max-width: 1080px;
+  margin-inline: auto;
+  padding-inline: max(1rem, env(safe-area-inset-left));
+}
+
+.band-warm {
+  background: var(--color-surface-warm);
+  border-block: 1px solid var(--color-line);
+}
+
+.hero-glow {
+  background:
+    radial-gradient(
+      60rem 28rem at 78% -8%,
+      color-mix(in oklch, var(--color-accent) 22%, transparent),
+      transparent 70%
+    );
+}
+
+/* Signature: pixel grid divider (echoes the pixel-art icon). */
+.pixel-rule {
+  height: 8px;
+  background-image:
+    linear-gradient(90deg, var(--color-line-strong) 4px, transparent 4px),
+    linear-gradient(90deg, var(--color-accent) 4px, transparent 4px);
+  background-size: 16px 4px, 16px 4px;
+  background-position: 0 0, 8px 4px;
+  background-repeat: repeat-x;
+  opacity: 0.55;
+}
+
+.pixelated {
+  image-rendering: pixelated;
+}
+
+/* ---------------------------------------------------------------- *
+ * Buttons — default, hover, focus-visible, active, disabled
+ * ---------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line-strong);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--color-ink);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.btn:hover {
+  background: var(--color-paper-2);
+  border-color: var(--color-ink-muted);
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+.btn-primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+.btn-primary:hover {
+  background: color-mix(in oklch, var(--color-accent) 88%, white);
+  border-color: color-mix(in oklch, var(--color-accent) 88%, white);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 1.75rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-line-strong);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-ink-muted);
+  white-space: nowrap;
+}
+a.chip {
+  transition: border-color var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out);
+}
+a.chip:hover {
+  color: var(--color-ink);
+  border-color: var(--color-ink-muted);
+}
+
+.link {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--dur-base) var(--ease-out);
+}
+.link:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* Code blocks outside MDX: real <pre>, hairline border, no fake chrome. */
+.codeblock {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.65;
+  background: var(--color-paper-2);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  overflow-x: auto;
+  white-space: pre;
+  tab-size: 2;
+}
+.codeblock .c-muted {
+  color: var(--color-ink-muted);
+}
+.codeblock .c-ok {
+  color: var(--color-ok);
+}
+.codeblock .c-accent {
+  color: var(--color-accent-text);
+}
+
+/* ---------------------------------------------------------------- *
+ * Motion (max 3 primitives): diagram draw, copy feedback, one reveal.
+ * ---------------------------------------------------------------- */
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.reveal {
+  animation: reveal 600ms var(--ease-out) both;
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.diagram-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw var(--dur-draw) var(--ease-out) 200ms forwards;
+}
+.diagram-label {
+  animation: reveal 500ms var(--ease-out) 900ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .diagram-label {
+    animation: none;
+  }
+  .diagram-line {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .btn,
+  a.chip,
+  .link {
+    transition: none;
+  }
+}
+
+/* No-JS: tabs fall back to showing every panel. */
+.faq details > summary {
+  list-style: none;
+}
+.faq details > summary::-webkit-details-marker {
+  display: none;
+}
+.faq details[open] .faq-plus {
+  transform: rotate(45deg);
+}
+.faq-plus {
+  transition: transform var(--dur-base) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .faq-plus {
+    transition: none;
+  }
+}

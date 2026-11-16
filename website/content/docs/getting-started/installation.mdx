@@ -1,0 +1,47 @@
+---
+title: Installation
+description: Install pspm with Homebrew or a one-line script, then run setup.
+---
+
+pspm runs on macOS, on Apple Silicon and Intel. It is a single universal binary with no runtime dependencies.
+
+<Tabs items={["Homebrew", "curl"]}>
+  <Tab value="Homebrew">
+    ```bash
+    brew install LuisRibeiroo/tap/pspm
+    pspm setup
+    ```
+  </Tab>
+  <Tab value="curl">
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/LuisRibeiroo/pspm/main/scripts/install.sh | sh
+    ```
+    The script detects your architecture, downloads the release archive, verifies its SHA-256 checksum, installs the binary to `~/.pspm/bin/pspm` and runs `pspm setup` for you.
+  </Tab>
+</Tabs>
+
+<Callout type="warn" title="Homebrew tap">
+  The formula template lives in the repository at `Formula/pspm.rb`. The tap and the first release are not published yet, so use the curl installer until they are.
+</Callout>
+
+## What `pspm setup` does
+
+1. Creates `~/.pspm` with `store`, `compilation-cache`, `bin` and `shims` directories.
+2. Links `flutter`, `xcodebuild` and `swift` in `~/.pspm/shims` to the pspm binary.
+3. Adds `~/.pspm/shims` and `~/.pspm/bin` to your `PATH` in `~/.zshrc`, `~/.bashrc` or `~/.config/fish/config.fish`, once and idempotently.
+
+Pass `--no-modify-path` to skip step 3 and add the line yourself:
+
+```bash
+export PATH="$HOME/.pspm/shims:$HOME/.pspm/bin:$PATH"
+```
+
+Open a new shell, then confirm everything is in order:
+
+```bash
+pspm doctor
+```
+
+<Callout type="info">
+  Git hooks stay **off** after installation. See [`pspm hooks`](/docs/commands/hooks) to opt in.
+</Callout>

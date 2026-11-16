@@ -1,0 +1,34 @@
+---
+title: pspm status
+description: Inspect project detection, DerivedData and SourcePackages paths, cached pins and the compilation cache.
+---
+
+```bash
+pspm status [<path>] [--project <project>] [--workspace <workspace>]
+```
+
+Run it inside a project to see how pspm understands it and how much of `Package.resolved` the store already has.
+
+## Arguments and options
+
+| Name | Description |
+| :--- | :--- |
+| `<path>` | project directory, `.xcworkspace`, `.xcodeproj` or `Package.swift`. Defaults to the current directory |
+| `--project <project>` | explicit `.xcodeproj`, `Package.swift` or project directory |
+| `--workspace <workspace>` | explicit `.xcworkspace` |
+
+## Example
+
+```text
+$ pspm status
+Project Status
+  Project type:       swiftPackage
+  Root path:          ~/dev/app
+  Swift version:      Apple Swift version 6.4.2
+  Xcode version:      Xcode 27.2 / Build version 27B52
+  Toolchain hash:     54083f489f59ce9c
+  SourcePackages:     ~/dev/app/.build
+  Package.resolved:   ~/dev/app/Package.resolved
+  Cached pins:        ✓ 1/1 (0 missing)
+  Compilation cache:  ✓ enabled at ~/.pspm/compilation-cache
+```
