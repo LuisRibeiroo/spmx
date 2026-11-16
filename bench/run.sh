@@ -1,5 +1,5 @@
 #!/bin/bash
-# pspm benchmark harness. Measures pspm against vanilla SwiftPM/Xcode with hyperfine and
+# spmx benchmark harness. Measures spmx against vanilla SwiftPM/Xcode with hyperfine and
 # writes bench/results/<date>-<chip>.json plus bench/results/latest.json (schema 1).
 #
 #   ./run.sh                       all scenarios, all fixtures
@@ -7,7 +7,7 @@
 #   ./run.sh --scenario S3         one scenario (S1..S6)
 #   ./run.sh --fixture swift-macros   restrict to one fixture id from fixtures.json
 #
-# Env: PSPM_BIN (default: .build/release/pspm), BENCH_RUNS (10), BENCH_WARMUP (1),
+# Env: SPMX_BIN (default: .build/release/spmx), BENCH_RUNS (10), BENCH_WARMUP (1),
 #      BENCH_RUNS_S5 (50), BENCH_KEEP=1 (keep the temp directory for debugging)
 set -euo pipefail
 
@@ -33,14 +33,14 @@ command -v hyperfine >/dev/null 2>&1 || die "hyperfine is not installed. Install
 [ -x /usr/bin/python3 ] || die "/usr/bin/python3 is required (install the Xcode command line tools: xcode-select --install)"
 command -v git >/dev/null 2>&1 || die "git is required"
 command -v xcrun >/dev/null 2>&1 || die "Xcode command line tools are required (xcode-select --install)"
-[ "$(uname -s)" = "Darwin" ] || die "pspm benchmarks run on macOS only"
+[ "$(uname -s)" = "Darwin" ] || die "spmx benchmarks run on macOS only"
 
-PSPM_BIN="${PSPM_BIN:-$ROOT/.build/release/pspm}"
-if [ ! -x "$PSPM_BIN" ]; then
-  PSPM_BIN="$(command -v pspm 2>/dev/null || true)"
+SPMX_BIN="${SPMX_BIN:-$ROOT/.build/release/spmx}"
+if [ ! -x "$SPMX_BIN" ]; then
+  SPMX_BIN="$(command -v spmx 2>/dev/null || true)"
 fi
-[ -n "$PSPM_BIN" ] && [ -x "$PSPM_BIN" ] || die "pspm binary not found. Build it with: swift build -c release  (or set PSPM_BIN)"
-export PSPM_BIN
+[ -n "$SPMX_BIN" ] && [ -x "$SPMX_BIN" ] || die "spmx binary not found. Build it with: swift build -c release  (or set SPMX_BIN)"
+export SPMX_BIN
 
 RUNS="${BENCH_RUNS:-10}"; WARMUP="${BENCH_WARMUP:-1}"; RUNS_S5="${BENCH_RUNS_S5:-50}"
 
@@ -49,18 +49,18 @@ if [ -n "$ONLY_SCENARIO" ]; then
 elif [ "$QUICK" = 1 ]; then SCENARIOS="S3 S5"
 else SCENARIOS="S1 S2 S3 S4 S5 S6"; fi
 
-# Real tools must be reachable without the user's own pspm shims in the way.
-PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v '/\.pspm/shims' | paste -sd: -)"
+# Real tools must be reachable without the user's own spmx shims in the way.
+PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v '/\.spmx/shims' | paste -sd: -)"
 export PATH
 SWIFT_BIN="$(xcrun --find swift)"
 
 # shellcheck source=lib/disk.sh
 . "$HERE/lib/disk.sh"
 
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/pspm-bench.XXXXXX")"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/spmx-bench.XXXXXX")"
 RESULTS_TMP="$WORK/results"; mkdir -p "$RESULTS_TMP" "$WORK/repos"
 SHIMS="$WORK/shims"; mkdir -p "$SHIMS"
-for tool in swift xcodebuild flutter; do ln -sf "$PSPM_BIN" "$SHIMS/$tool"; done
+for tool in swift xcodebuild flutter; do ln -sf "$SPMX_BIN" "$SHIMS/$tool"; done
 MOUNTS=""
 
 cleanup() {
@@ -87,16 +87,16 @@ setup_fixture_env() { # sets F_* globals for fixture $1 and a worktree dir $2
   F_BUILD="$(fx "$1" build)"; WT="$2"
 }
 
-native_resolve_cmd() { # baseline: vanilla toolchain, pspm disabled
+native_resolve_cmd() { # baseline: vanilla toolchain, spmx disabled
   if [ "$F_TYPE" = swiftpm ]; then
-    echo "cd '$WT/$F_SUB' && PSPM_DISABLE=1 '$SWIFT_BIN' package resolve --cache-path '$BENCH_SPM_CACHE' >/dev/null 2>&1"
+    echo "cd '$WT/$F_SUB' && SPMX_DISABLE=1 '$SWIFT_BIN' package resolve --cache-path '$BENCH_SPM_CACHE' >/dev/null 2>&1"
   else
-    echo "cd '$WT/$F_SUB' && PSPM_DISABLE=1 xcodebuild -resolvePackageDependencies -workspace '$F_WS' -scheme '$F_SCHEME' -derivedDataPath '$WT/DerivedData' >/dev/null 2>&1"
+    echo "cd '$WT/$F_SUB' && SPMX_DISABLE=1 xcodebuild -resolvePackageDependencies -workspace '$F_WS' -scheme '$F_SCHEME' -derivedDataPath '$WT/DerivedData' >/dev/null 2>&1"
   fi
 }
 
-shim_resolve_cmd() { # pspm: same command through the shim (hydrates, runs, harvests)
-  local env="PSPM_STORE_DIR='$BENCH_STORE' PSPM_SHIMS_DIR='$SHIMS' PATH='$SHIMS':\"\$PATH\""
+shim_resolve_cmd() { # spmx: same command through the shim (hydrates, runs, harvests)
+  local env="SPMX_STORE_DIR='$BENCH_STORE' SPMX_SHIMS_DIR='$SHIMS' PATH='$SHIMS':\"\$PATH\""
   if [ "$F_TYPE" = swiftpm ]; then
     echo "cd '$WT/$F_SUB' && $env swift package resolve --cache-path '$BENCH_SPM_CACHE' >/dev/null 2>&1"
   else
@@ -104,24 +104,24 @@ shim_resolve_cmd() { # pspm: same command through the shim (hydrates, runs, harv
   fi
 }
 
-hydrate_cmd() { # pspm hydrate, store warm
+hydrate_cmd() { # spmx hydrate, store warm
   if [ "$F_TYPE" = swiftpm ]; then
-    echo "PSPM_STORE_DIR='$BENCH_STORE' '$PSPM_BIN' hydrate '$WT/$F_SUB' --quiet"
+    echo "SPMX_STORE_DIR='$BENCH_STORE' '$SPMX_BIN' hydrate '$WT/$F_SUB' --quiet"
   else
-    echo "PSPM_STORE_DIR='$BENCH_STORE' '$PSPM_BIN' hydrate '$WT/$F_SUB' --workspace '$WT/$F_SUB/$F_WS' --source-packages '$WT/DerivedData/SourcePackages' --quiet"
+    echo "SPMX_STORE_DIR='$BENCH_STORE' '$SPMX_BIN' hydrate '$WT/$F_SUB' --workspace '$WT/$F_SUB/$F_WS' --source-packages '$WT/DerivedData/SourcePackages' --quiet"
   fi
 }
 
 harvest_cmd() {
   if [ "$F_TYPE" = swiftpm ]; then
-    echo "PSPM_STORE_DIR='$BENCH_STORE' '$PSPM_BIN' harvest '$WT/$F_SUB' --quiet"
+    echo "SPMX_STORE_DIR='$BENCH_STORE' '$SPMX_BIN' harvest '$WT/$F_SUB' --quiet"
   else
-    echo "PSPM_STORE_DIR='$BENCH_STORE' '$PSPM_BIN' harvest '$WT/$F_SUB' --workspace '$WT/$F_SUB/$F_WS' --source-packages '$WT/DerivedData/SourcePackages' --quiet"
+    echo "SPMX_STORE_DIR='$BENCH_STORE' '$SPMX_BIN' harvest '$WT/$F_SUB' --workspace '$WT/$F_SUB/$F_WS' --source-packages '$WT/DerivedData/SourcePackages' --quiet"
   fi
 }
 
 flutter_bootstrap() { # flutter fixtures need pub get before Xcode can resolve
-  if [ "$F_TYPE" = flutter ]; then (cd "$WT/$F_SUB" && PSPM_DISABLE=1 flutter pub get >/dev/null 2>&1) || die "flutter pub get failed for $F_ID"; fi
+  if [ "$F_TYPE" = flutter ]; then (cd "$WT/$F_SUB" && SPMX_DISABLE=1 flutter pub get >/dev/null 2>&1) || die "flutter pub get failed for $F_ID"; fi
 }
 
 new_worktree() { # <repo> <dir> <commit>
@@ -137,10 +137,10 @@ hf_prepared() { # same, with the reset.sh prepare hook
 export_bench_env() { # <scenario> <mode> <repo> <commit>
   export BENCH_SCENARIO="$1" BENCH_MODE="$2" BENCH_REPO="$3" BENCH_COMMIT="$4" BENCH_WT="$WORK/wt"
   export BENCH_SPM_CACHE="$WORK/spm-cache" BENCH_STORE="$WORK/store" BENCH_CC="$WORK/compilation-cache"
-  export PSPM_COMPILATION_CACHE_DIR="$BENCH_CC"
+  export SPMX_COMPILATION_CACHE_DIR="$BENCH_CC"
 }
 
-prime_native_cache() { # warm the SwiftPM cache and (optionally) the pspm store with a primer worktree
+prime_native_cache() { # warm the SwiftPM cache and (optionally) the spmx store with a primer worktree
   local repo="$1" commit="$2" with_store="$3"
   mkdir -p "$BENCH_SPM_CACHE" "$BENCH_STORE"
   WT="$WORK/primer"; new_worktree "$repo" "$WT" "$commit"; flutter_bootstrap
@@ -155,8 +155,8 @@ run_network_scenario() { # S1|S2
   WT="$WORK/wt"; export_bench_env "$sid" baseline "$repo" "$commit"
   [ "$sid" = S2 ] && { prime_native_cache "$repo" "$commit" 0; WT="$WORK/wt"; }
   hf_prepared "$RESULTS_TMP/${sid}__${id}__baseline.json" "$id baseline" "$(native_resolve_cmd)"
-  export_bench_env "$sid" pspm "$repo" "$commit"
-  hf_prepared "$RESULTS_TMP/${sid}__${id}__pspm.json" "$id pspm" "$(shim_resolve_cmd)"
+  export_bench_env "$sid" spmx "$repo" "$commit"
+  hf_prepared "$RESULTS_TMP/${sid}__${id}__spmx.json" "$id spmx" "$(shim_resolve_cmd)"
 }
 
 run_s3() {
@@ -165,19 +165,19 @@ run_s3() {
   export_bench_env S3 baseline "$repo" "$commit"
   prime_native_cache "$repo" "$commit" 1; WT="$WORK/wt"
   hf_prepared "$RESULTS_TMP/S3__${id}__baseline.json" "$id native resolve" "$(native_resolve_cmd)"
-  export_bench_env S3 pspm "$repo" "$commit"
-  hf_prepared "$RESULTS_TMP/S3__${id}__pspm.json" "$id pspm hydrate" "$(hydrate_cmd)"
+  export_bench_env S3 spmx "$repo" "$commit"
+  hf_prepared "$RESULTS_TMP/S3__${id}__spmx.json" "$id spmx hydrate" "$(hydrate_cmd)"
 }
 
 run_s4() {
   local id="$1" n=5 commit; commit="$(fx "$id" commit)"
-  local mode result_baseline=0 result_pspm=0
-  for mode in baseline pspm; do
+  local mode result_baseline=0 result_spmx=0
+  for mode in baseline spmx; do
     local image="$WORK/disk-$mode" mnt
     mnt="$(disk_create "$image" 60g)"; [ -n "$mnt" ] || die "could not create APFS test volume"
     MOUNTS="$MOUNTS $image|$mnt"
     local repo="$mnt/repo"; clone_fixture "$id" "$repo"
-    export BENCH_SPM_CACHE="$mnt/spm-cache" BENCH_STORE="$mnt/store" PSPM_COMPILATION_CACHE_DIR="$mnt/cc"
+    export BENCH_SPM_CACHE="$mnt/spm-cache" BENCH_STORE="$mnt/store" SPMX_COMPILATION_CACHE_DIR="$mnt/cc"
     mkdir -p "$BENCH_SPM_CACHE" "$BENCH_STORE"
     local total=0 i
     for i in $(seq 1 "$n"); do
@@ -186,17 +186,17 @@ run_s4() {
       before="$(disk_free_bytes "$mnt")"
       if [ "$i" = 1 ]; then
         eval "$(native_resolve_cmd)" || die "native resolve failed (S4 $id)"
-        [ "$mode" = pspm ] && { eval "$(harvest_cmd)" || die "harvest failed (S4 $id)"; }
+        [ "$mode" = spmx ] && { eval "$(harvest_cmd)" || die "harvest failed (S4 $id)"; }
       elif [ "$mode" = baseline ]; then eval "$(native_resolve_cmd)" || die "native resolve failed (S4 $id)"
       else eval "$(hydrate_cmd)" || die "hydrate failed (S4 $id)"; fi
       after="$(disk_free_bytes "$mnt")"
       [ "$i" -gt 1 ] && total=$(( total + before - after ))
     done
     local avg=$(( total / (n - 1) ))
-    if [ "$mode" = baseline ]; then result_baseline="$avg"; else result_pspm="$avg"; fi
+    if [ "$mode" = baseline ]; then result_baseline="$avg"; else result_spmx="$avg"; fi
     disk_destroy "$image" "$mnt"; MOUNTS="${MOUNTS/ $image|$mnt/}"
   done
-  printf '{"worktrees": %s, "baseline": %s, "pspm": %s}\n' "$n" "$result_baseline" "$result_pspm" > "$RESULTS_TMP/S4__${id}.json"
+  printf '{"worktrees": %s, "baseline": %s, "spmx": %s}\n' "$n" "$result_baseline" "$result_spmx" > "$RESULTS_TMP/S4__${id}.json"
 }
 
 run_s5() {
@@ -205,9 +205,9 @@ run_s5() {
   for t in $tools; do
     real="$(command -v "$t")"
     echo "bench: S5 $t: direct $real vs shim $SHIMS/$t" >&2
-    export PSPM_SHIMS_DIR="$SHIMS"
+    export SPMX_SHIMS_DIR="$SHIMS"
     hyperfine -N --warmup 3 --runs "$RUNS_S5" --export-json "$RESULTS_TMP/S5__shim-$t-version__baseline.json" --command-name "$t direct" "$real --version" >&2
-    hyperfine -N --warmup 3 --runs "$RUNS_S5" --export-json "$RESULTS_TMP/S5__shim-$t-version__pspm.json" --command-name "$t shim" "$SHIMS/$t --version" >&2
+    hyperfine -N --warmup 3 --runs "$RUNS_S5" --export-json "$RESULTS_TMP/S5__shim-$t-version__spmx.json" --command-name "$t shim" "$SHIMS/$t --version" >&2
   done
 }
 
@@ -219,12 +219,12 @@ run_s6() {
   mkdir -p "$BENCH_SPM_CACHE" "$BENCH_STORE" "$BENCH_CC"
   # Prime: store warm and compilation cache warm via the shims.
   WT="$WORK/primer"; new_worktree "$repo" "$WT" "$commit"
-  (cd "$WT/$F_SUB" && PSPM_STORE_DIR="$BENCH_STORE" PSPM_SHIMS_DIR="$SHIMS" PATH="$SHIMS:$PATH" swift build >/dev/null 2>&1) || die "priming build failed for $id"
+  (cd "$WT/$F_SUB" && SPMX_STORE_DIR="$BENCH_STORE" SPMX_SHIMS_DIR="$SHIMS" PATH="$SHIMS:$PATH" swift build >/dev/null 2>&1) || die "priming build failed for $id"
   WT="$WORK/wt"
-  local shim="PSPM_STORE_DIR='$BENCH_STORE' PSPM_SHIMS_DIR='$SHIMS' PATH='$SHIMS':\"\$PATH\""
-  hf_prepared "$RESULTS_TMP/S6__${id}__baseline.json" "$id cache off" "cd '$WT/$F_SUB' && PSPM_NO_COMPILE_CACHE=1 $shim swift build >/dev/null 2>&1"
-  export_bench_env S6 pspm "$repo" "$commit"
-  hf_prepared "$RESULTS_TMP/S6__${id}__pspm.json" "$id cache on" "cd '$WT/$F_SUB' && $shim swift build >/dev/null 2>&1"
+  local shim="SPMX_STORE_DIR='$BENCH_STORE' SPMX_SHIMS_DIR='$SHIMS' PATH='$SHIMS':\"\$PATH\""
+  hf_prepared "$RESULTS_TMP/S6__${id}__baseline.json" "$id cache off" "cd '$WT/$F_SUB' && SPMX_NO_COMPILE_CACHE=1 $shim swift build >/dev/null 2>&1"
+  export_bench_env S6 spmx "$repo" "$commit"
+  hf_prepared "$RESULTS_TMP/S6__${id}__spmx.json" "$id cache on" "cd '$WT/$F_SUB' && $shim swift build >/dev/null 2>&1"
 }
 
 # ---- main ----------------------------------------------------------------

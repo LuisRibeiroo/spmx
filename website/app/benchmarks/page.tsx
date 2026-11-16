@@ -9,7 +9,7 @@ import { REPO_URL } from "@/lib/site";
 
 export const metadata: Metadata = pageMetadata({
   title: brandTitle("Benchmarks: worktree clone time and disk use"),
-  description: "Methodology, raw data and reproduction steps for every pspm benchmark scenario.",
+  description: "Methodology, raw data and reproduction steps for every spmx benchmark scenario.",
   path: "/benchmarks",
 });
 
@@ -29,7 +29,7 @@ export default function BenchmarksPage() {
         that miss their target are published here too; they are just not promoted to a headline.
       </p>
       <p className="mt-3 text-sm text-ink-muted">
-        Last measured <time dateTime={results.date}>{results.date.slice(0, 10)}</time> with pspm {results.pspm}.
+        Last measured <time dateTime={results.date}>{results.date.slice(0, 10)}</time> with spmx {results.spmx}.
       </p>
       {isSample ? (
         <p role="note" className="mt-6 max-w-2xl rounded-md border border-warn px-4 py-3 text-warn">
@@ -68,8 +68,8 @@ export default function BenchmarksPage() {
                 <dd>macOS {machine.macos} · Xcode {machine.xcode} · {machine.swift}</dd>
               </div>
               <div>
-                <dt className="text-ink-muted">pspm</dt>
-                <dd className="break-all tabular-nums">{results.pspm}</dd>
+                <dt className="text-ink-muted">spmx</dt>
+                <dd className="break-all tabular-nums">{results.spmx}</dd>
               </div>
               <div>
                 <dt className="text-ink-muted">Date</dt>

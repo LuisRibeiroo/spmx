@@ -6,8 +6,8 @@ usage: assemble.py <work-dir> <env.json> <fixtures.json> <out.json> <warmup> <ru
 When a previous results file from the same chip is given, scenario entries it holds for
 (id, fixture) pairs that were not re-run are kept, so partial runs refine latest.json.
 
-<work-dir> holds:  <ID>__<fixture>__{baseline,pspm}.json   (hyperfine --export-json)
-                   S4__<fixture>.json                      ({"worktrees", "baseline", "pspm"} in bytes)
+<work-dir> holds:  <ID>__<fixture>__{baseline,spmx}.json   (hyperfine --export-json)
+                   S4__<fixture>.json                      ({"worktrees", "baseline", "spmx"} in bytes)
 """
 import datetime, json, pathlib, sys
 
@@ -41,19 +41,19 @@ for base in sorted(work.glob("S*__*__baseline.json")):
     sid, fixture, _ = base.stem.split("__")
     scenarios.append({
         "id": sid, "fixture": fixture, "network_dependent": NETWORK.get(sid, False),
-        "baseline": stats(base), "pspm": stats(work / f"{sid}__{fixture}__pspm.json"), "disk_bytes": None,
+        "baseline": stats(base), "spmx": stats(work / f"{sid}__{fixture}__spmx.json"), "disk_bytes": None,
     })
 for disk in sorted(work.glob("S4__*.json")):
-    if "__baseline" in disk.stem or "__pspm" in disk.stem:
+    if "__baseline" in disk.stem or "__spmx" in disk.stem:
         continue
     fixture = disk.stem.split("__")[1]
     d = json.load(open(disk))
     scenarios.append({
-        "id": "S4", "fixture": fixture, "network_dependent": False, "baseline": None, "pspm": None,
+        "id": "S4", "fixture": fixture, "network_dependent": False, "baseline": None, "spmx": None,
         "disk_bytes": {
             "worktrees": d["worktrees"],
             "baseline_extra_per_worktree": d["baseline"],
-            "pspm_extra_per_worktree": d["pspm"],
+            "spmx_extra_per_worktree": d["spmx"],
         },
     })
 if not scenarios:
@@ -70,7 +70,7 @@ used = {s["fixture"] for s in scenarios}
 out = {
     "schema": 1,
     "date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    "pspm": env["pspm"],
+    "spmx": env["spmx"],
     "machine": env["machine"],
     "methodology": {"warmup": int(warmup), "runs": int(default_runs)},
     "fixtures": [{"id": f["id"], "repo": f["repo"], "commit": f["commit"]} for f in fixtures if f["id"] in used],

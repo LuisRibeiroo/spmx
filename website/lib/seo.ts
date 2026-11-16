@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { SITE } from "./site";
 
-/** Appends the brand unless the title already starts with it ("pspm doctor" stays "pspm doctor"). */
+/** Appends the brand unless the title already starts with it ("spmx doctor" stays "spmx doctor"). */
 export function brandTitle(title: string): string {
-  return /^pspm\b/i.test(title) ? title : `${title} · ${SITE.name}`;
+  return /^spmx\b/i.test(title) ? title : `${title} · ${SITE.name}`;
 }
 
 interface PageMetadataOptions {

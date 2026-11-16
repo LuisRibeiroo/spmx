@@ -10,7 +10,7 @@ set -euo pipefail
 disk_create() {
   local image="$1" size="${2:-60g}"
   rm -f "$image" "$image.sparseimage"
-  hdiutil create -quiet -size "$size" -fs APFS -type SPARSE -volname pspmbench "$image" >&2
+  hdiutil create -quiet -size "$size" -fs APFS -type SPARSE -volname spmxbench "$image" >&2
   local attached
   attached="$(hdiutil attach -nobrowse -noverify "${image}.sparseimage" 2>/dev/null)"
   printf '%s\n' "$attached" | awk -F'\t' '/\/Volumes\// {print $NF}' | tail -1 | sed 's/[[:space:]]*$//'

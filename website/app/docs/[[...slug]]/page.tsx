@@ -15,7 +15,7 @@ interface Props {
 }
 
 /** The docs index is titled "Introduction" in the sidebar; search results get a descriptive title. */
-const INDEX_SEO_TITLE = "What is pspm? Introduction";
+const INDEX_SEO_TITLE = "What is spmx? Introduction";
 
 function docPath(slug?: string[]) {
   return `/docs${slug?.length ? `/${slug.join("/")}` : ""}`;

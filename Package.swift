@@ -3,18 +3,18 @@
 import PackageDescription
 
 let package = Package(
-    name: "pspm",
+    name: "spmx",
     platforms: [
         .macOS(.v13)
     ],
     products: [
         .library(
-            name: "PSPMCore",
-            targets: ["PSPMCore"]
+            name: "SPMXCore",
+            targets: ["SPMXCore"]
         ),
         .executable(
-            name: "pspm",
-            targets: ["pspm"]
+            name: "spmx",
+            targets: ["spmx"]
         )
     ],
     dependencies: [
@@ -22,19 +22,19 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "PSPMCore",
+            name: "SPMXCore",
             dependencies: []
         ),
         .executableTarget(
-            name: "pspm",
+            name: "spmx",
             dependencies: [
-                "PSPMCore",
+                "SPMXCore",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ]
         ),
         .testTarget(
-            name: "PSPMCoreTests",
-            dependencies: ["PSPMCore"]
+            name: "SPMXCoreTests",
+            dependencies: ["SPMXCore"]
         )
     ]
 )

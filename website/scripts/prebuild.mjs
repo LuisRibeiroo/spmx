@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const site = resolve(here, "..");
 const root = resolve(site, "..");
-const REPO = "LuisRibeiroo/pspm";
+const REPO = "LuisRibeiroo/spmx";
 
 function fail(message) {
   console.error(`\n[prebuild] ERROR: ${message}\n`);
@@ -33,14 +33,14 @@ const real = join(root, "bench", "results", "latest.json");
 const sample = join(site, "content", "benchmarks", "sample.json");
 let source = real;
 if (!existsSync(real)) {
-  if (process.env.PSPM_SITE_SAMPLE_BENCH === "1") {
-    console.warn("[prebuild] bench/results/latest.json not found — using SAMPLE data (PSPM_SITE_SAMPLE_BENCH=1). Never ship this.");
+  if (process.env.SPMX_SITE_SAMPLE_BENCH === "1") {
+    console.warn("[prebuild] bench/results/latest.json not found — using SAMPLE data (SPMX_SITE_SAMPLE_BENCH=1). Never ship this.");
     source = sample;
   } else {
     fail(
       "bench/results/latest.json not found.\n" +
         "  Run `make bench` first (see bench/README.md), or for a local layout preview only:\n" +
-        "  PSPM_SITE_SAMPLE_BENCH=1 npm run build",
+        "  SPMX_SITE_SAMPLE_BENCH=1 npm run build",
     );
   }
 }
@@ -52,21 +52,21 @@ try {
 }
 const result = benchmarkSchema.safeParse(parsed);
 if (!result.success) fail(`${source} failed schema validation:\n${result.error.message}`);
-if (result.data.sample && process.env.PSPM_SITE_SAMPLE_BENCH !== "1") fail("sample benchmark data cannot be used without PSPM_SITE_SAMPLE_BENCH=1");
+if (result.data.sample && process.env.SPMX_SITE_SAMPLE_BENCH !== "1") fail("sample benchmark data cannot be used without SPMX_SITE_SAMPLE_BENCH=1");
 writeFileSync(join(site, "content", "benchmarks", "latest.json"), JSON.stringify(result.data, null, 2) + "\n");
 mkdirSync(join(site, "public", "benchmarks"), { recursive: true });
 writeFileSync(join(site, "public", "benchmarks", "latest.json"), JSON.stringify(result.data, null, 2) + "\n");
 console.log(`[prebuild] benchmarks: ${source.replace(root + "/", "")} OK`);
 
 // 3. Version + GitHub releases ---------------------------------------------
-const cliSource = readFileSync(join(root, "Sources", "pspm", "PSPMCommand.swift"), "utf8");
+const cliSource = readFileSync(join(root, "Sources", "spmx", "SPMXCommand.swift"), "utf8");
 const cliVersion = /version:\s*"([^"]+)"/.exec(cliSource)?.[1] ?? "0.0.0";
 let releases = [];
 let latest = null;
-if (process.env.PSPM_SITE_OFFLINE !== "1") {
+if (process.env.SPMX_SITE_OFFLINE !== "1") {
   try {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, {
-      headers: { Accept: "application/vnd.github+json", "User-Agent": "pspm-site-build" },
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "spmx-site-build" },
       signal: AbortSignal.timeout(8000),
     });
     if (res.ok) {
@@ -90,7 +90,7 @@ if (process.env.PSPM_SITE_OFFLINE !== "1") {
     console.warn(`[prebuild] GitHub releases unavailable: ${error.message}`);
   }
 }
-const tarball = latest?.assets.find((a) => a.name === "pspm-macos-universal.tar.gz");
+const tarball = latest?.assets.find((a) => a.name === "spmx-macos-universal.tar.gz");
 const meta = {
   cliVersion,
   latestRelease: latest ? { tag: latest.tag, url: latest.url, date: latest.date } : null,

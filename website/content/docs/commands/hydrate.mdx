@@ -1,12 +1,12 @@
 ---
-title: pspm hydrate
-description: Populate SourcePackages (or .build) from the global store using APFS clones. Also available as pspm install.
+title: spmx hydrate
+description: Populate SourcePackages (or .build) from the global store using APFS clones. Also available as spmx install.
 ---
 
 ```bash
-pspm hydrate [<path>] [--project <project>] [--workspace <workspace>]
+spmx hydrate [<path>] [--project <project>] [--workspace <workspace>]
              [--source-packages <dir>] [--force] [--quiet] [--verbose]
-pspm install ...   # alias
+spmx install ...   # alias
 ```
 
 Reads `Package.resolved`, and for every pin found in the store clones its checkout, artifacts and toolchain-compatible prebuilts into the project's `SourcePackages` (Xcode and Flutter) or `.build` (SwiftPM). It then rewrites `workspace-state.json` so absolute paths point at this worktree.
@@ -28,8 +28,8 @@ A checkout you modified by hand is left alone unless you pass `--force`.
 ## Example
 
 ```text
-$ pspm hydrate
-pspm hydrate [swiftPackage]
+$ spmx hydrate
+spmx hydrate [swiftPackage]
 Scope: ~/dev/app-feature
   Target: ~/dev/app-feature/.build
 

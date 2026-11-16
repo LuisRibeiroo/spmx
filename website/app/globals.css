@@ -6,7 +6,7 @@
 
 /* ------------------------------------------------------------------ *
  * Design tokens (OKLCH). Light values live in @theme; the `.dark`
- * class re-declares them. The accent hue is pulled from the pspm icon
+ * class re-declares them. The accent hue is pulled from the spmx icon
  * (#ea6a38, ~H 40) — pnpm sits near H 60.
  * Contrast is verified by `node scripts/check-contrast.mjs`.
  * ------------------------------------------------------------------ */

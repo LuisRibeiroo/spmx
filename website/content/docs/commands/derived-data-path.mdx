@@ -1,22 +1,22 @@
 ---
-title: pspm derived-data-path
+title: spmx derived-data-path
 description: Compute the deterministic Xcode DerivedData path for a workspace or project.
 ---
 
 ```bash
-pspm derived-data-path [<path>]
+spmx derived-data-path [<path>]
 ```
 
 Prints the `DerivedData` folder Xcode would use for a `.xcworkspace` or `.xcodeproj`, without running Xcode.
 
-Xcode names that folder `<Name>-<28 lowercase letters>`. The letters are derived from the MD5 digest of the canonical absolute path of the workspace or project, split into two big-endian 64-bit integers and written in base 26. pspm reproduces that algorithm, and uses the result to find the right `SourcePackages` to hydrate.
+Xcode names that folder `<Name>-<28 lowercase letters>`. The letters are derived from the MD5 digest of the canonical absolute path of the workspace or project, split into two big-endian 64-bit integers and written in base 26. spmx reproduces that algorithm, and uses the result to find the right `SourcePackages` to hydrate.
 
 | Argument | Description |
 | :--- | :--- |
 | `<path>` | a `.xcworkspace`, `.xcodeproj` or project directory. Defaults to the current directory |
 
 ```bash
-pspm derived-data-path ios/Runner.xcworkspace
+spmx derived-data-path ios/Runner.xcworkspace
 ```
 
 It exits with an error if no `.xcworkspace` or `.xcodeproj` is found at the path.

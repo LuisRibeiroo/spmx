@@ -13,7 +13,7 @@ const port = 9400 + Math.floor(Math.random() * 400);
 mkdirSync(out, { recursive: true });
 
 const proc = spawn(chrome, [
-  "--headless=new", `--remote-debugging-port=${port}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), "pspm-shot-"))}`,
+  "--headless=new", `--remote-debugging-port=${port}`, `--user-data-dir=${mkdtempSync(join(tmpdir(), "spmx-shot-"))}`,
   "--no-first-run", "--no-default-browser-check", "--hide-scrollbars", "--disable-gpu", "about:blank",
 ], { stdio: "ignore" });
 

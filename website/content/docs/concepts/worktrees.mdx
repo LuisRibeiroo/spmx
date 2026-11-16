@@ -1,20 +1,20 @@
 ---
 title: Worktrees
-description: Why Git worktrees are expensive for Xcode and Flutter projects, and what pspm changes.
+description: Why Git worktrees are expensive for Xcode and Flutter projects, and what spmx changes.
 ---
 
 A Git worktree gives you a second checkout of the same repository in another folder. It is the cheapest way to review a branch, run two experiments, or give each AI agent its own sandbox.
 
-## The cost without pspm
+## The cost without spmx
 
 Xcode names its build folder `<Workspace>-<28 letters>`, where the letters come from a hash of the workspace's absolute path. A new worktree has a new path, so it has a new `DerivedData` folder with an empty `SourcePackages`. Resolving the package graph downloads everything again, and every worktree keeps its own copy.
 
-`pspm derived-data-path` computes that same folder name, which is how pspm knows where to hydrate.
+`spmx derived-data-path` computes that same folder name, which is how spmx knows where to hydrate.
 
-## With pspm
+## With spmx
 
 1. The new worktree resolves its `DerivedData` path.
-2. `pspm hydrate` clones the packages it needs from the store.
+2. `spmx hydrate` clones the packages it needs from the store.
 3. The build starts with checkouts, artifacts and prebuilts already in place.
 
 To skip even the first build step, enable the [Git hook](/docs/commands/hooks) so hydration happens during `git worktree add`.
@@ -22,5 +22,5 @@ To skip even the first build step, enable the [Git hook](/docs/commands/hooks) s
 ```bash
 git worktree add ../app-review
 cd ../app-review
-pspm status        # shows how many pins are already cached
+spmx status        # shows how many pins are already cached
 ```

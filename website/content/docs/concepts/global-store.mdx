@@ -5,7 +5,7 @@ description: One content-addressable store of checkouts, artifacts and prebuilts
 
 <StoreDiagram />
 
-The store lives at `~/.pspm/store`. Override the location with `PSPM_STORE_DIR`. It must be on the same APFS volume as your worktrees for zero-copy clones; see [APFS clonefile](/docs/concepts/apfs-clonefile) for what happens otherwise.
+The store lives at `~/.spmx/store`. Override the location with `SPMX_STORE_DIR`. It must be on the same APFS volume as your worktrees for zero-copy clones; see [APFS clonefile](/docs/concepts/apfs-clonefile) for what happens otherwise.
 
 ## Layout
 
@@ -20,8 +20,8 @@ Prebuilts are partitioned by a hash of `swift --version` and `xcodebuild -versio
 
 ## Hydrate and harvest
 
-- [`pspm hydrate`](/docs/commands/hydrate) reads `Package.resolved`, and for every pin already in the store clones it into the worktree's `SourcePackages` (or `.build`). It rewrites `workspace-state.json` so paths point at the current worktree.
-- [`pspm harvest`](/docs/commands/harvest) goes the other way: after a build it copies any new, complete package into the store and records the project in `index.json`.
+- [`spmx hydrate`](/docs/commands/hydrate) reads `Package.resolved`, and for every pin already in the store clones it into the worktree's `SourcePackages` (or `.build`). It rewrites `workspace-state.json` so paths point at the current worktree.
+- [`spmx harvest`](/docs/commands/harvest) goes the other way: after a build it copies any new, complete package into the store and records the project in `index.json`.
 
 The shims run both for you. A modified checkout is never overwritten unless you pass `--force`.
 
@@ -32,7 +32,7 @@ Every write to the store takes a per-package `flock` and goes through atomic sta
 ## Inspecting and cleaning
 
 ```bash
-pspm store path      # print the store location
-pspm store status    # packages, sizes, registered projects, estimated copy-on-write savings
-pspm store prune     # drop entries no registered worktree references
+spmx store path      # print the store location
+spmx store status    # packages, sizes, registered projects, estimated copy-on-write savings
+spmx store prune     # drop entries no registered worktree references
 ```

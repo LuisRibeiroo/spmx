@@ -13,5 +13,5 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   const { slug } = await params;
   const page = source.getPage(slug.slice(0, -1));
   if (!page) notFound();
-  return renderOg(page.data.title, page.data.description ?? "pspm documentation");
+  return renderOg(page.data.title, page.data.description ?? "spmx documentation");
 }

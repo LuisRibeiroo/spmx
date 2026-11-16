@@ -14,7 +14,7 @@ export const scenarioIds = ["S1", "S2", "S3", "S4", "S5", "S6"] as const;
 export const diskSchema = z.object({
   worktrees: z.number().int().positive(),
   baseline_extra_per_worktree: z.number().nonnegative(),
-  pspm_extra_per_worktree: z.number().nonnegative(),
+  spmx_extra_per_worktree: z.number().nonnegative(),
 });
 
 export const scenarioSchema = z.object({
@@ -22,14 +22,14 @@ export const scenarioSchema = z.object({
   fixture: z.string().min(1),
   network_dependent: z.boolean(),
   baseline: statsSchema.nullable(),
-  pspm: statsSchema.nullable(),
+  spmx: statsSchema.nullable(),
   disk_bytes: diskSchema.nullable(),
 });
 
 export const benchmarkSchema = z.object({
   schema: z.literal(1),
   date: z.string().min(1),
-  pspm: z.string().min(1),
+  spmx: z.string().min(1),
   /** Set only on the layout-preview sample. Real runs never carry it. */
   sample: z.boolean().optional(),
   machine: z.object({

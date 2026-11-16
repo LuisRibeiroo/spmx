@@ -5,7 +5,7 @@ description: Short answers about the Xcode app, Flutter tooling, Linux, CI, unin
 
 ## Does it work when I open the project in the Xcode app?
 
-Xcode does not go through your shell `PATH`, so shims cannot see it. Enable the opt-in hook with `pspm hooks enable --global` and each new worktree is hydrated when it is created.
+Xcode does not go through your shell `PATH`, so shims cannot see it. Enable the opt-in hook with `spmx hooks enable --global` and each new worktree is hydrated when it is created.
 
 ## Does it conflict with puro or fvm?
 
@@ -13,7 +13,7 @@ No. See [puro and fvm](/docs/guides/puro-fvm).
 
 ## Is there Linux support?
 
-Not in v1. pspm relies on APFS `clonefile()` and Xcode's `DerivedData` layout, both specific to macOS.
+Not in v1. spmx relies on APFS `clonefile()` and Xcode's `DerivedData` layout, both specific to macOS.
 
 ## Can I use it in CI?
 
@@ -21,15 +21,15 @@ Yes. See [Continuous integration](/docs/guides/ci).
 
 ## How do I uninstall it?
 
-`pspm uninstall`, and add `--purge` to also delete the store. See [Uninstall](/docs/getting-started/uninstall).
+`spmx uninstall`, and add `--purge` to also delete the store. See [Uninstall](/docs/getting-started/uninstall).
 
 ## Is the shared store safe?
 
-Entries are keyed by package identity and revision, artifacts by checksum and prebuilts by toolchain hash. Worktrees receive clones, so editing one never changes the store or another worktree. Writes use file locks and atomic staging. pspm sends no telemetry.
+Entries are keyed by package identity and revision, artifacts by checksum and prebuilts by toolchain hash. Worktrees receive clones, so editing one never changes the store or another worktree. Writes use file locks and atomic staging. spmx sends no telemetry.
 
 ## Does it replace Swift Package Manager's resolver?
 
-No. The first resolution still belongs to `xcodebuild` or `swift package resolve`. pspm stores what they produce and restores it in other worktrees.
+No. The first resolution still belongs to `xcodebuild` or `swift package resolve`. spmx stores what they produce and restores it in other worktrees.
 
 ## Does it help projects that use CocoaPods?
 

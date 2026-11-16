@@ -20,14 +20,14 @@ export function StoreDiagram({ className = "" }: { className?: string }) {
       >
         <title id="store-diagram-title">One global store cloned into many worktrees</title>
         <desc id="store-diagram-desc">
-          The global store at ~/.pspm/store holds checkouts, artifacts and prebuilts once. The clonefile
+          The global store at ~/.spmx/store holds checkouts, artifacts and prebuilts once. The clonefile
           system call clones them into the SourcePackages folder of each Git worktree, sharing disk blocks
           until a file is modified.
         </desc>
 
         <rect x="20" y="8" width="360" height="108" rx="10" className="fill-paper-2 stroke-accent" strokeWidth="2" />
         <text x="38" y="38" className="fill-ink font-mono" fontSize="16" fontWeight="600">
-          ~/.pspm/store
+          ~/.spmx/store
         </text>
         <text x="38" y="64" className="fill-ink-muted font-mono" fontSize="12">
           checkouts/&lt;identity&gt;-&lt;revision&gt;

@@ -11,20 +11,20 @@ swift build -c release
 make bench-quick          # S3 + S5, the headline scenarios
 ```
 
-`make bench` runs all six scenarios. Fixtures pin a repository and commit each, and the harness runs in a temporary directory with its own store, so it never touches your `~/.pspm`.
+`make bench` runs all six scenarios. Fixtures pin a repository and commit each, and the harness runs in a temporary directory with its own store, so it never touches your `~/.spmx`.
 
 | Scenario | What it compares |
 | :--- | :--- |
-| S1 | cold resolve; pspm must not be slower |
+| S1 | cold resolve; spmx must not be slower |
 | S2 | new worktree, SwiftPM cache warm |
-| S3 | new worktree, store warm: native resolve vs `pspm hydrate` |
+| S3 | new worktree, store warm: native resolve vs `spmx hydrate` |
 | S4 | physical disk per extra worktree |
 | S5 | shim overhead on a no-op command |
 | S6 | clean build with and without the shared compilation cache |
 
 Disk is measured as the drop in free space of an isolated sparse APFS volume, not with `du`, which overstates clones.
 
-Read the details, flags and caveats in [`bench/README.md`](https://github.com/LuisRibeiroo/pspm/blob/main/bench/README.md), and see the results with their methodology on the [benchmarks page](/benchmarks).
+Read the details, flags and caveats in [`bench/README.md`](https://github.com/LuisRibeiroo/spmx/blob/main/bench/README.md), and see the results with their methodology on the [benchmarks page](/benchmarks).
 
 To show your own run on a local copy of the site, copy `bench/results/latest.json` into place and rebuild:
 

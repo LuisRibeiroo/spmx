@@ -5,21 +5,21 @@ description: A compilation cache shared by every worktree, switched on by the xc
 
 Xcode 16 and Swift 6 can cache compiler output in a content-addressed store (LLVM CAS). By default that cache is tied to a build directory, so a new worktree compiles everything again.
 
-When the active toolchain supports it, the `xcodebuild` and `swift` shims turn caching on and point it at `~/.pspm/compilation-cache`, so an object already compiled for one worktree can be reused by another. This needs no change to `project.pbxproj` or any `Package.swift`.
+When the active toolchain supports it, the `xcodebuild` and `swift` shims turn caching on and point it at `~/.spmx/compilation-cache`, so an object already compiled for one worktree can be reused by another. This needs no change to `project.pbxproj` or any `Package.swift`.
 
 The shim injects, for example, `COMPILATION_CACHE_ENABLE_CACHING=YES` and `COMPILATION_CACHE_ENABLE_PLUGIN_CACHING=YES`. It does not override flags you pass yourself.
 
 ## Turning it off
 
 ```bash
-PSPM_NO_COMPILE_CACHE=1 xcodebuild -scheme App build
+SPMX_NO_COMPILE_CACHE=1 xcodebuild -scheme App build
 ```
 
 ## Checking support
 
 ```bash
-pspm doctor    # reports whether the active Swift supports LLVM CAS
-pspm status    # shows whether the cache is enabled for this project
+spmx doctor    # reports whether the active Swift supports LLVM CAS
+spmx status    # shows whether the cache is enabled for this project
 ```
 
-The cache is trimmed by [`pspm store prune`](/docs/commands/store), which removes files older than the age you choose.
+The cache is trimmed by [`spmx store prune`](/docs/commands/store), which removes files older than the age you choose.

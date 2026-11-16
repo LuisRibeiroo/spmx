@@ -1,10 +1,10 @@
 ---
-title: pspm harvest
+title: spmx harvest
 description: Store resolved checkouts, artifacts and prebuilts from SourcePackages (or .build) into the global store.
 ---
 
 ```bash
-pspm harvest [<path>] [--project <project>] [--workspace <workspace>]
+spmx harvest [<path>] [--project <project>] [--workspace <workspace>]
              [--source-packages <dir>] [--quiet] [--verbose]
 ```
 
@@ -24,8 +24,8 @@ Inspects `checkouts`, `artifacts`, `prebuilts` and `workspace-state.json` after 
 ## Example
 
 ```text
-$ pspm harvest
-pspm harvest [swiftPackage]
+$ spmx harvest
+spmx harvest [swiftPackage]
 Scope: ~/dev/app
   Source: ~/dev/app/.build
 

@@ -1,6 +1,6 @@
 ---
 title: Xcode native projects
-description: Use pspm with xcodebuild, Swift packages and the Xcode app.
+description: Use spmx with xcodebuild, Swift packages and the Xcode app.
 ---
 
 ## From the terminal
@@ -13,23 +13,23 @@ swift build
 swift test
 ```
 
-The `xcodebuild` shim hydrates `DerivedData/.../SourcePackages` before running Xcode's tool and harvests afterwards. If you pass `-clonedSourcePackagesDirPath` yourself, pspm treats that as an explicit choice and does not hydrate.
+The `xcodebuild` shim hydrates `DerivedData/.../SourcePackages` before running Xcode's tool and harvests afterwards. If you pass `-clonedSourcePackagesDirPath` yourself, spmx treats that as an explicit choice and does not hydrate.
 
-On Xcode 16+ and Swift 6+ it also enables the [shared compilation cache](/docs/concepts/llvm-compilation-cache) unless you set `PSPM_NO_COMPILE_CACHE=1` or pass your own cache flags.
+On Xcode 16+ and Swift 6+ it also enables the [shared compilation cache](/docs/concepts/llvm-compilation-cache) unless you set `SPMX_NO_COMPILE_CACHE=1` or pass your own cache flags.
 
 ## From the Xcode app
 
 Xcode does not read your shell `PATH`, so shims cannot intercept a project opened from Finder or the Dock. Pre-warm instead:
 
 ```bash
-pspm hooks enable --global
+spmx hooks enable --global
 ```
 
-Now `git worktree add` hydrates the new worktree before you open it. See [`pspm hooks`](/docs/commands/hooks).
+Now `git worktree add` hydrates the new worktree before you open it. See [`spmx hooks`](/docs/commands/hooks).
 
 ## Checking one project
 
 ```bash
-pspm status                  # type, toolchain, paths, cached pins
-pspm derived-data-path App.xcworkspace
+spmx status                  # type, toolchain, paths, cached pins
+spmx derived-data-path App.xcworkspace
 ```

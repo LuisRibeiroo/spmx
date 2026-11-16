@@ -2,7 +2,7 @@
   "schema": 1,
   "sample": true,
   "date": "1970-01-01T00:00:00Z",
-  "pspm": "sample",
+  "spmx": "sample",
   "machine": { "chip": "SAMPLE — not measured", "ram_gb": 1, "macos": "sample", "xcode": "sample", "swift": "sample" },
   "methodology": { "warmup": 1, "runs": 10 },
   "fixtures": [
@@ -11,21 +11,21 @@
   "scenarios": [
     { "id": "S1", "fixture": "flutter-firebase", "network_dependent": true,
       "baseline": { "median_s": 40, "min_s": 38, "max_s": 43, "stddev_s": 1.5, "runs": 10 },
-      "pspm": { "median_s": 40.5, "min_s": 38, "max_s": 44, "stddev_s": 1.6, "runs": 10 }, "disk_bytes": null },
+      "spmx": { "median_s": 40.5, "min_s": 38, "max_s": 44, "stddev_s": 1.6, "runs": 10 }, "disk_bytes": null },
     { "id": "S2", "fixture": "flutter-firebase", "network_dependent": true,
       "baseline": { "median_s": 20, "min_s": 18, "max_s": 23, "stddev_s": 1.2, "runs": 10 },
-      "pspm": { "median_s": 19, "min_s": 17, "max_s": 22, "stddev_s": 1.1, "runs": 10 }, "disk_bytes": null },
+      "spmx": { "median_s": 19, "min_s": 17, "max_s": 22, "stddev_s": 1.1, "runs": 10 }, "disk_bytes": null },
     { "id": "S3", "fixture": "flutter-firebase", "network_dependent": false,
       "baseline": { "median_s": 60, "min_s": 55, "max_s": 66, "stddev_s": 3, "runs": 10 },
-      "pspm": { "median_s": 3, "min_s": 2.5, "max_s": 3.6, "stddev_s": 0.3, "runs": 10 }, "disk_bytes": null },
+      "spmx": { "median_s": 3, "min_s": 2.5, "max_s": 3.6, "stddev_s": 0.3, "runs": 10 }, "disk_bytes": null },
     { "id": "S4", "fixture": "flutter-firebase", "network_dependent": false,
-      "baseline": null, "pspm": null,
-      "disk_bytes": { "worktrees": 5, "baseline_extra_per_worktree": 1200000000, "pspm_extra_per_worktree": 3000000 } },
+      "baseline": null, "spmx": null,
+      "disk_bytes": { "worktrees": 5, "baseline_extra_per_worktree": 1200000000, "spmx_extra_per_worktree": 3000000 } },
     { "id": "S5", "fixture": "shim-noop", "network_dependent": false,
       "baseline": { "median_s": 0.02, "min_s": 0.019, "max_s": 0.021, "stddev_s": 0.0005, "runs": 10 },
-      "pspm": { "median_s": 0.022, "min_s": 0.021, "max_s": 0.024, "stddev_s": 0.0005, "runs": 10 }, "disk_bytes": null },
+      "spmx": { "median_s": 0.022, "min_s": 0.021, "max_s": 0.024, "stddev_s": 0.0005, "runs": 10 }, "disk_bytes": null },
     { "id": "S6", "fixture": "swift-macros", "network_dependent": false,
       "baseline": { "median_s": 100, "min_s": 95, "max_s": 108, "stddev_s": 4, "runs": 10 },
-      "pspm": { "median_s": 60, "min_s": 55, "max_s": 66, "stddev_s": 3, "runs": 10 }, "disk_bytes": null }
+      "spmx": { "median_s": 60, "min_s": 55, "max_s": 66, "stddev_s": 3, "runs": 10 }, "disk_bytes": null }
   ]
 }

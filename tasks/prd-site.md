@@ -1,8 +1,8 @@
-# PRD: pspm — Landing Page + Docs + Benchmarks
+# PRD: spmx — Landing Page + Docs + Benchmarks
 
 **Versão:** 1.0  
 **Status:** Em implementação (US-001–008 feitas; US-009 parcial; US-010 pendente)  
-**Repositório Alvo:** `~/projects/pspm` → novos diretórios `website/` e `bench/`  
+**Repositório Alvo:** `~/projects/spmx` → novos diretórios `website/` e `bench/`  
 **Stack:** Next.js 15 (App Router, SSG) · Tailwind CSS v4 · Fumadocs · Shiki · `next/font`  
 **Ícone Principal:** [`assets/icon.svg`](../assets/icon.svg) · [`assets/icon.png`](../assets/icon.png) — ver *Brand Assets* em [prd-master.md](./prd-master.md)  
 **Origem:** `hallmark study` de [pnpm.io](https://pnpm.io/), [puro.dev](https://puro.dev/) e [asccli.sh](https://asccli.sh/) (HTML/CSS + gravação de tela navegando nos três em dark mode).
@@ -12,7 +12,7 @@
 ## 1. Introduction / Overview
 
 ### O Problema
-O `pspm` não tem presença web. Quem chega pelo GitHub não encontra, em uma tela, **o que é**, **como instalar** e **por que acreditar**. Não há documentação navegável fora dos PRDs internos, nem números medidos que sustentem as metas de desempenho (as metas da seção 7 do [prd-pspm-cli.md](./prd-pspm-cli.md) são alvos, não medições).
+O `spmx` não tem presença web. Quem chega pelo GitHub não encontra, em uma tela, **o que é**, **como instalar** e **por que acreditar**. Não há documentação navegável fora dos PRDs internos, nem números medidos que sustentem as metas de desempenho (as metas da seção 7 do [prd-spmx-cli.md](./prd-spmx-cli.md) são alvos, não medições).
 
 ### A Solução
 Um site estático em Next.js com três superfícies que compartilham o mesmo sistema visual:
@@ -27,9 +27,9 @@ Princípio: **uma tela para entender, uma linha para instalar, um diagrama para 
 
 ## 2. Goals
 
-- **Clareza imediata:** visitante entende o que o `pspm` faz e copia o comando de instalação sem rolar a página (hero com ≤ 7 palavras + 1 linha de apoio + abas `brew`/`curl`).
+- **Clareza imediata:** visitante entende o que o `spmx` faz e copia o comando de instalação sem rolar a página (hero com ≤ 7 palavras + 1 linha de apoio + abas `brew`/`curl`).
 - **Prova honesta:** todo número exibido vem de `bench/results/*.json`, com máquina e metodologia visíveis; nenhuma métrica, depoimento ou logo inventado.
-- **Docs completas:** toda subcomand do CLI (`Sources/pspm/Commands`) tem página própria; quick start legível em < 1 minuto.
+- **Docs completas:** toda subcomand do CLI (`Sources/spmx/Commands`) tem página própria; quick start legível em < 1 minuto.
 - **SEO e descoberta por agentes:** metadata por página, sitemap, robots, canonical, OG dinâmico, JSON-LD, `llms.txt` / `llms-full.txt`.
 - **Performance:** LCP < 1,8 s, CLS ≈ 0, zero JS de highlight no cliente (Shiki em build).
 - **Mobile sem quebra:** renderização correta em 320 / 375 / 414 / 768 px, sem scroll horizontal.
@@ -62,9 +62,9 @@ Princípio: **uma tela para entender, uma linha para instalar, um diagrama para 
 | Eixo | Decisão |
 | :--- | :--- |
 | Gênero | modern-minimal (dev tool) |
-| Tema | studied-DNA (pnpm) com destaque derivado do ícone pspm (~`#ea6a38`, convertido para OKLCH no build; tons mais escuros para texto/link ≥ 4,5:1) |
+| Tema | studied-DNA (pnpm) com destaque derivado do ícone spmx (~`#ea6a38`, convertido para OKLCH no build; tons mais escuros para texto/link ≥ 4,5:1) |
 | Modo | dark-first (revisão, OG e screenshots em dark); light via `prefers-color-scheme` + toggle |
-| Macroestrutura | Narrative Workflow — instalar → `pspm setup` → `git worktree add` → hidratação via `clonefile` → build |
+| Macroestrutura | Narrative Workflow — instalar → `spmx setup` → `git worktree add` → hidratação via `clonefile` → build |
 | Nav | N13 · pílula de busca ⌘K inline |
 | Footer | Ft2 · linha única |
 | Tipografia | Inter (display/body) + JetBrains Mono (código/labels) via `next/font`; headings sempre roman |
@@ -94,39 +94,39 @@ Princípio: **uma tela para entender, uma linha para instalar, um diagrama para 
 
 ### US-002: Harness de Benchmarks Locais (`bench/`)
 
-**Description:** As a maintainer, I want a reproducible local benchmark harness that measures pspm against vanilla SwiftPM/Xcode, so that every number on the site is real, reproducible and tied to a machine.
+**Description:** As a maintainer, I want a reproducible local benchmark harness that measures spmx against vanilla SwiftPM/Xcode, so that every number on the site is real, reproducible and tied to a machine.
 
 **Acceptance Criteria:**
 
 - [ ] Criar `bench/` na raiz com `run.sh` (flags `--quick`, `--scenario <id>`), `fixtures.json`, `lib/reset.sh`, `lib/disk.sh`, `lib/env.sh`, `results/` e `README.md`; alvo `make bench`.
 - [ ] Usar **hyperfine** (`--warmup 1 --runs 10 --prepare lib/reset.sh --export-json`); `run.sh` falha com mensagem clara se `hyperfine` não estiver instalado.
 - [ ] Fixtures com repositório + commit fixo (nada vendorizado): (1) Swift nativo com macros (`swift-syntax` → `prebuilts`); (2) Xcode com SDK binário pesado via SPM (ex.: Firebase → `artifacts`); (3) Flutter + SPM com plugins Firebase e `pubspec.lock` fixo.
-- [ ] A/B via variáveis existentes no CLI: `PSPM_DISABLE`, `PSPM_NO_COMPILE_CACHE` (baseline) e `PSPM_STORE_DIR`, `PSPM_COMPILATION_CACHE_DIR` (isolamento).
+- [ ] A/B via variáveis existentes no CLI: `SPMX_DISABLE`, `SPMX_NO_COMPILE_CACHE` (baseline) e `SPMX_STORE_DIR`, `SPMX_COMPILATION_CACHE_DIR` (isolamento).
 - [ ] Cenários implementados:
 
-  | # | Cenário | Baseline vs pspm |
+  | # | Cenário | Baseline vs spmx |
   | :--- | :--- | :--- |
-  | S1 | Cold (sem cache algum) — pspm não pode piorar | `-resolvePackageDependencies` com `PSPM_DISABLE=1` vs pspm |
+  | S1 | Cold (sem cache algum) — spmx não pode piorar | `-resolvePackageDependencies` com `SPMX_DISABLE=1` vs spmx |
   | S2 | Novo worktree, só cache do SwiftPM quente | mesmo comando nos dois modos |
-  | S3 | **Novo worktree, store pspm quente (headline)** | resolução nativa vs `pspm hydrate` |
+  | S3 | **Novo worktree, store spmx quente (headline)** | resolução nativa vs `spmx hydrate` |
   | S4 | Disco: 5 worktrees | bytes físicos extras/worktree, nativo vs hidratado |
   | S5 | Overhead de shim (`swift --version`, `flutter --version`) | binário direto vs shim (meta < 5 ms) |
-  | S6 | Build limpo no 2º worktree (LLVM CAS) | `PSPM_NO_COMPILE_CACHE=1` vs cache ligado |
+  | S6 | Build limpo no 2º worktree (LLVM CAS) | `SPMX_NO_COMPILE_CACHE=1` vs cache ligado |
 
 - [ ] S1 e S2 marcados `network_dependent: true`; S6 fora do `--quick`.
 - [ ] Disco medido em **bytes físicos**: imagem APFS esparsa isolada (`hdiutil create -fs APFS -type SPARSE`) contendo worktrees **e** store; delta de espaço livre do volume (`statfs`/`df -k`) por worktree; imagem desmontada e removida ao final. `du` não é usado para custo físico (conta tamanho lógico de clones).
-- [ ] `lib/env.sh` registra chip, RAM, macOS, Xcode, Swift e versão + commit do pspm.
+- [ ] `lib/env.sh` registra chip, RAM, macOS, Xcode, Swift e versão + commit do spmx.
 - [ ] Saída normalizada em `bench/results/<data>-<chip>.json` e `bench/results/latest.json` no schema:
 
   ```json
   {
     "schema": 1,
-    "date": "…", "pspm": "<versão+commit>",
+    "date": "…", "spmx": "<versão+commit>",
     "machine": { "chip": "…", "ram_gb": 0, "macos": "…", "xcode": "…", "swift": "…" },
     "scenarios": [
       { "id": "S3", "fixture": "flutter-firebase", "network_dependent": false,
         "baseline": { "median_s": 0, "min_s": 0, "max_s": 0, "stddev_s": 0, "runs": 10 },
-        "pspm":     { "median_s": 0, "min_s": 0, "max_s": 0, "stddev_s": 0, "runs": 10 },
+        "spmx":     { "median_s": 0, "min_s": 0, "max_s": 0, "stddev_s": 0, "runs": 10 },
         "disk_bytes": null }
     ]
   }
@@ -152,19 +152,19 @@ Princípio: **uma tela para entender, uma linha para instalar, um diagrama para 
 
 ### US-004: Landing Page
 
-**Description:** As a visitor, I want to understand what pspm does, install it, and see proof in one scroll, so that I can decide to try it in under a minute.
+**Description:** As a visitor, I want to understand what spmx does, install it, and see proof in one scroll, so that I can decide to try it in under a minute.
 
 **Acceptance Criteria:**
 
 - [ ] Seções em ordem, com ritmo alternado (split ↔ centralizado) e faixa quente apenas em "Como funciona" e no footer:
-  1. **Hero** (split): ícone pixel-art, título ≤ 7 palavras, uma linha de apoio, badge `Latest x.y.z` (release do GitHub no build), abas `brew`/`curl` com detecção de SO e botão copiar, "Get started" + GitHub; à direita, `<pre>` com saída real de `pspm hydrate` (borda hairline, sem traffic lights).
+  1. **Hero** (split): ícone pixel-art, título ≤ 7 palavras, uma linha de apoio, badge `Latest x.y.z` (release do GitHub no build), abas `brew`/`curl` com detecção de SO e botão copiar, "Get started" + GitHub; à direita, `<pre>` com saída real de `spmx hydrate` (borda hairline, sem traffic lights).
   2. **Problema** (3 linhas): novo worktree → novo hash de `DerivedData` → re-download e GBs duplicados.
   3. **Como funciona** (split, faixa quente): `StoreDiagram` (US-005) + 3–4 bullets.
   4. **Workflow em 4 passos**: `setup` → `git worktree add` → hidratação automática → `flutter run` / `xcodebuild`, cada passo com comando real.
   5. **Stats + benchmark**: stats estruturais verdadeiros (binário universal, arm64 + x86_64, zero-config, tamanho do binário conferido no release) + barras S3/S4/S5 lidas do JSON, com máquina em letra pequena.
   6. **Features** (≤ 6, tamanhos variados): store CAS, shims zero-config, LLVM CAS, Git hooks opt-in, Flutter, `doctor` — cada uma com comando e link para doc.
   7. **Feito para agentes de IA**: worktrees paralelos, segurança concorrente, `llms.txt`.
-  8. **Comparação** sem pspm vs com pspm.
+  8. **Comparação** sem spmx vs com spmx.
   9. **FAQ** (5–6): Xcode GUI, puro/fvm, Linux, CI, uninstall, segurança do store.
   10. **CTA final** (instalação + "Read the docs") e footer Ft2.
 - [ ] Máximo de 1–2 eyebrows na página.
@@ -176,11 +176,11 @@ Princípio: **uma tela para entender, uma linha para instalar, um diagrama para 
 
 ### US-005: Componente `StoreDiagram` Compartilhado
 
-**Description:** As a visitor, I want a clear diagram of the global store being cloned into multiple worktrees, so that I understand why pspm is fast and disk-cheap.
+**Description:** As a visitor, I want a clear diagram of the global store being cloned into multiple worktrees, so that I understand why spmx is fast and disk-cheap.
 
 **Acceptance Criteria:**
 
-- [ ] SVG feito à mão: `~/.pspm/store` (centro) → `clonefile()` → N worktrees (`SourcePackages/checkouts`, `artifacts`, `prebuilts`).
+- [ ] SVG feito à mão: `~/.spmx/store` (centro) → `clonefile()` → N worktrees (`SourcePackages/checkouts`, `artifacts`, `prebuilts`).
 - [ ] Uma única animação de draw das conexões; estático com `prefers-reduced-motion: reduce`.
 - [ ] Cores apenas via tokens; legível em dark e light.
 - [ ] Reutilizado na landing e em `docs/concepts/global-store` (MDX).
@@ -190,14 +190,14 @@ Princípio: **uma tela para entender, uma linha para instalar, um diagrama para 
 
 ### US-006: Documentação (Fumadocs)
 
-**Description:** As a user, I want navigable docs covering install, concepts, every command and common guides, so that I can adopt pspm without reading source code.
+**Description:** As a user, I want navigable docs covering install, concepts, every command and common guides, so that I can adopt spmx without reading source code.
 
 **Acceptance Criteria:**
 
 - [ ] Arquitetura de informação:
   - **Getting Started:** Installation, Quick Start (cheat sheet comentada estilo puro), Uninstall.
   - **Concepts:** Global Store, APFS `clonefile`, Shims, LLVM Compilation Cache, Worktrees.
-  - **Commands:** uma página por comando — `setup`, `hydrate`/`install`, `harvest`, `migrate`, `store`, `status`, `doctor`, `hooks`, `derived-data-path`, `uninstall` — com flags extraídas de `Sources/pspm/Commands`.
+  - **Commands:** uma página por comando — `setup`, `hydrate`/`install`, `harvest`, `migrate`, `store`, `status`, `doctor`, `hooks`, `derived-data-path`, `uninstall` — com flags extraídas de `Sources/spmx/Commands`.
   - **Guides:** Flutter + SPM, Xcode nativo, CI, AI agents & parallel worktrees, interop com puro/fvm, Reproduce the benchmarks.
   - **Troubleshooting**, **FAQ**, **Changelog** (gerado das releases do GitHub, agrupado por versão maior).
 - [ ] Conteúdo escrito a partir dos PRDs, reescrito para usuário final (não copiado literalmente).
@@ -221,7 +221,7 @@ Princípio: **uma tela para entender, uma linha para instalar, um diagrama para 
 
 ### US-008: Kit de SEO e Descoberta por Agentes
 
-**Description:** As a maintainer, I want complete technical SEO and agent-readable outputs, so that pspm ranks for its problem space and AI tools can read the docs.
+**Description:** As a maintainer, I want complete technical SEO and agent-readable outputs, so that spmx ranks for its problem space and AI tools can read the docs.
 
 **Acceptance Criteria:**
 
@@ -257,7 +257,7 @@ Princípio: **uma tela para entender, uma linha para instalar, um diagrama para 
 - [ ] Deploy estático (Vercel ou Cloudflare Pages) a partir de `website/`, com preview por PR.
 - [ ] Domínio definido (ver Open Questions) e configurado com HTTPS.
 - [ ] Links do `install.sh` e da fórmula Homebrew apontando para os endereços oficiais.
-- [ ] Placeholder `ProjectsUsing` preparado (desativado) para quando existirem projetos reais usando pspm.
+- [ ] Placeholder `ProjectsUsing` preparado (desativado) para quando existirem projetos reais usando spmx.
 
 ---
 
@@ -291,10 +291,10 @@ Princípio: **uma tela para entender, uma linha para instalar, um diagrama para 
 Nativo do App Router, MDX com componentes React (permite reusar `StoreDiagram` e `CommandCard`), busca local Orama sem Algolia, geração de `llms.txt` e flexibilidade total de layout para manter o sistema visual da landing.
 
 ### 8.2. Por que medir disco por delta de volume APFS
-`clonefile()` cria cópias que compartilham blocos; `du` reporta o tamanho lógico e superestima o custo. Medir o espaço livre de um volume APFS isolado antes/depois de cada worktree captura o custo físico real. Store e worktrees precisam estar no mesmo volume (requisito do `clonefile`), por isso `PSPM_STORE_DIR` aponta para dentro da imagem.
+`clonefile()` cria cópias que compartilham blocos; `du` reporta o tamanho lógico e superestima o custo. Medir o espaço livre de um volume APFS isolado antes/depois de cada worktree captura o custo físico real. Store e worktrees precisam estar no mesmo volume (requisito do `clonefile`), por isso `SPMX_STORE_DIR` aponta para dentro da imagem.
 
 ### 8.3. Diferenciação do pnpm
-O logo do pnpm também é pixel-art laranja. Para não parecer derivado: matiz deslocado para o laranja-avermelhado do ícone pspm (~H 40 vs ~H 60), motivo de grade de pixels como assinatura, `<pre>` real no lugar de terminal com traffic lights, e menos seções.
+O logo do pnpm também é pixel-art laranja. Para não parecer derivado: matiz deslocado para o laranja-avermelhado do ícone spmx (~H 40 vs ~H 60), motivo de grade de pixels como assinatura, `<pre>` real no lugar de terminal com traffic lights, e menos seções.
 
 ### 8.4. Estrutura de arquivos prevista (todos novos)
 
@@ -335,7 +335,7 @@ bench/
 
 ## 10. Open Questions
 
-1. **Domínio e GitHub org:** ainda indefinidos (mesma Open Question #1 do [prd-pspm-cli.md](./prd-pspm-cli.md)); bloqueiam US-010 e os links do instalador.
+1. **Domínio e GitHub org:** ainda indefinidos (mesma Open Question #1 do [prd-spmx-cli.md](./prd-spmx-cli.md)); bloqueiam US-010 e os links do instalador.
 2. **Lançamento sem benchmarks:** publicar o site antes da fase 2 terminar (stats estruturais apenas) ou aguardar os números?
 3. **Fixtures exatos:** quais repositórios e commits públicos representam melhor os três perfis (macros, SDK binário, Flutter + Firebase)?
 4. **Idioma:** confirmar inglês apenas na v1.

@@ -9,7 +9,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "brew", label: "Homebrew" },
   { id: "curl", label: "curl" },
 ];
-const STORAGE_KEY = "pspm-install-tab";
+const STORAGE_KEY = "spmx-install-tab";
 
 export function InstallTabs({ idPrefix = "install" }: { idPrefix?: string }) {
   const uid = useId();
@@ -85,7 +85,7 @@ export function InstallTabs({ idPrefix = "install" }: { idPrefix?: string }) {
       </div>
       {notMac ? (
         <p className="mt-2 text-sm text-ink-muted" role="note">
-          pspm runs on macOS (Apple Silicon and Intel). Linux is not supported yet.
+          spmx runs on macOS (Apple Silicon and Intel). Linux is not supported yet.
         </p>
       ) : null}
     </div>

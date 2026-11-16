@@ -1,10 +1,10 @@
 ---
-title: pspm migrate
+title: spmx migrate
 description: Scan folders for existing projects and move their SwiftPM caches into the global store.
 ---
 
 ```bash
-pspm migrate [<path>] [--home] [--apply] [--dry-run] [--no-deduplicate]
+spmx migrate [<path>] [--home] [--apply] [--dry-run] [--no-deduplicate]
              [--harvest-only] [--install-hooks] [--max-depth <n>]
              [--exclude <pattern> ...] [--verbose] [--quiet]
 ```
@@ -34,8 +34,8 @@ Finds Flutter, Xcode and SwiftPM projects and Git worktrees under a directory, h
 ## Examples
 
 ```bash
-pspm migrate ~/dev                      # preview
-pspm migrate ~/dev --apply              # harvest and deduplicate
-pspm migrate ~/dev --apply --harvest-only
-pspm migrate --home --exclude node_modules --exclude Archive
+spmx migrate ~/dev                      # preview
+spmx migrate ~/dev --apply              # harvest and deduplicate
+spmx migrate ~/dev --apply --harvest-only
+spmx migrate --home --exclude node_modules --exclude Archive
 ```

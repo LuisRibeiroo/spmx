@@ -1,9 +1,9 @@
 ---
 title: Introduction
-description: What pspm is, what it changes in your worktree workflow, and where to start.
+description: What spmx is, what it changes in your worktree workflow, and where to start.
 ---
 
-`pspm` is a macOS command-line tool that keeps one global store of Swift Package Manager checkouts, binary artifacts and macro prebuilts, and clones it into each Git worktree with APFS copy-on-write.
+`spmx` is a macOS command-line tool that keeps one global store of Swift Package Manager checkouts, binary artifacts and macro prebuilts, and clones it into each Git worktree with APFS copy-on-write.
 
 <StoreDiagram />
 
@@ -11,7 +11,7 @@ description: What pspm is, what it changes in your worktree workflow, and where 
 
 Xcode derives the `DerivedData` folder name from a hash of the workspace path, so every new worktree starts with an empty `SourcePackages`. Each one downloads its own copy of the same dependencies.
 
-pspm removes that cost. A package is downloaded once, stored under `~/.pspm/store`, and cloned into any worktree that needs it. Clones share disk blocks until a file is modified.
+spmx removes that cost. A package is downloaded once, stored under `~/.spmx/store`, and cloned into any worktree that needs it. Clones share disk blocks until a file is modified.
 
 ## Start here
 

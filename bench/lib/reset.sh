@@ -1,6 +1,6 @@
 #!/bin/bash
 # hyperfine --prepare hook. Brings the world back to the state a scenario starts from.
-# Environment (set by run.sh): BENCH_SCENARIO, BENCH_MODE (baseline|pspm), BENCH_REPO,
+# Environment (set by run.sh): BENCH_SCENARIO, BENCH_MODE (baseline|spmx), BENCH_REPO,
 # BENCH_COMMIT, BENCH_WT, BENCH_SPM_CACHE, BENCH_STORE, BENCH_CC
 set -euo pipefail
 
@@ -13,13 +13,13 @@ new_worktree() {
 }
 
 case "$BENCH_SCENARIO" in
-  S1) # cold: no SwiftPM cache, no pspm store
+  S1) # cold: no SwiftPM cache, no spmx store
       rm -rf "$BENCH_SPM_CACHE" "$BENCH_STORE"; mkdir -p "$BENCH_SPM_CACHE" "$BENCH_STORE"
       new_worktree ;;
-  S2) # new worktree, SwiftPM cache warm (primed by run.sh), pspm store empty
+  S2) # new worktree, SwiftPM cache warm (primed by run.sh), spmx store empty
       rm -rf "$BENCH_STORE"; mkdir -p "$BENCH_STORE"
       new_worktree ;;
-  S3) # new worktree, pspm store warm (primed by run.sh). Baseline keeps the SwiftPM cache warm too.
+  S3) # new worktree, spmx store warm (primed by run.sh). Baseline keeps the SwiftPM cache warm too.
       new_worktree ;;
   S6) # clean build in a new worktree: store warm, compilation cache state decided by run.sh
       new_worktree ;;

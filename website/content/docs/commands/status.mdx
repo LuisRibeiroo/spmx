@@ -1,13 +1,13 @@
 ---
-title: pspm status
+title: spmx status
 description: Inspect project detection, DerivedData and SourcePackages paths, cached pins and the compilation cache.
 ---
 
 ```bash
-pspm status [<path>] [--project <project>] [--workspace <workspace>]
+spmx status [<path>] [--project <project>] [--workspace <workspace>]
 ```
 
-Run it inside a project to see how pspm understands it and how much of `Package.resolved` the store already has.
+Run it inside a project to see how spmx understands it and how much of `Package.resolved` the store already has.
 
 ## Arguments and options
 
@@ -20,7 +20,7 @@ Run it inside a project to see how pspm understands it and how much of `Package.
 ## Example
 
 ```text
-$ pspm status
+$ spmx status
 Project Status
   Project type:       swiftPackage
   Root path:          ~/dev/app
@@ -30,5 +30,5 @@ Project Status
   SourcePackages:     ~/dev/app/.build
   Package.resolved:   ~/dev/app/Package.resolved
   Cached pins:        ✓ 1/1 (0 missing)
-  Compilation cache:  ✓ enabled at ~/.pspm/compilation-cache
+  Compilation cache:  ✓ enabled at ~/.spmx/compilation-cache
 ```

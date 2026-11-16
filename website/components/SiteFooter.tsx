@@ -10,7 +10,7 @@ export function SiteFooter() {
     <footer className="band-warm mt-auto">
       <div className="container-page flex flex-wrap items-center justify-between gap-x-6 gap-y-1 py-4 text-sm">
         <p className="whitespace-nowrap text-ink-muted">
-          pspm v{meta.cliVersion} · MIT
+          spmx v{meta.cliVersion} · MIT
         </p>
         <nav aria-label="Footer" className="flex flex-wrap gap-x-5">
           <Link href="/docs" className={link}>Docs</Link>

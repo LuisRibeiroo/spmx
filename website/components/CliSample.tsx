@@ -31,7 +31,7 @@ export function CliSample() {
         </code>
       </pre>
       <figcaption className="mt-3 text-xs text-ink-muted">
-        Captured from <code className="font-mono">pspm hydrate</code> v{sample.cliVersion} on a small SwiftPM project.
+        Captured from <code className="font-mono">spmx hydrate</code> v{sample.cliVersion} on a small SwiftPM project.
         Paths shortened.
       </figcaption>
     </figure>

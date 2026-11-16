@@ -1,11 +1,11 @@
 #!/bin/sh
 set -eu
 
-REPO="LuisRibeiroo/pspm"
-ARCHIVE_NAME="pspm-macos-universal.tar.gz"
-CHECKSUM_NAME="pspm-macos-universal.tar.gz.sha256"
-INSTALL_DIR="$HOME/.pspm/bin"
-BINARY_PATH="$INSTALL_DIR/pspm"
+REPO="LuisRibeiroo/spmx"
+ARCHIVE_NAME="spmx-macos-universal.tar.gz"
+CHECKSUM_NAME="spmx-macos-universal.tar.gz.sha256"
+INSTALL_DIR="$HOME/.spmx/bin"
+BINARY_PATH="$INSTALL_DIR/spmx"
 
 # ANSI styling helpers (disabled automatically when non-TTY or NO_COLOR is set)
 USE_COLOR=0
@@ -59,7 +59,7 @@ step_tip() {
 }
 
 NO_MODIFY_PATH=0
-if [ "${PSPM_NO_MODIFY_PATH:-0}" = "1" ] || [ "${PSPM_NO_MODIFY_PATH:-}" = "true" ]; then
+if [ "${SPMX_NO_MODIFY_PATH:-0}" = "1" ] || [ "${SPMX_NO_MODIFY_PATH:-}" = "true" ]; then
     NO_MODIFY_PATH=1
 fi
 
@@ -70,15 +70,15 @@ for arg in "$@"; do
             ;;
         -h|--help)
             cat <<'EOF'
-Install pspm (Performant Swift Package Manager) on macOS.
+Install spmx (Performant Swift Package Manager) on macOS.
 
 Usage:
-  curl -fsSL https://raw.githubusercontent.com/LuisRibeiroo/pspm/main/scripts/install.sh | sh
-  curl -fsSL https://raw.githubusercontent.com/LuisRibeiroo/pspm/main/scripts/install.sh | sh -s -- --no-modify-path
+  curl -fsSL https://raw.githubusercontent.com/LuisRibeiroo/spmx/main/scripts/install.sh | sh
+  curl -fsSL https://raw.githubusercontent.com/LuisRibeiroo/spmx/main/scripts/install.sh | sh -s -- --no-modify-path
 
 Environment variables:
-  PSPM_VERSION         Specific release tag to install (e.g., v0.1.0). Defaults to latest.
-  PSPM_NO_MODIFY_PATH  Set to 1 to skip modifying shell RC files.
+  SPMX_VERSION         Specific release tag to install (e.g., v0.1.0). Defaults to latest.
+  SPMX_NO_MODIFY_PATH  Set to 1 to skip modifying shell RC files.
 EOF
             exit 0
             ;;
@@ -89,11 +89,11 @@ EOF
     esac
 done
 
-printf '%bpspm installer%b\n' "$C_CYAN" "$C_RESET"
+printf '%bspmx installer%b\n' "$C_CYAN" "$C_RESET"
 
 OS="$(uname -s)"
 if [ "$OS" != "Darwin" ]; then
-    step_error "pspm currently supports macOS (Darwin) only (detected: $OS)."
+    step_error "spmx currently supports macOS (Darwin) only (detected: $OS)."
     exit 1
 fi
 
@@ -109,7 +109,7 @@ esac
 step_success "Platform detected" "${OS} (${ARCH})"
 
 if ! command -v curl >/dev/null 2>&1; then
-    step_error "curl is required to install pspm."
+    step_error "curl is required to install spmx."
     exit 1
 fi
 
@@ -118,8 +118,8 @@ if ! command -v shasum >/dev/null 2>&1; then
     exit 1
 fi
 
-if [ -n "${PSPM_VERSION:-}" ] && [ "${PSPM_VERSION}" != "latest" ]; then
-    TAG="v${PSPM_VERSION#v}"
+if [ -n "${SPMX_VERSION:-}" ] && [ "${SPMX_VERSION}" != "latest" ]; then
+    TAG="v${SPMX_VERSION#v}"
     BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
 else
     BASE_URL="https://github.com/${REPO}/releases/latest/download"
@@ -134,7 +134,7 @@ trap cleanup EXIT INT TERM
 ARCHIVE_FILE="${TMP_DIR}/${ARCHIVE_NAME}"
 CHECKSUM_FILE="${TMP_DIR}/${CHECKSUM_NAME}"
 
-step_running "Downloading pspm from ${BASE_URL}..."
+step_running "Downloading spmx from ${BASE_URL}..."
 curl -fsSL "${BASE_URL}/${ARCHIVE_NAME}" -o "$ARCHIVE_FILE"
 curl -fsSL "${BASE_URL}/${CHECKSUM_NAME}" -o "$CHECKSUM_FILE"
 step_success "Downloaded archive" "$ARCHIVE_NAME"
@@ -153,13 +153,13 @@ step_success "Checksum verified" "$ACTUAL_SHA"
 
 step_running "Installing binary to ${BINARY_PATH}..."
 tar -xzf "$ARCHIVE_FILE" -C "$TMP_DIR"
-if [ ! -f "${TMP_DIR}/pspm" ]; then
-    step_error "Extracted archive did not contain pspm binary."
+if [ ! -f "${TMP_DIR}/spmx" ]; then
+    step_error "Extracted archive did not contain spmx binary."
     exit 1
 fi
 
 mkdir -p "$INSTALL_DIR"
-cp "${TMP_DIR}/pspm" "$BINARY_PATH"
+cp "${TMP_DIR}/spmx" "$BINARY_PATH"
 chmod 755 "$BINARY_PATH"
 step_success "Installed binary" "$BINARY_PATH"
 printf '\n'

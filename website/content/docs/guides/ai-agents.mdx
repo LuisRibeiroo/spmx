@@ -6,7 +6,7 @@ description: Give every coding agent its own worktree without paying for its own
 Agents work best in isolation: one worktree per task, so edits and builds never collide. The cost has always been the setup, since every worktree re-resolves and re-downloads its packages.
 
 ```bash
-pspm hooks enable --global
+spmx hooks enable --global
 for n in 1 2 3; do git worktree add ../agent-$n; done
 ```
 
@@ -30,5 +30,5 @@ When agent worktrees are removed, their packages become unreferenced:
 
 ```bash
 git worktree remove ../agent-1
-pspm store prune --dry-run
+spmx store prune --dry-run
 ```

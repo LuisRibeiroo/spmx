@@ -1,17 +1,17 @@
 ---
-title: pspm store
+title: spmx store
 description: Inspect and manage the global store and the compilation cache.
 ---
 
 ```bash
-pspm store path
-pspm store status        # default subcommand
-pspm store prune [--dry-run] [--older-than <days>]
+spmx store path
+spmx store status        # default subcommand
+spmx store prune [--dry-run] [--older-than <days>]
 ```
 
 ## `store path`
 
-Prints the absolute path of the store (`~/.pspm/store`, or `PSPM_STORE_DIR`).
+Prints the absolute path of the store (`~/.spmx/store`, or `SPMX_STORE_DIR`).
 
 ## `store status`
 
@@ -19,12 +19,12 @@ Lists checkouts, artifacts and prebuilts (prebuilts grouped by toolchain), the l
 
 ```text
 Global Store Status
-  Store path:         ~/.pspm/store
+  Store path:         ~/.spmx/store
   Checkouts:          1 (1.9 MB)
   Artifacts:          0 (Zero bytes)
   Prebuilts:          0 (Zero bytes)
   Logical store size: 1.9 MB
-  Compilation cache:  ~/.pspm/compilation-cache (Zero bytes)
+  Compilation cache:  ~/.spmx/compilation-cache (Zero bytes)
   Registered projects: 2 total (2 active, 0 missing on disk)
   Est. CoW savings:   3.8 MB
 ```
@@ -39,6 +39,6 @@ Drops registered projects whose folders no longer exist, deletes packages no act
 | `--older-than <days>` | only remove unreferenced entries and cache files older than this. Default 30 |
 
 ```bash
-pspm store prune --dry-run
-pspm store prune --older-than 7
+spmx store prune --dry-run
+spmx store prune --older-than 7
 ```

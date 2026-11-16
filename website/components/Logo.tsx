@@ -12,7 +12,7 @@ export function Logo({ size = 28 }: { size?: number }) {
         unoptimized
         className="pixelated"
       />
-      <span className="font-mono text-base">pspm</span>
+      <span className="font-mono text-base">spmx</span>
     </Link>
   );
 }

@@ -30,7 +30,7 @@ export async function renderOg(title: string, subtitle: string) {
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={src} width={62} height={72} alt="" style={{ imageRendering: "pixelated" }} />
-          <span style={{ color: INK, fontSize: 44, fontWeight: 700 }}>pspm</span>
+          <span style={{ color: INK, fontSize: 44, fontWeight: 700 }}>spmx</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           <div style={{ color: INK, fontSize: 76, fontWeight: 700, lineHeight: 1.05, letterSpacing: -2 }}>{title}</div>

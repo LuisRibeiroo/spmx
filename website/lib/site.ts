@@ -26,10 +26,10 @@ function resolveSiteUrl(): string {
 }
 
 export const SITE = {
-  name: "pspm",
+  name: "spmx",
   tagline: "Share SwiftPM packages across Git worktrees",
   description:
-    "pspm keeps one APFS copy-on-write store of SwiftPM checkouts, binary artifacts and macro prebuilts, and clones it into every Git worktree. No re-downloads, no duplicated gigabytes.",
+    "spmx keeps one APFS copy-on-write store of SwiftPM checkouts, binary artifacts and macro prebuilts, and clones it into every Git worktree. No re-downloads, no duplicated gigabytes.",
   /** <= 155 characters so search results do not truncate it. */
   metaDescription:
     "One APFS copy-on-write store of SwiftPM checkouts, artifacts and macro prebuilts, cloned into every Git worktree. No re-downloads, no wasted gigabytes.",

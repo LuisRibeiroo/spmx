@@ -1,5 +1,5 @@
 {
-  "name": "pspm-website",
+  "name": "spmx-website",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "dev": "next dev",
     "build": "next build",
     "postbuild": "node scripts/check-site-url.mjs",
-    "deploy:preview": "SITE_URL=${PREVIEW_URL:-https://preview.pspm-website.pages.dev} npm run build && npm exec --yes --package=wrangler -- wrangler pages deploy out --project-name pspm-website --branch preview",
+    "deploy:preview": "SITE_URL=${PREVIEW_URL:-https://preview.spmx-website.pages.dev} npm run build && npm exec --yes --package=wrangler -- wrangler pages deploy out --project-name spmx-website --branch preview",
     "start": "npx serve out -l 3000",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

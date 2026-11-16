@@ -9,15 +9,15 @@ interface Row {
   max?: number;
   text: string;
   range?: string;
-  tone: "base" | "pspm";
+  tone: "base" | "spmx";
 }
 
 function rowsFor(s: Scenario): Row[] {
   if (s.disk_bytes) {
     const d = s.disk_bytes;
     return [
-      { label: "Without pspm", median: d.baseline_extra_per_worktree, text: formatBytes(d.baseline_extra_per_worktree), tone: "base" },
-      { label: "With pspm", median: d.pspm_extra_per_worktree, text: formatBytes(d.pspm_extra_per_worktree), tone: "pspm" },
+      { label: "Without spmx", median: d.baseline_extra_per_worktree, text: formatBytes(d.baseline_extra_per_worktree), tone: "base" },
+      { label: "With spmx", median: d.spmx_extra_per_worktree, text: formatBytes(d.spmx_extra_per_worktree), tone: "spmx" },
     ];
   }
   const out: Row[] = [];
@@ -30,8 +30,8 @@ function rowsFor(s: Scenario): Row[] {
     range: `${formatDuration(st.min_s)} – ${formatDuration(st.max_s)} · ${st.runs} runs`,
     tone,
   });
-  if (s.baseline) out.push(mk(s.id === "S5" ? "Direct binary" : s.id === "S6" ? "Cache off" : "Without pspm", s.baseline, "base"));
-  if (s.pspm) out.push(mk(s.id === "S5" ? "pspm shim" : s.id === "S6" ? "Cache on" : "With pspm", s.pspm, "pspm"));
+  if (s.baseline) out.push(mk(s.id === "S5" ? "Direct binary" : s.id === "S6" ? "Cache off" : "Without spmx", s.baseline, "base"));
+  if (s.spmx) out.push(mk(s.id === "S5" ? "spmx shim" : s.id === "S6" ? "Cache on" : "With spmx", s.spmx, "spmx"));
   return out;
 }
 
@@ -76,7 +76,7 @@ export function BenchBars({ scenarios, compact = false }: { scenarios: Scenario[
                       className="h-4 w-full overflow-visible"
                     >
                       <rect x="0" y="0" width="100" height="14" className="fill-paper-2" />
-                      <rect x="0" y="0" width={Math.max(w, 0.6)} height="14" className={r.tone === "pspm" ? "fill-accent" : "fill-line-strong"} />
+                      <rect x="0" y="0" width={Math.max(w, 0.6)} height="14" className={r.tone === "spmx" ? "fill-accent" : "fill-line-strong"} />
                       {lo !== null && hi !== null ? (
                         <g className="stroke-ink" strokeWidth="1.5" vectorEffect="non-scaling-stroke">
                           <line x1={lo} x2={hi} y1="7" y2="7" vectorEffect="non-scaling-stroke" />

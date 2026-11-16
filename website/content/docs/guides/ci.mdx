@@ -1,35 +1,35 @@
 ---
 title: Continuous integration
-description: Reuse the store between CI jobs, or bypass pspm when you need a vanilla build.
+description: Reuse the store between CI jobs, or bypass spmx when you need a vanilla build.
 ---
 
-pspm is useful in CI whenever jobs run on the same machine or restore a cache between runs.
+spmx is useful in CI whenever jobs run on the same machine or restore a cache between runs.
 
 ## Cache the store
 
-Point the store at a directory your CI can save and restore, and install pspm in the job:
+Point the store at a directory your CI can save and restore, and install spmx in the job:
 
 ```bash
-export PSPM_STORE_DIR="$HOME/pspm-store"     # restore this directory from your CI cache
-curl -fsSL https://raw.githubusercontent.com/LuisRibeiroo/pspm/main/scripts/install.sh | sh -s -- --no-modify-path
-export PATH="$HOME/.pspm/shims:$HOME/.pspm/bin:$PATH"
+export SPMX_STORE_DIR="$HOME/spmx-store"     # restore this directory from your CI cache
+curl -fsSL https://raw.githubusercontent.com/LuisRibeiroo/spmx/main/scripts/install.sh | sh -s -- --no-modify-path
+export PATH="$HOME/.spmx/shims:$HOME/.spmx/bin:$PATH"
 
 xcodebuild -workspace App.xcworkspace -scheme App build
 ```
 
-The store and the workspace must be on the same APFS volume for zero-copy clones; on a different volume pspm falls back to copying.
+The store and the workspace must be on the same APFS volume for zero-copy clones; on a different volume spmx falls back to copying.
 
-To pin a version, set `PSPM_VERSION`, for example `PSPM_VERSION=v0.1.0`.
+To pin a version, set `SPMX_VERSION`, for example `SPMX_VERSION=v0.1.0`.
 
 ## Explicit source package paths
 
-If a job passes `-clonedSourcePackagesDirPath` to `xcodebuild`, pspm leaves that directory alone. Use `pspm hydrate --source-packages <dir>` before the build if you want the store to fill it.
+If a job passes `-clonedSourcePackagesDirPath` to `xcodebuild`, spmx leaves that directory alone. Use `spmx hydrate --source-packages <dir>` before the build if you want the store to fill it.
 
 ## Opting out
 
 ```bash
-PSPM_DISABLE=1 xcodebuild ...            # no shim behavior at all
-PSPM_NO_COMPILE_CACHE=1 xcodebuild ...   # hydrate, but no compilation cache
+SPMX_DISABLE=1 xcodebuild ...            # no shim behavior at all
+SPMX_NO_COMPILE_CACHE=1 xcodebuild ...   # hydrate, but no compilation cache
 ```
 
-pspm collects no telemetry and makes no network calls of its own, so it needs no network allowance in a locked-down runner.
+spmx collects no telemetry and makes no network calls of its own, so it needs no network allowance in a locked-down runner.

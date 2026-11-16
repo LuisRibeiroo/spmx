@@ -1,9 +1,9 @@
 {
-  "_comment": "Captured from `pspm hydrate` (TTY, spinner frames omitted) on a small SwiftPM project. Paths shortened. Re-capture when the CLI output format changes.",
-  "command": "pspm hydrate",
+  "_comment": "Captured from `spmx hydrate` (TTY, spinner frames omitted) on a small SwiftPM project. Paths shortened. Re-capture when the CLI output format changes.",
+  "command": "spmx hydrate",
   "cliVersion": "0.1.0",
   "lines": [
-    [{ "t": "pspm hydrate", "c": "accent", "b": true }, { "t": " [swiftPackage]", "c": "muted" }],
+    [{ "t": "spmx hydrate", "c": "accent", "b": true }, { "t": " [swiftPackage]", "c": "muted" }],
     [{ "t": "Scope:", "c": "muted" }, { "t": " ~/dev/app-feature" }],
     [{ "t": "  Target:", "c": "muted" }, { "t": " ~/dev/app-feature/.build" }],
     [],
