@@ -1,7 +1,7 @@
 # PRD: pspm — Landing Page + Docs + Benchmarks
 
 **Versão:** 1.0  
-**Status:** Draft (Planejado, não implementado)  
+**Status:** Em implementação (US-001–008 feitas; US-009 parcial; US-010 pendente)  
 **Repositório Alvo:** `~/projects/pspm` → novos diretórios `website/` e `bench/`  
 **Stack:** Next.js 15 (App Router, SSG) · Tailwind CSS v4 · Fumadocs · Shiki · `next/font`  
 **Ícone Principal:** [`assets/icon.svg`](../assets/icon.svg) · [`assets/icon.png`](../assets/icon.png) — ver *Brand Assets* em [prd-master.md](./prd-master.md)  
