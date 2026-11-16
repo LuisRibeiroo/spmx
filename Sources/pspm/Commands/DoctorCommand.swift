@@ -13,6 +13,7 @@ struct DoctorCommand: ParsableCommand {
         let report = DoctorDiagnostics().run()
 
         print(style.heading("pspm doctor"))
+        print("")
         for check in report.checks {
             let badge: String
             let nameText: String
@@ -27,7 +28,7 @@ struct DoctorCommand: ParsableCommand {
                 badge = style.errorText("[✗ FAIL]")
                 nameText = style.red(style.bold(check.name))
             }
-            let summaryText = style.formatInlineCode(check.summary, baseCodes: [], codeCodes: ["36"])
+            let summaryText = style.formatInlineCode(check.summary, baseCodes: [], codeCodes: style.primaryColorCodes)
             print("  \(badge) \(nameText): \(summaryText)")
             if let remediation = check.remediation {
                 let tipBody = style.formatInlineCode(remediation, baseCodes: ["90"], codeCodes: ["90", "1"])
@@ -39,7 +40,7 @@ struct DoctorCommand: ParsableCommand {
         let passText = style.green("\(report.passCount) passed")
         let warnText = report.warnCount > 0 ? style.yellow("\(report.warnCount) warning(s)") : style.dim("\(report.warnCount) warning(s)")
         let failText = report.failCount > 0 ? style.red(style.bold("\(report.failCount) failure(s)")) : style.dim("\(report.failCount) failure(s)")
-        print("\(style.bold("Summary:")) \(passText), \(warnText), \(failText).")
+        print("\(style.section("Summary:")) \(passText), \(warnText), \(failText).")
 
         if report.hasFailures {
             throw ExitCode(1)

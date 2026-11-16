@@ -1,31 +1,64 @@
 import Darwin
 import Foundation
 
-/// ANSI terminal styling helper that respects TTY detection and `NO_COLOR` / `FORCE_COLOR` conventions.
+/// ANSI terminal styling helper inspired by pnpm's clean block layout, using pspm's icon orange (`#EA6A38`)
+/// as the primary brand color, while respecting TTY detection and `NO_COLOR` / `FORCE_COLOR` conventions.
 public struct TerminalStyle: Sendable, Equatable {
-    public let isEnabled: Bool
+    /// Brand primary orange extracted from `assets/icon.svg` (`#EA6A38` / `rgb(234, 106, 56)`).
+    public static let iconOrangeRGB = (r: 234, g: 106, b: 56)
 
-    public init(enabled: Bool) {
+    public let isEnabled: Bool
+    public let supportsTrueColor: Bool
+
+    public init(enabled: Bool, supportsTrueColor: Bool = true) {
         self.isEnabled = enabled
+        self.supportsTrueColor = supportsTrueColor
     }
 
     /// Standard output style based on `STDOUT_FILENO` TTY state and process environment.
     public static var stdout: TerminalStyle {
+        let env = ProcessInfo.processInfo.environment
         let isTTY = isatty(STDOUT_FILENO) != 0
-        return TerminalStyle(enabled: shouldEnableColor(isTTY: isTTY, environment: ProcessInfo.processInfo.environment))
+        return TerminalStyle(
+            enabled: shouldEnableColor(isTTY: isTTY, environment: env),
+            supportsTrueColor: shouldUseTrueColor(environment: env)
+        )
     }
 
     /// Standard error style based on `STDERR_FILENO` TTY state and process environment.
     public static var stderr: TerminalStyle {
+        let env = ProcessInfo.processInfo.environment
         let isTTY = isatty(STDERR_FILENO) != 0
-        return TerminalStyle(enabled: shouldEnableColor(isTTY: isTTY, environment: ProcessInfo.processInfo.environment))
+        return TerminalStyle(
+            enabled: shouldEnableColor(isTTY: isTTY, environment: env),
+            supportsTrueColor: shouldUseTrueColor(environment: env)
+        )
     }
 
     /// Always disables ANSI escape sequences.
-    public static let plain = TerminalStyle(enabled: false)
+    public static let plain = TerminalStyle(enabled: false, supportsTrueColor: false)
 
-    /// Always emits ANSI escape sequences.
-    public static let ansi = TerminalStyle(enabled: true)
+    /// Always emits ANSI escape sequences (with TrueColor orange `#EA6A38`).
+    public static let ansi = TerminalStyle(enabled: true, supportsTrueColor: true)
+
+    /// Resolves whether the active terminal supports 24-bit TrueColor escape sequences.
+    public static func shouldUseTrueColor(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        if let colorTerm = environment["COLORTERM"]?.lowercased(),
+           colorTerm.contains("truecolor") || colorTerm.contains("24bit") {
+            return true
+        }
+        if let termProgram = environment["TERM_PROGRAM"] {
+            let trueColorPrograms: Set<String> = [
+                "iTerm.app", "vscode", "WarpTerminal", "ghostty", "WezTerm", "Alacritty"
+            ]
+            if trueColorPrograms.contains(termProgram) {
+                return true
+            }
+        }
+        return false
+    }
 
     /// Resolves whether ANSI color/formatting should be emitted.
     public static func shouldEnableColor(
@@ -74,16 +107,40 @@ public struct TerminalStyle: Sendable, Equatable {
     public func brightGreen(_ text: String) -> String { wrap(text, codes: ["92"]) }
     public func brightCyan(_ text: String) -> String { wrap(text, codes: ["96"]) }
 
+    /// SGR foreground codes for the pspm icon orange (`#EA6A38`), falling back to 256-color `209`.
+    public var primaryColorCodes: [String] {
+        supportsTrueColor
+            ? ["38", "2", "\(Self.iconOrangeRGB.r)", "\(Self.iconOrangeRGB.g)", "\(Self.iconOrangeRGB.b)"]
+            : ["38", "5", "209"]
+    }
+
+    public func primary(_ text: String) -> String { wrap(text, codes: primaryColorCodes) }
+    public func primaryBold(_ text: String) -> String { wrap(text, codes: ["1"] + primaryColorCodes) }
+    public func orange(_ text: String) -> String { primary(text) }
+
     // MARK: - Semantic Helpers
 
-    public func heading(_ text: String) -> String { wrap(text, codes: ["1", "36"]) }
-    public func section(_ text: String) -> String { wrap(text, codes: ["1"]) }
-    public func path(_ text: String) -> String { wrap(text, codes: ["36"]) }
-    public func command(_ text: String) -> String { wrap(text, codes: ["1", "36"]) }
+    public func heading(_ text: String) -> String { primaryBold(text) }
+    public func section(_ text: String) -> String { primaryBold(text) }
+    public func path(_ text: String) -> String { text }
+    public func mutedPath(_ text: String) -> String { gray(text) }
+    public func command(_ text: String) -> String { primaryBold(text) }
     public func emphasis(_ text: String) -> String { wrap(text, codes: ["1", "3"]) }
+    public func scopeLine(_ scope: String) -> String { "\(gray("Scope:")) \(scope)" }
+
+    public func dryRunBadge(_ text: String = "[dry-run]") -> String {
+        primaryBold(text)
+    }
+
+    public func doneIn(seconds: TimeInterval) -> String {
+        let formatted = seconds < 10
+            ? String(format: "%.1fs", max(0, seconds))
+            : String(format: "%.0fs", max(0, seconds))
+        return "\(green("Done")) \(gray("in \(formatted)"))"
+    }
 
     public func successText(_ text: String) -> String { wrap(text, codes: ["1", "32"]) }
-    public func runningText(_ text: String) -> String { wrap(text, codes: ["1", "36"]) }
+    public func runningText(_ text: String) -> String { primaryBold(text) }
     public func warningText(_ text: String) -> String { wrap(text, codes: ["1", "33"]) }
     public func errorText(_ text: String) -> String { wrap(text, codes: ["1", "31"]) }
 
@@ -128,15 +185,24 @@ public struct TerminalStyle: Sendable, Equatable {
 
     // MARK: - Status Icons & Step Lines
 
-    public var runningIcon: String { wrap("▸", codes: ["1", "36"]) }
+    public var runningIcon: String { primaryBold("▸") }
     public var successIcon: String { wrap("✓", codes: ["1", "32"]) }
+    public var addIcon: String { wrap("+", codes: ["1", "32"]) }
+    public var removeIcon: String { wrap("-", codes: ["1", "31"]) }
     public var warningIcon: String { wrap("!", codes: ["1", "33"]) }
     public var errorIcon: String { wrap("✗", codes: ["1", "31"]) }
     public var skippedIcon: String { wrap("•", codes: ["90"]) }
-    public var infoIcon: String { wrap("›", codes: ["36"]) }
+    public var infoIcon: String { primary("›") }
 
     public func stepRunning(_ label: String) -> String {
-        "  \(runningIcon) \(cyan(label))"
+        "  \(runningIcon) \(primary(label))"
+    }
+
+    public func stepAdded(_ title: String, detail: String? = nil) -> String {
+        if let detail, !detail.isEmpty {
+            return "  \(addIcon) \(title) \(gray(detail))"
+        }
+        return "  \(addIcon) \(title)"
     }
 
     public func stepSuccess(_ title: String, detail: String? = nil) -> String {
@@ -148,9 +214,9 @@ public struct TerminalStyle: Sendable, Equatable {
 
     public func stepSkipped(_ title: String, detail: String? = nil) -> String {
         if let detail, !detail.isEmpty {
-            return "  \(skippedIcon) \(yellow(title)) \(tip(detail))"
+            return "  \(skippedIcon) \(gray(title)) \(tip(detail))"
         }
-        return "  \(skippedIcon) \(yellow(title))"
+        return "  \(skippedIcon) \(gray(title))"
     }
 
     public func stepWarning(_ title: String, detail: String? = nil) -> String {

@@ -61,11 +61,23 @@ struct MigrateCommand: ParsableCommand {
     )
     var exclude: [String] = []
 
+    @Option(
+        name: .long,
+        help: "Inactivity timeout in seconds for each external subcommand (defaults to 30s; 0 disables; resets on output or completion)."
+    )
+    var timeout: Double?
+
     @Flag(name: .shortAndLong, help: "Print verbose details for each scanned path.")
     var verbose: Bool = false
 
     @Flag(name: .shortAndLong, help: "Suppress normal output.")
     var quiet: Bool = false
+
+    func validate() throws {
+        if let timeout, timeout < 0 {
+            throw ValidationError("--timeout must be >= 0.")
+        }
+    }
 
     func run() throws {
         let style = TerminalStyle.stdout
@@ -80,9 +92,16 @@ struct MigrateCommand: ParsableCommand {
             searchRoots = [fileManager.currentDirectoryPath]
         }
 
+        let spinner = TerminalSpinner(style: style)
+        defer { spinner.stop() }
+
         let verboseLogger: (@Sendable (String) -> Void)?
         if verbose && !quiet {
-            verboseLogger = { message in print(style.gray("[verbose] \(message)")) }
+            verboseLogger = { message in
+                spinner.suspendForOutput {
+                    print(style.gray("[verbose] \(message)"))
+                }
+            }
         } else {
             verboseLogger = nil
         }
@@ -90,10 +109,21 @@ struct MigrateCommand: ParsableCommand {
         let isDryRun = dryRun || !apply
         let isDedup = deduplicate && !harvestOnly
         let isQuiet = quiet
+        let resolvedTimeout = CommandExecutor.resolveDefaultTimeout(override: timeout)
+        let startedAt = Date()
+
+        let canonicalScopeRoots = searchRoots.map {
+            DerivedDataPathCalculator.canonicalizePath($0, currentDirectory: fileManager.currentDirectoryPath)
+        }
+        let homePath = fileManager.homeDirectoryForCurrentUser.standardizedFileURL.resolvingSymlinksInPath().path
 
         if !isQuiet {
-            let modeBadge = isDryRun ? " \(style.yellow(style.bold("[dry-run]")))" : ""
+            let modeBadge = isDryRun ? " \(style.dryRunBadge())" : ""
             print("\(style.heading("pspm migrate"))\(modeBadge)")
+            print(style.scopeLine(canonicalScopeRoots.joined(separator: ", ")))
+            print("")
+            let sectionTitle = isDryRun ? "Inspecting projects:" : "Migrating projects:"
+            print(style.section(sectionTitle))
         }
 
         let manager = MigrationManager()
@@ -105,58 +135,79 @@ struct MigrateCommand: ParsableCommand {
             excludePatterns: exclude,
             includeGitWorktreeDiscovery: true,
             installRepoHooks: installHooks,
+            commandTimeout: resolvedTimeout,
             verboseLogger: verboseLogger
         )
 
         let report = try manager.migrate(options: options) { event in
             guard !isQuiet else { return }
             switch event {
-            case .scanning(let root):
-                if style.isEnabled {
-                    let maxPath = max(20, Self.terminalColumns() - 16)
-                    let displayRoot = Self.middleTruncate(root, maxLength: maxPath)
-                    let line = style.stepRunning("Scanning \(style.path(displayRoot))...")
-                    FileHandle.standardOutput.write(Data("\r\u{1B}[2K\(line)".utf8))
-                    fflush(Darwin.stdout)
-                } else {
-                    print(style.stepRunning("Scanning \(root)..."))
-                }
+            case .scanning:
+                spinner.start(message: "", detail: "scanning worktrees & projects")
             case .discovered:
                 break
             case .processing(let projectRoot, let type):
-                if style.isEnabled {
-                    let prefixOverhead = 18 + type.rawValue.count
-                    let maxPath = max(20, Self.terminalColumns() - prefixOverhead)
-                    let displayRoot = Self.middleTruncate(projectRoot, maxLength: maxPath)
-                    let line = style.stepRunning("Inspecting \(type.rawValue) at \(style.path(displayRoot))...")
-                    FileHandle.standardOutput.write(Data("\r\u{1B}[2K\(line)".utf8))
-                    fflush(Darwin.stdout)
-                }
+                let displayTarget = Self.displayPath(projectRoot, relativeTo: canonicalScopeRoots, homePath: homePath)
+                spinner.update(message: "\(displayTarget) [\(type.rawValue)]", detail: "checking")
+            case .stage(_, _, let detail):
+                spinner.update(detail: detail)
             case .completed(let outcome):
-                if style.isEnabled {
-                    FileHandle.standardOutput.write(Data("\r\u{1B}[2K".utf8))
+                spinner.finishItem {
+                    Self.printOutcome(
+                        outcome,
+                        relativeTo: canonicalScopeRoots,
+                        homePath: homePath,
+                        dryRun: isDryRun,
+                        deduplicate: isDedup,
+                        style: style
+                    )
                 }
-                Self.printOutcome(outcome, dryRun: isDryRun, deduplicate: isDedup, style: style)
             }
         }
 
+        spinner.stop()
         guard !quiet else { return }
 
-        if style.isEnabled {
-            FileHandle.standardOutput.write(Data("\r\u{1B}[2K".utf8))
-        }
-
         print("")
-        printSummary(report, style: style)
+        printSummary(report, duration: Date().timeIntervalSince(startedAt), style: style)
+    }
+
+    private static func displayPath(
+        _ rawPath: String,
+        relativeTo scopeRoots: [String],
+        homePath: String
+    ) -> String {
+        let standardized = URL(fileURLWithPath: rawPath).standardizedFileURL.resolvingSymlinksInPath().path
+        for root in scopeRoots {
+            let resolvedRoot = URL(fileURLWithPath: root).standardizedFileURL.resolvingSymlinksInPath().path
+            if standardized == resolvedRoot {
+                return scopeRoots.count == 1 ? "." : URL(fileURLWithPath: standardized).lastPathComponent
+            }
+            let prefix = resolvedRoot == "/" ? "/" : resolvedRoot + "/"
+            if standardized.hasPrefix(prefix) {
+                return String(standardized.dropFirst(prefix.count))
+            }
+        }
+        if standardized == homePath {
+            return "~"
+        }
+        if standardized.hasPrefix(homePath + "/") {
+            return "~/" + standardized.dropFirst(homePath.count + 1)
+        }
+        return rawPath
     }
 
     private static func printOutcome(
         _ outcome: MigratedProjectOutcome,
+        relativeTo scopeRoots: [String],
+        homePath: String,
         dryRun: Bool,
         deduplicate: Bool,
         style: TerminalStyle
     ) {
-        let label = "[\(outcome.project.type.rawValue)] \(style.path(outcome.project.rootPath))"
+        let displayTarget = Self.displayPath(outcome.project.rootPath, relativeTo: scopeRoots, homePath: homePath)
+        let typeTag = style.gray("[\(outcome.project.type.rawValue)]")
+        let label = "\(style.path(displayTarget)) \(typeTag)"
 
         if let reason = outcome.skippedReason {
             print(style.stepWarning(label, detail: style.gray("(\(reason))")))
@@ -165,50 +216,55 @@ struct MigrateCommand: ParsableCommand {
 
         let sizeText = formatBytes(outcome.existingCacheBytes)
         if !outcome.hasExistingCache && !outcome.recordedFlutterResolved && !outcome.installedRepoHook {
-            print(style.stepSkipped(label, detail: "no existing SourcePackages/.build cache"))
+            print(style.stepSkipped("\(displayTarget) [\(outcome.project.type.rawValue)]", detail: "no cache"))
             return
         }
 
         var parts: [String] = []
         if outcome.hasExistingCache {
             if dryRun {
-                parts.append("cache: \(sizeText)")
+                parts.append(style.primary(sizeText))
             } else {
-                parts.append("harvested \(outcome.totalHarvestedItemsCount) item(s) (\(sizeText))")
+                parts.append("\(style.primary(sizeText)) \(style.gray("(harvested \(outcome.totalHarvestedItemsCount)"))")
             }
         }
         if deduplicate && !dryRun && outcome.totalDeduplicatedItemsCount > 0 {
-            parts.append("deduplicated \(outcome.totalDeduplicatedItemsCount) via CoW (\(formatBytes(outcome.estimatedReclaimedBytes)))")
+            let prefix = outcome.hasExistingCache ? "" : "("
+            parts.append("\(prefix)\(style.gray("CoW \(outcome.totalDeduplicatedItemsCount) · \(formatBytes(outcome.estimatedReclaimedBytes)))"))")
+        } else if outcome.hasExistingCache && !dryRun {
+            parts[parts.count - 1] += style.gray(")")
         }
         if outcome.skippedLocallyModifiedCount > 0 {
-            parts.append("\(outcome.skippedLocallyModifiedCount) dirty skipped")
+            parts.append(style.yellow("\(outcome.skippedLocallyModifiedCount) dirty skipped"))
         }
         if outcome.recordedFlutterResolved {
-            parts.append("Flutter Package.resolved cached")
+            parts.append(style.gray("Flutter Package.resolved cached"))
         }
         if outcome.installedRepoHook {
-            parts.append("hook enabled")
+            parts.append(style.gray("hook enabled"))
         }
 
-        print(style.stepSuccess(label, detail: style.gray("(\(parts.joined(separator: ", ")))")))
+        print("  \(style.addIcon) \(label)  \(parts.joined(separator: style.gray(", ")))")
     }
 
-    private func printSummary(_ report: MigrationReport, style: TerminalStyle) {
-        let prefix = report.dryRun ? "\(style.yellow(style.bold("[dry-run]"))) " : ""
-        print("\(prefix)\(style.heading("Migration Summary"))")
-        print("  \(style.dim("Projects found:"))        \(style.bold("\(report.discoveredCount)")) \(style.dim("(\(report.projectsWithExistingCacheCount) with existing cache)"))")
-        print("  \(style.dim("Existing cache size:"))   \(style.bold(formatBytes(report.totalExistingCacheBytes)))")
+    private func printSummary(_ report: MigrationReport, duration: TimeInterval, style: TerminalStyle) {
+        let prefix = report.dryRun ? "\(style.dryRunBadge()) " : ""
+        print("\(prefix)\(style.section("Summary:"))")
+        print("  \(style.gray("Projects:"))       \(style.primaryBold("\(report.discoveredCount)")) \(style.gray("scanned,")) \(style.primaryBold("\(report.projectsWithExistingCacheCount)")) \(style.gray("with cache"))")
+        print("  \(style.gray("Cache size:"))     \(style.bold(formatBytes(report.totalExistingCacheBytes)))")
 
         if !report.dryRun {
-            print("  \(style.dim("Items harvested:"))       \(style.bold("\(report.totalHarvestedItemsCount)"))")
+            print("  \(style.gray("Harvested:"))      \(style.primaryBold("\(report.totalHarvestedItemsCount)")) \(style.gray("item(s)"))")
         }
 
         if report.deduplicate {
-            let label = report.dryRun ? "Est. reclaimable CoW:  " : "Deduplicated via CoW:  "
-            print("  \(style.dim(label))\(style.green(style.bold(Self.formatBytes(report.totalEstimatedReclaimedBytes))))")
+            let label = report.dryRun ? "Reclaimable:    " : "Reclaimed:      "
+            print("  \(style.gray(label))\(style.green(style.bold(Self.formatBytes(report.totalEstimatedReclaimedBytes)))) \(style.gray("(via APFS CoW)"))")
         }
 
         print("")
+        print(style.doneIn(seconds: duration))
+
         var tips: [String] = []
         if report.dryRun && report.projectsWithExistingCacheCount > 0 {
             let modeSuffix = report.deduplicate ? "" : " --no-deduplicate"
@@ -235,6 +291,7 @@ struct MigrateCommand: ParsableCommand {
         }
 
         if !tips.isEmpty {
+            print("")
             print(style.tipItalic("Tips:"))
             for tip in tips {
                 print("  \(style.tip("›")) \(tip)")
@@ -250,28 +307,5 @@ struct MigrateCommand: ParsableCommand {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         return formatter.string(fromByteCount: Int64(clamping: bytes))
-    }
-
-    private static func terminalColumns() -> Int {
-        var ws = winsize()
-        if ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0 {
-            return Int(ws.ws_col)
-        }
-        if let envCols = ProcessInfo.processInfo.environment["COLUMNS"],
-           let parsed = Int(envCols),
-           parsed > 0 {
-            return parsed
-        }
-        return 80
-    }
-
-    private static func middleTruncate(_ value: String, maxLength: Int) -> String {
-        guard value.count > maxLength, maxLength > 5 else {
-            return value
-        }
-        let keep = maxLength - 3
-        let headCount = keep / 2
-        let tailCount = keep - headCount
-        return "\(value.prefix(headCount))...\(value.suffix(tailCount))"
     }
 }

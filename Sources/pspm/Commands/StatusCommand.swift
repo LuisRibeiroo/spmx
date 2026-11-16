@@ -39,57 +39,64 @@ struct StatusCommand: ParsableCommand {
             workspacePath: workspace
         )
 
-        print(style.heading("Project Status"))
-        print("  \(style.dim("Project type:"))       \(style.bold(report.projectType.rawValue))")
-        print("  \(style.dim("Root path:"))          \(style.path(report.rootPath))")
+        print("\(style.heading("pspm status")) \(style.gray("[\(report.projectType.rawValue)]"))")
+        print(style.scopeLine(report.rootPath))
         if let containerPath = report.containerPath {
-            print("  \(style.dim("Container path:"))     \(style.path(containerPath))")
+            print("  \(style.gray("Container:"))       \(containerPath)")
         }
+        print("")
 
+        print(style.section("Toolchain:"))
         if let swift = report.swiftVersion {
             let shortSwift = swift.split(separator: "\n").first.map(String.init) ?? swift
-            print("  \(style.dim("Swift version:"))      \(shortSwift)")
+            print("  \(style.gray("Swift:"))           \(shortSwift)")
         } else {
-            print("  \(style.dim("Swift version:"))      \(style.yellow("unavailable"))")
+            print("  \(style.gray("Swift:"))           \(style.yellow("unavailable"))")
         }
 
         if let xcode = report.xcodeVersion {
             let shortXcode = xcode.split(separator: "\n").joined(separator: " / ")
-            print("  \(style.dim("Xcode version:"))      \(shortXcode)")
+            print("  \(style.gray("Xcode:"))           \(shortXcode)")
         }
 
         if let hash = report.toolchainHash {
-            print("  \(style.dim("Toolchain hash:"))     \(style.italic(hash))")
+            print("  \(style.gray("Toolchain hash:"))  \(style.italic(style.gray(hash)))")
         }
 
-        let buildLabel = report.projectType == .swiftPackage ? "Build path:     " : "DerivedData path:"
-        print("  \(style.dim(buildLabel)) \(style.path(report.derivedDataPath))")
-        print("  \(style.dim("SourcePackages:"))     \(style.path(report.sourcePackagesPath))")
+        print("")
+        print(style.section("Paths:"))
+        let buildLabel = report.projectType == .swiftPackage ? "Build path:     " : "DerivedData:    "
+        print("  \(style.gray(buildLabel)) \(report.derivedDataPath)")
+        print("  \(style.gray("SourcePackages:"))  \(report.sourcePackagesPath)")
 
         if let resolvedPath = report.packageResolvedPath {
-            print("  \(style.dim("Package.resolved:"))   \(style.path(resolvedPath))")
+            print("  \(style.gray("Package.resolved:")) \(resolvedPath)")
+            print("")
+            print(style.section("Packages:"))
             let pinsStatus = report.missingPins.isEmpty
-                ? style.green("\(style.successIcon) \(report.cachedPinsCount)/\(report.totalPins) (0 missing)")
-                : style.yellow("\(style.warningIcon) \(report.cachedPinsCount)/\(report.totalPins) (\(report.missingPins.count) missing)")
-            print("  \(style.dim("Cached pins:"))        \(pinsStatus)")
+                ? style.green("\(style.successIcon) \(report.cachedPinsCount)/\(report.totalPins) cached")
+                : "\(style.warningIcon) \(style.primaryBold("\(report.cachedPinsCount)/\(report.totalPins)")) \(style.yellow("cached (\(report.missingPins.count) missing)"))"
+            print("  \(style.gray("Cached pins:"))     \(pinsStatus)")
             if report.cachedPrebuiltsCount > 0 {
-                print("  \(style.dim("Cached prebuilts:"))   \(style.green("\(report.cachedPrebuiltsCount)")) \(style.dim("(matching active toolchain)"))")
+                print("  \(style.gray("Prebuilts:"))       \(style.green("\(report.cachedPrebuiltsCount)")) \(style.gray("(matching active toolchain)"))")
             }
             for pin in report.missingPins {
                 let versionLabel = pin.version ?? pin.revision ?? pin.branch ?? "unknown"
-                print("    \(style.yellow(style.warningIcon)) \(style.yellow("missing:")) \(style.bold(pin.identity)) \(style.gray("(\(versionLabel))"))")
+                print("    \(style.warningIcon) \(pin.identity) \(style.gray("(\(versionLabel))"))")
             }
         } else {
-            print("  \(style.dim("Package.resolved:"))   \(style.gray("none found"))")
+            print("  \(style.gray("Package.resolved:")) \(style.gray("none found"))")
         }
 
+        print("")
+        print(style.section("Compilation cache:"))
         let cacheState = report.compilationCache.enabled
             ? style.green("\(style.successIcon) enabled")
             : style.gray("\(style.skippedIcon) disabled")
         let cacheSize = formatBytes(report.compilationCache.sizeBytes)
-        print("  \(style.dim("Compilation cache:"))  \(cacheState) at \(style.path(report.compilationCache.path)) \(style.dim("(\(cacheSize))"))")
+        print("  \(cacheState) \(style.gray("·")) \(report.compilationCache.path) \(style.gray("(\(cacheSize))"))")
         if let reason = report.compilationCache.reason {
-            print("    \(style.tip("\(style.infoIcon) Note: \(reason)"))")
+            print("  \(style.tip("›")) \(style.tip(reason))")
         }
     }
 

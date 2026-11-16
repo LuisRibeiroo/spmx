@@ -127,16 +127,16 @@ public struct SetupResult: Sendable, Equatable {
             "\(style.successIcon) \(style.successText("pspm setup complete!"))",
             "",
             style.section("Installation:"),
-            style.stepSuccess("Directories:", detail: "\(style.cyan(pspmDirectory.path)) \(style.gray("(store, compilation-cache, bin, shims)"))"),
-            "    \(style.gray("Store:"))             \(style.blue(storeDirectory.path))",
-            "    \(style.gray("Compilation Cache:")) \(style.blue(compilationCacheDirectory.path))",
-            "    \(style.gray("Shims:"))             \(style.blue(shimsDirectory.path))",
-            style.stepSuccess("Shims (active by default):", detail: "\(style.cyan(shimNames)) \(style.gray("->")) \(style.italic(binaryPath.path))"),
+            style.stepSuccess("Directories:", detail: "\(style.primary(pspmDirectory.path)) \(style.gray("(store, compilation-cache, bin, shims)"))"),
+            "    \(style.gray("Store:"))             \(style.gray(storeDirectory.path))",
+            "    \(style.gray("Compilation Cache:")) \(style.gray(compilationCacheDirectory.path))",
+            "    \(style.gray("Shims:"))             \(style.gray(shimsDirectory.path))",
+            style.stepSuccess("Shims (active by default):", detail: "\(style.primary(shimNames)) \(style.gray("-> \(binaryPath.path)"))"),
             "    \(style.gray("Existing and new Flutter, Xcode, and SwiftPM builds will use the global cache automatically."))"
         ]
 
         if let modifiedShellRC {
-            lines.append(style.stepSuccess("Shell PATH configured:", detail: style.magenta(modifiedShellRC.path)))
+            lines.append(style.stepSuccess("Shell PATH configured:", detail: style.gray(modifiedShellRC.path)))
         } else {
             lines.append(style.stepSkipped("Shell PATH was not modified (--no-modify-path):", detail: "skipped RC update"))
         }

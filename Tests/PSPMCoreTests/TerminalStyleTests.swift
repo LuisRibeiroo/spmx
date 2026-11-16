@@ -54,14 +54,110 @@ struct TerminalStyleTests {
         // Step lines contain status icons and SGR escapes
         let running = style.stepRunning("Creating shims...")
         #expect(running.contains("▸"))
-        #expect(running.contains("\u{1B}["))
+        #expect(running.contains("\u{1B}[38;2;234;106;56m"))
+
+        // Primary brand orange (#EA6A38) in TrueColor and 256-color fallback
+        #expect(style.primary("pspm") == "\u{1B}[38;2;234;106;56mpspm\u{1B}[0m")
+        #expect(style.heading("pspm migrate") == "\u{1B}[1;38;2;234;106;56mpspm migrate\u{1B}[0m")
+        let style256 = TerminalStyle(enabled: true, supportsTrueColor: false)
+        #expect(style256.primary("pspm") == "\u{1B}[38;5;209mpspm\u{1B}[0m")
+        #expect(TerminalStyle.shouldUseTrueColor(environment: ["COLORTERM": "truecolor"]) == true)
+        #expect(TerminalStyle.shouldUseTrueColor(environment: ["TERM_PROGRAM": "ghostty"]) == true)
+        #expect(TerminalStyle.shouldUseTrueColor(environment: ["TERM_PROGRAM": "Apple_Terminal"]) == false)
 
         let success = style.stepSuccess("Shims", detail: "swift, xcodebuild")
         #expect(success.contains("✓"))
         #expect(success.contains("\u{1B}[1;32m"))
 
+        let added = style.stepAdded("firebase-ios-sdk", detail: "12.19.3")
+        #expect(added.contains("+"))
+        #expect(added.contains("\u{1B}[1;32m"))
+        #expect(added.contains("\u{1B}[90m12.19.3\u{1B}[0m"))
+        #expect(style.doneIn(seconds: 1.4).contains("Done"))
+        #expect(style.doneIn(seconds: 1.4).contains("in 1.4s"))
+
         let inlineTip = style.formatInlineCode("Run `pspm setup` or `pspm hydrate`.", baseCodes: ["90"], codeCodes: ["90", "1"])
         #expect(inlineTip == "\u{1B}[90mRun \u{1B}[0m\u{1B}[90;1m`pspm setup`\u{1B}[0m\u{1B}[90m or \u{1B}[0m\u{1B}[90;1m`pspm hydrate`\u{1B}[0m\u{1B}[90m.\u{1B}[0m")
         #expect(TerminalStyle.plain.formatInlineCode("Run `pspm setup`.") == "Run `pspm setup`.")
+    }
+
+    @Test("spinner animates background frames in ANSI mode and stays clean in plain mode")
+    func terminalSpinnerBehavior() {
+        let buffer = LockedStrings()
+        let ansiSpinner = TerminalSpinner(
+            style: .ansi,
+            interval: 0.03,
+            maxColumnsProvider: { 80 },
+            writer: { chunk in buffer.append(chunk) }
+        )
+
+        ansiSpinner.start(message: "Scanning workspace", detail: "step 1")
+        Thread.sleep(forTimeInterval: 0.12)
+        ansiSpinner.update(detail: "harvesting 1/5")
+        ansiSpinner.suspendForOutput {
+            buffer.append("PERMANENT_LINE\n")
+        }
+        ansiSpinner.stop()
+
+        let ansiOutput = buffer.joined()
+        #expect(ansiOutput.contains("\r\u{1B}[2K"))
+        #expect(ansiOutput.contains("⠋"))
+        #expect(ansiOutput.contains("harvesting 1/5"))
+        #expect(ansiOutput.contains("PERMANENT_LINE\n"))
+        #expect(ansiOutput.hasSuffix("\r\u{1B}[2K"))
+
+        let plainBuffer = LockedStrings()
+        let plainSpinner = TerminalSpinner(
+            style: .plain,
+            interval: 0.03,
+            maxColumnsProvider: { 80 },
+            writer: { chunk in plainBuffer.append(chunk) }
+        )
+        plainSpinner.start(message: "Scanning workspace")
+        plainSpinner.update(detail: "harvesting 1/5")
+        plainSpinner.stop()
+
+        let plainOutput = plainBuffer.joined()
+        #expect(!plainOutput.contains("\u{1B}["))
+        #expect(plainOutput.contains("Scanning workspace"))
+
+        let truncated = TerminalSpinner.middleTruncate("/Users/example/very/long/path/to/SourcePackages", maxLength: 20)
+        #expect(truncated.count == 20)
+        #expect(truncated.contains("..."))
+
+        // Narrow terminal keeps the step message intact while shrinking target prefix and disables auto-wrap
+        let narrowBuffer = LockedStrings()
+        let narrowSpinner = TerminalSpinner(
+            style: .ansi,
+            interval: 0.5,
+            maxColumnsProvider: { 52 },
+            writer: { chunk in narrowBuffer.append(chunk) }
+        )
+        narrowSpinner.start(
+            message: "very/long/subproject/path/vr7x/slide [flutter]",
+            detail: "calculating reclaimed space"
+        )
+        narrowSpinner.stop()
+        let narrowOutput = narrowBuffer.joined()
+        #expect(narrowOutput.contains("\u{1B}[?7l"))
+        #expect(narrowOutput.contains("\u{1B}[?7h"))
+        #expect(narrowOutput.contains("calculating reclaimed space"))
+    }
+}
+
+private final class LockedStrings: @unchecked Sendable {
+    private let lock = NSLock()
+    private var chunks: [String] = []
+
+    func append(_ value: String) {
+        lock.lock()
+        chunks.append(value)
+        lock.unlock()
+    }
+
+    func joined() -> String {
+        lock.lock()
+        defer { lock.unlock() }
+        return chunks.joined()
     }
 }

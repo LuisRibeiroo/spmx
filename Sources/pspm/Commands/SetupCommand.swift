@@ -18,9 +18,11 @@ struct SetupCommand: ParsableCommand {
         let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
         let binaryURL = resolveExecutableURL(homeDirectory: homeDirectory)
         let shell = ProcessInfo.processInfo.environment["SHELL"]
+        let startedAt = Date()
         let style = TerminalStyle.stdout
 
         print(style.heading("pspm setup"))
+        print("")
 
         let result = try SetupManager.setup(
             noModifyPath: noModifyPath,
@@ -33,21 +35,23 @@ struct SetupCommand: ParsableCommand {
                     if style.isEnabled {
                         let suffix = detail.map { " \(style.gray("(\($0))"))" } ?? ""
                         let line = "\(style.stepRunning(step))\(suffix)"
-                        FileHandle.standardOutput.write(Data("\r\u{1B}[2K\(line)".utf8))
+                        fputs("\r\u{1B}[2K\(line)", Darwin.stdout)
                         fflush(Darwin.stdout)
                     }
                 case .completed(let step, let detail):
-                    let detailText = detail.map { style.cyan($0) }
+                    let detailText = detail.map { style.gray($0) }
                     let line = style.stepSuccess(step, detail: detailText)
                     if style.isEnabled {
-                        FileHandle.standardOutput.write(Data("\r\u{1B}[2K\(line)\n".utf8))
+                        fputs("\r\u{1B}[2K\(line)\n", Darwin.stdout)
+                        fflush(Darwin.stdout)
                     } else {
                         print(line)
                     }
                 case .skipped(let step, let detail):
                     let line = style.stepSkipped(step, detail: detail)
                     if style.isEnabled {
-                        FileHandle.standardOutput.write(Data("\r\u{1B}[2K\(line)\n".utf8))
+                        fputs("\r\u{1B}[2K\(line)\n", Darwin.stdout)
+                        fflush(Darwin.stdout)
                     } else {
                         print(line)
                     }
@@ -56,15 +60,16 @@ struct SetupCommand: ParsableCommand {
         )
 
         print("")
-        print("  \(style.gray("Binary:"))            \(style.blue(result.binaryPath.path))")
+        print(style.section("Paths:"))
+        print("  \(style.gray("Binary:"))            \(result.binaryPath.path)")
         if let localBinSymlink = result.localBinSymlink {
-            print("  \(style.gray("PATH link:"))         \(style.blue(localBinSymlink.path))")
+            print("  \(style.gray("PATH link:"))         \(localBinSymlink.path)")
         }
-        print("  \(style.gray("Store:"))             \(style.blue(result.storeDirectory.path))")
-        print("  \(style.gray("Compilation Cache:")) \(style.blue(result.compilationCacheDirectory.path))")
-        print("  \(style.gray("Shims:"))             \(style.blue(result.shimsDirectory.path))")
+        print("  \(style.gray("Store:"))             \(result.storeDirectory.path)")
+        print("  \(style.gray("Compilation cache:")) \(result.compilationCacheDirectory.path)")
+        print("  \(style.gray("Shims:"))             \(result.shimsDirectory.path)")
         print("")
-        print(style.successText("pspm is ready!") + " " + style.gray("Existing and new Flutter, Xcode, and SwiftPM builds now use the global cache."))
+        print("\(style.doneIn(seconds: Date().timeIntervalSince(startedAt))) \(style.gray("·")) \(style.primaryBold("pspm is ready!"))")
         print("")
         print(result.tipsSection(style: style))
     }
