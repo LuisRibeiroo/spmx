@@ -2,7 +2,7 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Geist, IBM_Plex_Mono } from "next/font/google";
 import { RootProvider } from "fumadocs-ui/provider";
-import { SITE } from "@/lib/site";
+import { OWNER_URL, SITE } from "@/lib/site";
 import { softwareApplication, webSite } from "@/lib/jsonld";
 
 // Two families: Geist for text and UI, IBM Plex Mono only for code, terminal output and the wordmark.
@@ -14,10 +14,56 @@ export const metadata: Metadata = {
   title: { default: `${SITE.name} — ${SITE.tagline}`, template: `%s · ${SITE.name}` },
   description: SITE.metaDescription,
   applicationName: SITE.name,
+  category: "Developer Tools",
+  keywords: [
+    "spmx",
+    "SwiftPM",
+    "Swift Package Manager",
+    "Git worktrees",
+    "Xcode",
+    "DerivedData",
+    "APFS",
+    "clonefile",
+    "macOS",
+    "Flutter",
+    "React Native",
+    "Expo",
+    "Capacitor",
+    "Kotlin Multiplatform",
+    "LLVM CAS",
+  ],
+  authors: [{ name: SITE.repo.owner, url: OWNER_URL }],
+  creator: SITE.repo.owner,
+  publisher: SITE.repo.owner,
   alternates: { canonical: "/" },
-  icons: { icon: "/icon.svg", apple: "/icon.png" },
-  openGraph: { type: "website", siteName: SITE.name, locale: "en_US" },
-  twitter: { card: "summary_large_image" },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon.png", type: "image/png", sizes: "820x940" },
+    ],
+    apple: [{ url: "/icon.png", sizes: "820x940", type: "image/png" }],
+  },
+  openGraph: {
+    type: "website",
+    siteName: SITE.name,
+    locale: "en_US",
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: `${SITE.name}: ${SITE.tagline}`, type: "image/png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: `${SITE.name}: ${SITE.tagline}` }],
+  },
 };
 
 export const viewport: Viewport = {

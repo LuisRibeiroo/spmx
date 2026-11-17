@@ -94,6 +94,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     description: page.data.description ?? SITE.metaDescription,
     path,
+    ogType: "article",
+    modifiedTime: docModified(page.path).toISOString(),
     images: [{ url: `/og/docs${slug?.length ? `/${slug.join("/")}` : ""}/image.png`, width: 1200, height: 630, alt: page.data.title }],
   });
 }

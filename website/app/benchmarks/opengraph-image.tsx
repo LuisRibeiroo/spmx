@@ -6,5 +6,5 @@ export const contentType = "image/png";
 export const alt = "spmx benchmarks: worktree clone time and disk use";
 
 export default function Image() {
-  return renderOg("Benchmarks", "Methodology, raw data and reproduction steps for every scenario.");
+  return renderOg("Benchmarks", "Methodology, raw data and reproduction steps for every scenario.", "Benchmarks");
 }

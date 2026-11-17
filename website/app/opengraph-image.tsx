@@ -7,5 +7,5 @@ export const contentType = "image/png";
 export const alt = `${SITE.name}: ${SITE.tagline}`;
 
 export default function Image() {
-  return renderOg(SITE.tagline, "One APFS copy-on-write store. Cloned into every worktree.");
+  return renderOg(SITE.tagline, "One APFS copy-on-write store. Cloned into every worktree.", "macOS CLI · SwiftPM");
 }

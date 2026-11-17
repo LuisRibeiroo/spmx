@@ -31,6 +31,8 @@ export const softwareApplication = {
   ],
   softwareVersion: meta.cliVersion,
   url: SITE.url,
+  image: `${SITE.url}/opengraph-image`,
+  logo: `${SITE.url}/icon.png`,
   downloadUrl: meta.latestRelease?.url ?? `${REPO_URL}/releases`,
   installUrl: `${SITE.url}/docs/getting-started/installation`,
   codeRepository: REPO_URL,
@@ -70,6 +72,7 @@ export function breadcrumbs(items: { name: string; path: string }[]) {
 }
 
 export function techArticle({ title, description, path, modified }: { title: string; description?: string; path: string; modified: Date }) {
+  const ogSlug = path === "/docs" ? "" : path.replace(/^\/docs/, "");
   return {
     "@context": "https://schema.org",
     "@type": "TechArticle",
@@ -77,6 +80,7 @@ export function techArticle({ title, description, path, modified }: { title: str
     ...(description ? { description } : {}),
     url: `${SITE.url}${path}`,
     mainEntityOfPage: `${SITE.url}${path}`,
+    image: `${SITE.url}/og/docs${ogSlug}/image.png`,
     inLanguage: "en",
     dateModified: modified.toISOString(),
     author,

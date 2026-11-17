@@ -12,6 +12,7 @@ export const metadata: Metadata = pageMetadata({
   title: brandTitle("Benchmarks: worktree clone time and disk use"),
   description: "Methodology, raw data and reproduction steps for every spmx benchmark scenario.",
   path: "/benchmarks",
+  images: [{ url: "/benchmarks/opengraph-image", width: 1200, height: 630, alt: "spmx benchmarks: worktree clone time and disk use" }],
 });
 
 export default function BenchmarksPage() {
