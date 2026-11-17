@@ -1,12 +1,16 @@
 import Image from "next/image";
-import Link from "next/link";
 import type { Metadata } from "next";
 import { BenchBars } from "@/components/BenchBars";
+import { Button } from "@/components/Button";
+import { Chip } from "@/components/Chip";
 import { CliSample } from "@/components/CliSample";
+import { CodeBlock } from "@/components/CodeBlock";
 import { CommandCard } from "@/components/CommandCard";
+import { Container } from "@/components/Container";
 import { Faq, type FaqItem } from "@/components/Faq";
 import { InstallTabs } from "@/components/InstallTabs";
 import { StoreDiagram } from "@/components/StoreDiagram";
+import { TextLink } from "@/components/TextLink";
 import { TARGETS, diskResult, entries, hydrateHeadline, isSample, machine, results, shimResult } from "@/lib/benchmarks";
 import { formatDuration, formatPercent } from "@/lib/format";
 import { meta, versionBadge } from "@/lib/meta";
@@ -28,6 +32,18 @@ const FAQ: FaqItem[] = [
         The Xcode app does not go through your shell <code>PATH</code>, so shims cannot see it. Turn on the
         opt-in Git hook with <code>spmx hooks enable --global</code> and every new worktree is hydrated at{" "}
         <code>git worktree add</code> time, before Xcode opens.
+      </>
+    ),
+  },
+  {
+    q: "Does it work with React Native, Expo, Capacitor, or KMP?",
+    a: (
+      <>
+        Yes, whenever the iOS or macOS build uses Swift Package Manager. Tools like{" "}
+        <code>react-native run-ios</code>, <code>expo run:ios</code>, <code>cap run ios</code>, and Kotlin
+        Multiplatform Gradle tasks invoke <code>xcodebuild</code> under the hood, so the <code>xcodebuild</code>{" "}
+        shim hydrates <code>SourcePackages</code> and shares the LLVM CAS cache automatically. Projects that use
+        only CocoaPods (<code>ios/Pods</code>) are not managed by spmx.
       </>
     ),
   },
@@ -69,7 +85,8 @@ const FEATURES = [
   },
   {
     title: "Zero-config shims",
-    description: "flutter, xcodebuild and swift are intercepted from your PATH. Unrelated subcommands pass straight through.",
+    description:
+      "flutter, xcodebuild and swift are intercepted from your PATH — automatically covering Xcode, React Native, Expo, Capacitor and KMP builds that invoke xcodebuild.",
     command: "spmx setup",
     href: "/docs/concepts/shims",
     span: "md:col-span-2",
@@ -138,8 +155,8 @@ export default function HomePage() {
     <>
       {/* 1 · Hero */}
       <section className="hero-glow">
-        <div className="container-page grid items-center gap-10 py-14 md:grid-cols-[1.05fr_1fr] md:gap-12 md:py-24">
-          <div className="reveal min-w-0">
+        <Container className="grid items-center gap-10 py-14 md:grid-cols-[1.05fr_1fr] md:gap-12 md:py-24">
+          <div className="min-w-0">
             <div className="mb-8 flex items-end gap-4">
               <Image
                 src="/icon.svg"
@@ -148,13 +165,9 @@ export default function HomePage() {
                 height={165}
                 priority
                 unoptimized
-                className="pixelated h-auto w-28 md:w-36"
+                className="h-auto w-28 [image-rendering:pixelated] md:w-36"
               />
-              {versionBadge.href ? (
-                <a href={versionBadge.href} className="chip mb-2">{versionBadge.label}</a>
-              ) : (
-                <span className="chip mb-2">{versionBadge.label}</span>
-              )}
+              <Chip href={versionBadge.href} className="mb-2">{versionBadge.label}</Chip>
             </div>
             <h1 className="text-hero font-bold tracking-tight">{SITE.tagline}</h1>
             <p className="mt-5 max-w-[34rem] text-lead text-ink-muted">
@@ -165,18 +178,18 @@ export default function HomePage() {
               <InstallTabs idPrefix="hero" />
             </div>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Link href="/docs/getting-started/installation" className="btn btn-primary">Get started</Link>
-              <a href={REPO_URL} className="btn">View on GitHub</a>
+              <Button href="/docs/getting-started/installation" variant="primary">Get started</Button>
+              <Button href={REPO_URL}>View on GitHub</Button>
             </div>
           </div>
           <div className="reveal min-w-0 [animation-delay:120ms]">
             <CliSample />
           </div>
-        </div>
+        </Container>
       </section>
 
       {/* 2 · Problem */}
-      <section className="container-page py-16 md:py-24" aria-labelledby="problem">
+      <Container as="section" className="py-16 md:py-24" aria-labelledby="problem">
         <h2 id="problem" className="max-w-2xl text-h2 font-bold tracking-tight">
           Every worktree starts from zero.
         </h2>
@@ -194,13 +207,13 @@ export default function HomePage() {
             <p className="mt-2 text-ink-muted">Five worktrees of a project with heavy SDKs means five copies of the same SDKs on your SSD.</p>
           </div>
         </div>
-      </section>
+      </Container>
 
-      <div className="container-page"><div className="pixel-rule" aria-hidden="true" /></div>
+      <Container><div className="pixel-rule" aria-hidden="true" /></Container>
 
       {/* 3 · How it works (warm band) */}
-      <section className="band-warm mt-16 md:mt-24" aria-labelledby="how">
-        <div className="container-page grid items-center gap-10 py-16 md:grid-cols-2 md:gap-16 md:py-24">
+      <section className="mt-16 border-y border-line bg-surface-warm md:mt-24" aria-labelledby="how">
+        <Container className="grid items-center gap-10 py-16 md:grid-cols-2 md:gap-16 md:py-24">
           <StoreDiagram />
           <div>
             <h2 id="how" className="text-h2 font-bold tracking-tight">One store, linked everywhere.</h2>
@@ -210,13 +223,13 @@ export default function HomePage() {
               <li><strong className="text-ink">Hands-off.</strong> Shims hydrate before a build and harvest new packages afterwards.</li>
               <li><strong className="text-ink">Safe in parallel.</strong> File locks and atomic staging let several worktrees, or several agents, write at once.</li>
             </ul>
-            <Link href="/docs/concepts/global-store" className="link mt-6 inline-block font-medium">How the store works</Link>
+            <TextLink href="/docs/concepts/global-store" className="mt-6 inline-block font-medium">How the store works</TextLink>
           </div>
-        </div>
+        </Container>
       </section>
 
       {/* 4 · Workflow */}
-      <section className="container-page py-16 md:py-24" aria-labelledby="workflow">
+      <Container as="section" className="py-16 md:py-24" aria-labelledby="workflow">
         <h2 id="workflow" className="max-w-2xl text-h2 font-bold tracking-tight">Four steps, one of them yours.</h2>
         <ol className="mt-10 grid gap-5 md:grid-cols-2">
           {STEPS.map((s) => (
@@ -224,16 +237,18 @@ export default function HomePage() {
               <span className="text-2xl font-semibold tabular-nums text-accent-text" aria-hidden="true">{s.n}</span>
               <div className="min-w-0">
                 <h3 className="font-semibold">{s.title}</h3>
-                <pre className="codeblock mt-2 !py-2"><code><span className="c-muted select-none">$ </span>{s.command}</code></pre>
+                <CodeBlock padding="sm" className="mt-2">
+                  <span className="text-ink-muted select-none">$ </span>{s.command}
+                </CodeBlock>
                 <p className="mt-2 text-sm text-ink-muted">{s.note}</p>
               </div>
             </li>
           ))}
         </ol>
-      </section>
+      </Container>
 
       {/* 5 · Stats + benchmark */}
-      <section className="container-page pb-16 md:pb-24" aria-labelledby="proof">
+      <Container as="section" className="pb-16 md:pb-24" aria-labelledby="proof">
         <h2 id="proof" className="max-w-2xl text-h2 font-bold tracking-tight">Measured, not promised.</h2>
         <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           <Stat value="1 binary" label="One multicall executable: the CLI and every shim" />
@@ -275,25 +290,25 @@ export default function HomePage() {
                 Sample data for layout preview only. These are not measurements.
               </p>
             ) : null}
-            <Link href="/benchmarks" className="link mt-4 inline-block font-medium">Methodology and every scenario</Link>
+            <TextLink href="/benchmarks" className="mt-4 inline-block font-medium">Methodology and every scenario</TextLink>
           </div>
           <BenchBars scenarios={benchRows} compact />
         </div>
-      </section>
+      </Container>
 
       {/* 6 · Features */}
-      <section className="container-page pb-16 md:pb-24" aria-labelledby="features">
+      <Container as="section" className="pb-16 md:pb-24" aria-labelledby="features">
         <h2 id="features" className="max-w-2xl text-h2 font-bold tracking-tight">What is inside.</h2>
         <div className="mt-10 grid gap-5 md:grid-cols-6">
           {FEATURES.map((f) => (
             <CommandCard key={f.title} title={f.title} description={f.description} command={f.command} href={f.href} className={f.span} />
           ))}
         </div>
-      </section>
+      </Container>
 
       {/* 7 · AI agents */}
-      <section className="band-warm" aria-labelledby="agents">
-        <div className="container-page grid items-center gap-10 py-16 md:grid-cols-2 md:gap-16 md:py-24">
+      <section className="border-y border-line bg-surface-warm" aria-labelledby="agents">
+        <Container className="grid items-center gap-10 py-16 md:grid-cols-2 md:gap-16 md:py-24">
           <div className="min-w-0 md:order-2">
             <p className="text-sm font-medium text-accent-text">For AI coding agents</p>
             <h2 id="agents" className="mt-2 text-h2 font-bold tracking-tight">Parallel agents need cheap worktrees.</h2>
@@ -301,28 +316,26 @@ export default function HomePage() {
               <li>Give every agent its own worktree without paying for its own copy of every SDK.</li>
               <li>Store writes use file locks and atomic staging, so concurrent hydrates and harvests do not collide.</li>
               <li>
-                These docs are readable by tools: <a className="link" href="/llms.txt">llms.txt</a>,{" "}
-                <a className="link" href="/llms-full.txt">llms-full.txt</a> and a Copy as Markdown button on every page.
+                These docs are readable by tools: <TextLink href="/llms.txt">llms.txt</TextLink>,{" "}
+                <TextLink href="/llms-full.txt">llms-full.txt</TextLink> and a Copy as Markdown button on every page.
               </li>
             </ul>
-            <Link href="/docs/guides/ai-agents" className="link mt-6 inline-block font-medium">Agents and parallel worktrees</Link>
+            <TextLink href="/docs/guides/ai-agents" className="mt-6 inline-block font-medium">Agents and parallel worktrees</TextLink>
           </div>
-          <pre className="codeblock min-w-0 md:order-1">
-            <code>
-              <span className="c-muted"># one worktree per agent</span>{"\n"}
-              <span className="c-muted">$ </span>for n in 1 2 3; do{"\n"}
-              {"    "}git worktree add ../agent-$n{"\n"}
-              done{"\n"}
-              {"\n"}
-              <span className="c-muted"># hydrate automatically on every new worktree</span>{"\n"}
-              <span className="c-muted">$ </span>spmx hooks enable --global
-            </code>
-          </pre>
-        </div>
+          <CodeBlock className="min-w-0 md:order-1">
+            <span className="text-ink-muted"># one worktree per agent</span>{"\n"}
+            <span className="text-ink-muted">$ </span>for n in 1 2 3; do{"\n"}
+            {"    "}git worktree add ../agent-$n{"\n"}
+            done{"\n"}
+            {"\n"}
+            <span className="text-ink-muted"># hydrate automatically on every new worktree</span>{"\n"}
+            <span className="text-ink-muted">$ </span>spmx hooks enable --global
+          </CodeBlock>
+        </Container>
       </section>
 
       {/* 8 · Comparison */}
-      <section className="container-page py-16 md:py-24" aria-labelledby="compare">
+      <Container as="section" className="py-16 md:py-24" aria-labelledby="compare">
         <h2 id="compare" className="max-w-2xl text-h2 font-bold tracking-tight">Without spmx, with spmx.</h2>
         <div className="mt-8 overflow-x-auto">
           <table className="w-full min-w-[34rem] border-collapse text-left text-[0.9375rem]">
@@ -345,25 +358,25 @@ export default function HomePage() {
             </tbody>
           </table>
         </div>
-      </section>
+      </Container>
 
       {/* 9 · FAQ */}
-      <section className="container-page pb-16 md:pb-24" aria-labelledby="faq">
+      <Container as="section" className="pb-16 md:pb-24" aria-labelledby="faq">
         <h2 id="faq" className="text-h2 font-bold tracking-tight">Questions</h2>
         <div className="mt-8 max-w-3xl">
           <Faq items={FAQ} />
         </div>
-      </section>
+      </Container>
 
       {/* 10 · Final CTA */}
-      <section className="band-warm" aria-labelledby="cta">
-        <div className="container-page flex flex-col items-start gap-8 py-16 md:py-20 lg:flex-row lg:items-center lg:justify-between">
+      <section className="border-y border-line bg-surface-warm" aria-labelledby="cta">
+        <Container className="flex flex-col items-start gap-8 py-16 md:py-20 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-md">
             <h2 id="cta" className="text-h2 font-bold tracking-tight">Try it on your next worktree.</h2>
-            <Link href="/docs" className="btn btn-primary mt-6">Read the docs</Link>
+            <Button href="/docs" variant="primary" className="mt-6">Read the docs</Button>
           </div>
           <div className="w-full max-w-xl"><InstallTabs idPrefix="cta" /></div>
-        </div>
+        </Container>
       </section>
     </>
   );

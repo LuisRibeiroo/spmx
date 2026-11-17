@@ -13,6 +13,8 @@ Xcode derives the `DerivedData` folder name from a hash of the workspace path, s
 
 spmx removes that cost. A package is downloaded once, stored under `~/.spmx/store`, and cloned into any worktree that needs it. Clones share disk blocks until a file is modified.
 
+It works anywhere Swift Package Manager is invoked through `swift`, `xcodebuild`, or `flutter` — including native Xcode/Swift apps, Flutter, React Native, Expo, Capacitor, and Kotlin Multiplatform (KMP) projects on macOS.
+
 ## Start here
 
 <Cards>

@@ -1,0 +1,30 @@
+---
+title: React Native, Expo & Other Tools
+description: Use spmx with React Native, Expo, Capacitor, Kotlin Multiplatform (KMP), and any other iOS/macOS toolchain that builds SwiftPM packages via xcodebuild.
+---
+
+Any iOS or macOS toolchain that resolves Swift Package Manager dependencies through `xcodebuild` or `swift` gets `spmx` deduplication automatically — no extra flags or per-project configuration required.
+
+Once `spmx setup` is active in your `PATH`, the `xcodebuild` shim intercepts builds launched by cross-platform CLIs, hydrates `DerivedData/SourcePackages` from `~/.spmx/store` via APFS `clonefile()`, enables the shared LLVM CAS compilation cache, and harvests newly resolved packages afterward.
+
+## Supported cross-platform workflows
+
+| Toolchain | How spmx integrates | Scope |
+| :--- | :--- | :--- |
+| **React Native & Expo** | `react-native run-ios`, `expo run:ios`, and `xcodebuild` invoke the `xcodebuild` shim | Hydrates SwiftPM `SourcePackages` and shares LLVM CAS. Does not manage `ios/Pods` (CocoaPods) or `node_modules`. |
+| **Capacitor / Ionic** | `cap run ios` / `xcodebuild` on SPM-enabled projects (`CapApp-SPM`) | Hydrates SwiftPM `SourcePackages` and shares LLVM CAS. |
+| **Kotlin Multiplatform (KMP)** | Gradle Apple/Xcode tasks invoking `xcodebuild` | Hydrates SwiftPM `SourcePackages` and shares LLVM CAS alongside Gradle's own `~/.gradle` cache. |
+| **Tauri / XcodeGen / custom scripts** | Any CLI build invoking `xcodebuild` or `swift` | Full `SourcePackages` hydration and LLVM CAS sharing across worktrees. |
+
+<Callout type="info" title="SwiftPM vs. CocoaPods">
+  `spmx` only caches **Swift Package Manager** dependencies (`SourcePackages`) and Swift/Clang compilation output. If your React Native, Capacitor, or KMP project still relies solely on CocoaPods (`ios/Pods`), `spmx` leaves `Pods/` untouched.
+</Callout>
+
+## Opening worktrees in Xcode GUI
+
+Cross-platform CLIs run `xcodebuild` through your shell `PATH`, so the shim runs automatically. If you open the generated `.xcworkspace` or `.xcodeproj` directly in the Xcode app instead, enable the opt-in Git hook so every new worktree is pre-warmed at checkout time:
+
+```bash
+spmx hooks enable --global
+git worktree add ../app-feature
+```

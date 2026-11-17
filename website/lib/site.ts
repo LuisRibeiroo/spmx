@@ -29,10 +29,10 @@ export const SITE = {
   name: "spmx",
   tagline: "Share SwiftPM packages across Git worktrees",
   description:
-    "spmx keeps one APFS copy-on-write store of SwiftPM checkouts, binary artifacts and macro prebuilts, and clones it into every Git worktree. No re-downloads, no duplicated gigabytes.",
+    "spmx keeps one APFS copy-on-write store of SwiftPM checkouts, binary artifacts and macro prebuilts, and clones it into every Git worktree. Works across Swift, Xcode, Flutter, React Native, Expo, Capacitor and Kotlin Multiplatform.",
   /** <= 155 characters so search results do not truncate it. */
   metaDescription:
-    "One APFS copy-on-write store of SwiftPM checkouts, artifacts and macro prebuilts, cloned into every Git worktree. No re-downloads, no wasted gigabytes.",
+    "One APFS copy-on-write store for SwiftPM checkouts, artifacts and prebuilts across Git worktrees — works with Xcode, Swift, Flutter, React Native & more.",
   // Domain is still an open question (tasks/prd-site.md §10.1). Set SITE_URL at build time.
   url: resolveSiteUrl(),
   repo: REPO,

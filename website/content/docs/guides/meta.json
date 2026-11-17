@@ -3,6 +3,7 @@
   "pages": [
     "flutter-spm",
     "xcode-native",
+    "cross-platform-spm",
     "ci",
     "ai-agents",
     "puro-fvm",
