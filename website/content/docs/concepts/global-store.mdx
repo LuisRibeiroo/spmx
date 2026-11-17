@@ -17,7 +17,7 @@ The store lives at `~/.spmx/store`. Override the location with `SPMX_STORE_DIR`.
 | Macro prebuilts | `prebuilts/<toolchain-hash>/<package>-<version-or-checksum>/` | Swift and Xcode version, then package |
 | Index | `index.json` | linked projects, pinned versions, excluded projects, toolchain fingerprint |
 
-Multiple versions of the same package (for example `firebase 1.0.0` in Project A and `firebase 1.0.1` in Project C) coexist side by side in `checkouts/` and share the bare Git repository in `repositories/firebase-ios-sdk/`. Prebuilts are partitioned by a hash of `swift --version` and `xcodebuild -version` so an Xcode update never serves a stale module ABI.
+Multiple versions of the same package (for example `firebase 1.0.0` in `c-137` and `firebase 1.0.1` in `c-131`) coexist side by side in `checkouts/` and share the bare Git repository in `repositories/firebase-ios-sdk/`. Prebuilts are partitioned by a hash of `swift --version` and `xcodebuild -version` so an Xcode update never serves a stale module ABI.
 
 ## Hydrate and harvest
 

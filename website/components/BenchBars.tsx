@@ -48,10 +48,26 @@ export function BenchBars({ scenarios, compact = false }: { scenarios: Scenario[
         const scaleMax = Math.max(...rows.map((r) => r.max ?? r.median));
         const info = SCENARIO_TITLES[s.id];
         const status = targetStatus(s);
+        const tipId = `bench-tip-${s.id}-${s.fixture}`;
         return (
           <section key={`${s.id}-${s.fixture}`} aria-labelledby={`bench-${s.id}-${s.fixture}`}>
             <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <Chip>{s.id}</Chip>
+              <span className="group/tip relative inline-flex">
+                <button
+                  type="button"
+                  aria-describedby={tipId}
+                  className="cursor-help rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  <Chip>{s.id}</Chip>
+                </button>
+                <span
+                  id={tipId}
+                  role="tooltip"
+                  className="pointer-events-none invisible absolute bottom-full left-0 z-20 mb-2 w-64 rounded-md border border-line-strong bg-paper-2 px-3 py-2 text-left text-xs leading-relaxed text-ink opacity-0 shadow-sm transition-opacity duration-150 group-hover/tip:visible group-hover/tip:opacity-100 group-focus-within/tip:visible group-focus-within/tip:opacity-100 motion-reduce:transition-none"
+                >
+                  <span className="font-semibold text-accent-text">Scenario {s.id}:</span> {info.title} ({info.detail}).
+                </span>
+              </span>
               <h3 id={`bench-${s.id}-${s.fixture}`} className="text-base font-semibold">{info.title}</h3>
               <Chip weight="normal" className="font-mono">{s.fixture}</Chip>
               {s.network_dependent ? <Chip>network-dependent</Chip> : null}

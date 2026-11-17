@@ -1,7 +1,7 @@
 const PROJECTS = [
-  { name: "project-a", deps: "firebase 1.0.0 · stripe 3.4.5 · xyz 4.0.0", y: 204 },
-  { name: "project-b", deps: "xyz 4.0.0 · abc 1.0.0", y: 290 },
-  { name: "project-c", deps: "firebase 1.0.1 · stripe 3.4.5", y: 376 },
+  { name: "c-137", deps: "firebase 1.0.0 · stripe 3.4.5 · xyz 4.0.0", y: 204 },
+  { name: "prime", deps: "xyz 4.0.0 · abc 1.0.0", y: 290 },
+  { name: "c-131", deps: "firebase 1.0.1 · stripe 3.4.5", y: 376 },
 ];
 
 /**
@@ -22,7 +22,7 @@ export function StoreDiagram({ className = "" }: { className?: string }) {
         <desc id="store-diagram-desc">
           The global store at ~/.spmx/store keeps one physical copy of each package version: firebase 1.0.0,
           firebase 1.0.1, stripe 3.4.5, xyz 4.0.0, and abc 1.0.0. APFS clonefile() clones them into
-          project-a, project-b, and project-c (plus any Git worktrees), sharing disk blocks until modified.
+          c-137, prime, and c-131 (plus any Git worktrees), sharing disk blocks until modified.
         </desc>
 
         <rect x="20" y="8" width="380" height="136" rx="10" className="fill-paper-2 stroke-accent" strokeWidth="2" />
@@ -71,7 +71,7 @@ export function StoreDiagram({ className = "" }: { className?: string }) {
         ))}
       </svg>
       <figcaption className="sr-only">
-        Diagram: ~/.spmx/store clones shared package versions into project-a, project-b, and project-c with APFS copy-on-write.
+        Diagram: ~/.spmx/store clones shared package versions into c-137, prime, and c-131 with APFS copy-on-write.
       </figcaption>
     </figure>
   );

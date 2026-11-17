@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "date": "2026-11-17T16:53:34Z",
+  "spmx": "0.1.1+ef9d256",
+  "machine": {
+    "chip": "Apple M4 Pro",
+    "ram_gb": 24,
+    "macos": "27.2.1 (26B131)",
+    "xcode": "Xcode 27.2 Build version 27B52",
+    "swift": "swift-driver version: 1.168.6 Apple Swift version 6.4.2 (swiftlang-6.4.2.1.9 clang-2100.4.1.1)"
+  },
+  "methodology": {
+    "warmup": 1,
+    "runs": 10
+  },
+  "fixtures": [
+    {
+      "id": "swift-macros",
+      "repo": "https://github.com/pointfreeco/swift-composable-architecture.git",
+      "commit": "5b0890fabfd68a2d375d68502bc3f54a8548c494"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "S3",
+      "fixture": "swift-macros",
+      "network_dependent": false,
+      "baseline": {
+        "median_s": 42.27085005618,
+        "min_s": 40.23785047318,
+        "max_s": 48.24399238918,
+        "stddev_s": 4.161526663254864,
+        "runs": 3
+      },
+      "spmx": {
+        "median_s": 0.46193900390000003,
+        "min_s": 0.45549008590000006,
+        "max_s": 0.47337812790000006,
+        "stddev_s": 0.009059287571804088,
+        "runs": 3
+      },
+      "disk_bytes": null
+    },
+    {
+      "id": "S5",
+      "fixture": "shim-flutter-version",
+      "network_dependent": false,
+      "baseline": {
+        "median_s": 1.069674625,
+        "min_s": 0.894061125,
+        "max_s": 1.931083292,
+        "stddev_s": 0.18006882664559842,
+        "runs": 30
+      },
+      "spmx": {
+        "median_s": 1.038597333,
+        "min_s": 0.902623583,
+        "max_s": 1.27955525,
+        "stddev_s": 0.08186505607183857,
+        "runs": 30
+      },
+      "disk_bytes": null
+    },
+    {
+      "id": "S5",
+      "fixture": "shim-swift-version",
+      "network_dependent": false,
+      "baseline": {
+        "median_s": 0.2107483125,
+        "min_s": 0.13579337500000002,
+        "max_s": 0.26635912500000003,
+        "stddev_s": 0.04227613351163401,
+        "runs": 30
+      },
+      "spmx": {
+        "median_s": 0.23661300000000002,
+        "min_s": 0.148858041,
+        "max_s": 0.30498420800000003,
+        "stddev_s": 0.0385890473786648,
+        "runs": 30
+      },
+      "disk_bytes": null
+    }
+  ]
+}

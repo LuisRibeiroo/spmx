@@ -14,7 +14,7 @@ spmx doctor
 spmx link
 
 # Or target a specific folder
-spmx link ~/projects/client-x
+spmx link ~/dimension
 
 # 4. Build as usual. The shim hydrates SourcePackages first and harvests new versions after
 flutter run                    # Flutter + SwiftPM
@@ -31,7 +31,7 @@ spmx store list
 spmx store status
 
 # Isolate a specific project to use only its local Xcode/SwiftPM cache
-spmx unlink ~/projects/legacy-app
+spmx unlink ~/dimension/c-131
 
 # Bypass spmx for a single command
 SPMX_DISABLE=1 flutter run
