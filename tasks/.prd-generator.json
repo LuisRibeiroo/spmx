@@ -1,5 +1,9 @@
 {
   "uiUxMode": "none",
   "uiUxSkill": null,
+  "designSystem": "use",
+  "designSystemPaths": [
+    "website/app/globals.css"
+  ],
   "grillMe": "installed"
 }

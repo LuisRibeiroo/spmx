@@ -28,6 +28,19 @@ Regras:
 | :--- | :--- | :--- | :--- |
 | **spmx — Performant Swift Package Manager (CLI)** | Implemented (v1) | `US-001` – `US-009` | [prd-spmx-cli.md](./prd-spmx-cli.md) |
 | **spmx — Landing Page + Docs + Benchmarks** | Implemented (`US-001` – `US-010`) | `US-001` – `US-010` | [prd-site.md](./prd-site.md) |
+| **spmx — Store Global na Máquina Toda & Pivot GTM** | Planned (Ready for implementation) | `US-001` – `US-007` | [prd-machine-wide-store.md](./prd-machine-wide-store.md) |
+
+---
+
+## User Stories Summary (`prd-machine-wide-store.md`)
+
+- [ ] **US-001:** Indexação por Versão Semântica e Mapeamento Multi-Projeto no `GlobalStore`
+- [ ] **US-002:** Cache de `SourcePackages/repositories/` (Bare Git Repos) e Hidratação Parcial entre Projetos
+- [ ] **US-003:** Guarda contra Checkout Sujo no `harvest` e Pré-Hidratação Cross-Project no Flutter
+- [ ] **US-004:** Comandos `spmx link [path]` e `spmx unlink [path]` (Opt-Out por Projeto e Varredura com Confirmação)
+- [ ] **US-005:** Relatório de Versões e Economia de Espaço por Projeto e Global (`status`, `store list`, `store status`)
+- [ ] **US-006:** Reescrita do `README.md` e Documentação Técnica com as Skills do `gtm-cofounder`
+- [ ] **US-007:** Pivot da Landing Page (`spmx.io`), `StoreDiagram` e `CliSample` com `the-homepage` (`gtm-cofounder`)
 
 ---
 
