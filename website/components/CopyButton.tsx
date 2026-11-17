@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { captureEvent, type AnalyticsProperties } from "@/lib/analytics";
 
 type State = "idle" | "copied" | "error";
 
@@ -9,10 +10,19 @@ interface Props {
   label?: string;
   className?: string;
   variant?: "icon" | "text";
+  eventName?: string;
+  eventProps?: AnalyticsProperties;
 }
 
 /** States: default, hover, focus-visible, active, success (copied), error (clipboard blocked). */
-export function CopyButton({ text, label = "Copy", className = "", variant = "icon" }: Props) {
+export function CopyButton({
+  text,
+  label = "Copy",
+  className = "",
+  variant = "icon",
+  eventName = "content_copied",
+  eventProps,
+}: Props) {
   const [state, setState] = useState<State>("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -22,6 +32,7 @@ export function CopyButton({ text, label = "Copy", className = "", variant = "ic
     try {
       await navigator.clipboard.writeText(text);
       setState("copied");
+      captureEvent(eventName, { label, ...eventProps });
     } catch {
       setState("error");
     }

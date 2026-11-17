@@ -1,3 +1,7 @@
+"use client";
+
+import { captureEvent } from "@/lib/analytics";
+
 export interface FaqItem {
   q: string;
   a: React.ReactNode;
@@ -8,7 +12,15 @@ export function Faq({ items }: { items: FaqItem[] }) {
   return (
     <div data-faq="" className="divide-y divide-line border-y border-line">
       {items.map((item) => (
-        <details key={item.q} className="group py-1">
+        <details
+          key={item.q}
+          className="group py-1"
+          onToggle={(e) => {
+            if (e.currentTarget.open) {
+              captureEvent("faq_opened", { question: item.q });
+            }
+          }}
+        >
           <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 py-3 text-left font-medium [&::-webkit-details-marker]:hidden">
             <span>{item.q}</span>
             <svg

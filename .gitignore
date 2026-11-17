@@ -29,6 +29,7 @@ xcuserdata/
 *.mobileprovision
 .dev.vars
 .dev.vars.*
+!.dev.vars.example
 
 # Local index
 /.codegraph/

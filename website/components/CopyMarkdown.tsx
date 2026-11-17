@@ -3,5 +3,5 @@
 import { CopyButton } from "./CopyButton";
 
 export function CopyMarkdown({ markdown }: { markdown: string }) {
-  return <CopyButton text={markdown} label="Copy as Markdown" variant="text" />;
+  return <CopyButton text={markdown} label="Copy as Markdown" variant="text" eventName="docs_markdown_copied" />;
 }

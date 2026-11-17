@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { captureEvent } from "@/lib/analytics";
 
 type Variant = "primary" | "secondary";
 
@@ -11,6 +14,7 @@ interface ButtonProps {
   type?: "button" | "submit" | "reset";
   disabled?: boolean;
   onClick?: () => void;
+  analyticsLabel?: string;
 }
 
 const BASE =
@@ -23,21 +27,42 @@ const VARIANTS: Record<Variant, string> = {
 };
 
 /** Primary or secondary call-to-action button, rendered as Next Link, anchor, or button. */
-export function Button({ href, variant = "secondary", className = "", children, type = "button", ...rest }: ButtonProps) {
+export function Button({
+  href,
+  variant = "secondary",
+  className = "",
+  children,
+  type = "button",
+  analyticsLabel,
+  onClick,
+  ...rest
+}: ButtonProps) {
   const classes = `${BASE} ${VARIANTS[variant]} ${className}`.trim();
+  const label = analyticsLabel ?? (typeof children === "string" ? children : "CTA");
+
+  function handleClick() {
+    captureEvent("cta_clicked", {
+      label,
+      href: href ?? "",
+      variant,
+      external: Boolean(href && !href.startsWith("/")),
+    });
+    onClick?.();
+  }
+
   if (href) {
     return href.startsWith("/") ? (
-      <Link href={href} className={classes}>
+      <Link href={href} className={classes} onClick={handleClick}>
         {children}
       </Link>
     ) : (
-      <a href={href} className={classes}>
+      <a href={href} className={classes} onClick={handleClick}>
         {children}
       </a>
     );
   }
   return (
-    <button type={type} className={classes} {...rest}>
+    <button type={type} className={classes} onClick={handleClick} {...rest}>
       {children}
     </button>
   );

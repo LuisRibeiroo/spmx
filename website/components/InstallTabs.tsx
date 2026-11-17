@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { captureEvent } from "@/lib/analytics";
 import { INSTALL } from "@/lib/repo";
 import { CodeBlock } from "./CodeBlock";
 import { CopyButton } from "./CopyButton";
@@ -31,6 +32,7 @@ export function InstallTabs({ idPrefix = "install" }: { idPrefix?: string }) {
 
   function select(next: Tab) {
     setTab(next);
+    captureEvent("install_tab_selected", { method: next, id_prefix: idPrefix });
     try {
       localStorage.setItem(STORAGE_KEY, next);
     } catch {
@@ -80,7 +82,12 @@ export function InstallTabs({ idPrefix = "install" }: { idPrefix?: string }) {
           <span className="text-ink-muted select-none">$ </span>
           {INSTALL[tab]}
         </CodeBlock>
-        <CopyButton text={INSTALL[tab]} label="Copy install command" />
+        <CopyButton
+          text={INSTALL[tab]}
+          label="Copy install command"
+          eventName="install_command_copied"
+          eventProps={{ method: tab, id_prefix: idPrefix, command: INSTALL[tab] }}
+        />
       </div>
       {notMac ? (
         <p className="mt-2 text-sm text-ink-muted" role="note">

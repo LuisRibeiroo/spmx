@@ -23,7 +23,12 @@ export function CommandCard({ title, command, description, href, className = "",
           <span className="text-ink-muted select-none">$ </span>
           {command}
         </CodeBlock>
-        <CopyButton text={command} label="Copy command" />
+        <CopyButton
+          text={command}
+          label="Copy command"
+          eventName="command_copied"
+          eventProps={{ command, title }}
+        />
       </div>
       {href ? (
         <TextLink href={href} className="w-fit text-sm font-medium">

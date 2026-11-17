@@ -2,6 +2,7 @@
 
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { captureEvent } from "@/lib/analytics";
 
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
@@ -12,7 +13,11 @@ export function ThemeToggle() {
     <button
       type="button"
       aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
-      onClick={() => setTheme(dark ? "light" : "dark")}
+      onClick={() => {
+        const nextTheme = dark ? "light" : "dark";
+        captureEvent("theme_toggled", { to_theme: nextTheme });
+        setTheme(nextTheme);
+      }}
       className="inline-flex size-10 items-center justify-center rounded-full border border-transparent text-ink-muted transition-colors duration-200 hover:border-line-strong hover:text-ink motion-reduce:transition-none"
     >
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
