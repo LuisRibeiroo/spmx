@@ -1,25 +1,25 @@
 ---
 title: Introduction
-description: What spmx is, what it changes in your worktree workflow, and where to start.
+description: One global Swift Package Manager store for your entire Mac, shared across every project, branch, and worktree.
 ---
 
-`spmx` is a macOS command-line tool that keeps one global store of Swift Package Manager checkouts, binary artifacts and macro prebuilts, and clones it into each Git worktree with APFS copy-on-write.
+`spmx` is a macOS command-line tool that keeps one global store of Swift Package Manager checkouts, bare Git repositories, binary artifacts, and macro prebuilts at `~/.spmx/store`, and clones them into every project and Git worktree on your Mac with APFS copy-on-write.
 
 <StoreDiagram />
 
 ## Why it exists
 
-Xcode derives the `DerivedData` folder name from a hash of the workspace path, so every new worktree starts with an empty `SourcePackages`. Each one downloads its own copy of the same dependencies.
+Every Xcode and SwiftPM project creates its own isolated `DerivedData/<App>-<Hash>/SourcePackages` folder. Working across multiple apps, client repositories, branches, or Git worktrees means downloading and storing the same multi-gigabyte SDKs (`Firebase`, `Stripe`, `gRPC`, `SwiftSyntax`) in every project folder.
 
-spmx removes that cost. A package is downloaded once, stored under `~/.spmx/store`, and cloned into any worktree that needs it. Clones share disk blocks until a file is modified.
+`spmx` works like Puro for Flutter or pnpm for Node.js. Each `(package, version)` slice is stored once in `~/.spmx/store` and cloned via `clonefile()` into any project that needs it, without changing your `Package.resolved` versions. Clones share disk blocks until a file is modified.
 
-It works anywhere Swift Package Manager is invoked through `swift`, `xcodebuild`, or `flutter` — including native Xcode/Swift apps, Flutter, React Native, Expo, Capacitor, and Kotlin Multiplatform (KMP) projects on macOS.
+It works anywhere Swift Package Manager is invoked through `swift`, `xcodebuild`, or `flutter`, including native Xcode and Swift apps, Flutter, React Native, Expo, Capacitor, and Kotlin Multiplatform (KMP) projects on macOS.
 
 ## Start here
 
 <Cards>
   <Card title="Installation" href="/docs/getting-started/installation">Install with Homebrew or a one-line script.</Card>
-  <Card title="Quick start" href="/docs/getting-started/quick-start">A commented cheat sheet of the whole workflow.</Card>
-  <Card title="The global store" href="/docs/concepts/global-store">How packages are keyed, cloned and shared.</Card>
+  <Card title="Quick start" href="/docs/getting-started/quick-start">Link your Mac in under two minutes.</Card>
+  <Card title="The global store" href="/docs/concepts/global-store">How versions, repositories, and clones are stored.</Card>
   <Card title="Commands" href="/docs/commands/setup">Every subcommand and its flags.</Card>
 </Cards>

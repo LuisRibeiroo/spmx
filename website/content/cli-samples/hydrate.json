@@ -1,18 +1,19 @@
 {
-  "_comment": "Captured from `spmx hydrate` (TTY, spinner frames omitted) on a small SwiftPM project. Paths shortened. Re-capture when the CLI output format changes.",
-  "command": "spmx hydrate",
-  "cliVersion": "0.1.0",
+  "_comment": "Multi-project store status sample reflecting `spmx store status` CLI output format.",
+  "command": "spmx store status",
+  "cliVersion": "0.1.1",
   "lines": [
-    [{ "t": "spmx hydrate", "c": "accent", "b": true }, { "t": " [swiftPackage]", "c": "muted" }],
-    [{ "t": "Scope:", "c": "muted" }, { "t": " ~/dev/app-feature" }],
-    [{ "t": "  Target:", "c": "muted" }, { "t": " ~/dev/app-feature/.build" }],
+    [{ "t": "spmx store", "c": "accent", "b": true }],
+    [{ "t": "Scope:", "c": "muted" }, { "t": " ~/.spmx/store" }],
     [],
-    [
-      { "t": "Progress:", "c": "muted" }, { "t": " checkouts " }, { "t": "1", "c": "accent", "b": true }, { "t": " cloned", "c": "muted" },
-      { "t": ", 0 skipped", "c": "muted" }, { "t": ", artifacts " }, { "t": "0", "c": "accent", "b": true },
-      { "t": ", prebuilts " }, { "t": "0", "c": "accent", "b": true }, { "t": ", workspace-state " }, { "t": "updated", "c": "muted" }
-    ],
+    [{ "t": "Linked projects:", "b": true }],
+    [{ "t": "  › " }, { "t": "~/projects/project-a", "c": "accent" }, { "t": "  3 pkg(s)  " }, { "t": "1.8 GB", "c": "ok" }],
+    [{ "t": "  › " }, { "t": "~/projects/project-b", "c": "accent" }, { "t": "  2 pkg(s)  " }, { "t": "740 MB", "c": "ok" }],
+    [{ "t": "  › " }, { "t": "~/projects/project-c", "c": "accent" }, { "t": "  2 pkg(s)  " }, { "t": "1.4 GB", "c": "ok" }],
     [],
-    [{ "t": "Done", "c": "ok" }, { "t": " in 0.4s", "c": "muted" }]
+    [{ "t": "Summary:", "b": true }],
+    [{ "t": "  Logical size:", "c": "muted" }, { "t": "       2.1 GB", "b": true }],
+    [{ "t": "  Projects:", "c": "muted" }, { "t": "           3", "c": "accent", "b": true }, { "t": " total (", "c": "muted" }, { "t": "3 active", "c": "ok" }, { "t": ", 0 missing)", "c": "muted" }],
+    [{ "t": "  Total estimated disk saved across machine: ", "c": "muted" }, { "t": "3.94 GB", "c": "ok", "b": true }]
   ]
 }

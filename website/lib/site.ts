@@ -27,12 +27,12 @@ function resolveSiteUrl(): string {
 
 export const SITE = {
   name: "spmx",
-  tagline: "Stop re-downloading SwiftPM packages for every project and worktree.",
+  tagline: "One package store for every Swift project on your Mac.",
   description:
-    "spmx shares one APFS copy-on-write package store and LLVM CAS build cache across every SwiftPM project and Git worktree on your Mac. Works with Swift, Xcode, Flutter, React Native, Expo, Capacitor and Kotlin Multiplatform.",
+    "spmx shares one APFS copy-on-write package store and LLVM CAS build cache across every Swift, Xcode, Flutter, React Native, Expo, Capacitor and KMP project on your Mac.",
   /** <= 155 characters so search results do not truncate it. */
   metaDescription:
-    "Share one APFS copy-on-write SwiftPM store and build cache across all projects and Git worktrees. Works with Xcode, Swift, Flutter, React Native & more.",
+    "One APFS copy-on-write SwiftPM store and build cache for every Swift, Xcode, Flutter, React Native and KMP project on your Mac.",
   // Domain is still an open question (tasks/prd-site.md §10.1). Set SITE_URL at build time.
   url: resolveSiteUrl(),
   repo: REPO,

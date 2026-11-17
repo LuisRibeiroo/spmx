@@ -79,62 +79,63 @@ const FEATURES = [
   {
     title: "A content-addressable store",
     description:
-      "Checkouts, binary XCFrameworks and macro prebuilts are saved once under ~/.spmx/store and cloned with APFS copy-on-write. Prebuilts are partitioned by toolchain hash so a Xcode update never serves a stale ABI.",
-    command: "spmx store status",
+      "Checkouts, bare Git repositories, binary XCFrameworks and macro prebuilts are saved once under ~/.spmx/store per (package, version) and cloned with APFS copy-on-write.",
+    command: "spmx store list",
     href: "/docs/concepts/global-store",
     span: "md:col-span-4",
   },
   {
     title: "Zero-config shims",
     description:
-      "flutter, xcodebuild and swift are intercepted from your PATH — automatically covering Xcode, React Native, Expo, Capacitor and KMP builds that invoke xcodebuild.",
+      "flutter, xcodebuild and swift are intercepted from your PATH, covering Xcode, React Native, Expo, Capacitor and KMP builds that invoke xcodebuild.",
     command: "spmx setup",
     href: "/docs/concepts/shims",
     span: "md:col-span-2",
   },
   {
+    title: "Per-project link control",
+    description: "Every project uses the global store by default. Run spmx link to scan and deduplicate your Mac, or spmx unlink to isolate a project to its local cache.",
+    command: "spmx unlink",
+    href: "/docs/commands/unlink",
+    span: "md:col-span-2",
+  },
+  {
     title: "Shared compilation cache",
-    description: "On Xcode 16+ and Swift 6+, the shims point the LLVM CAS cache at one directory shared by every worktree.",
+    description: "On Xcode 16+ and Swift 6+, the shims point the LLVM CAS cache at one directory shared by every project and worktree.",
     command: "SPMX_NO_COMPILE_CACHE=1 xcodebuild build",
     href: "/docs/concepts/llvm-compilation-cache",
     span: "md:col-span-2",
   },
   {
-    title: "Git hooks, opt-in",
-    description: "Pre-warm SourcePackages the moment you run git worktree add. Off until you ask for it; existing hooks are preserved.",
-    command: "spmx hooks enable --global",
-    href: "/docs/commands/hooks",
-    span: "md:col-span-2",
-  },
-  {
     title: "Flutter with SwiftPM",
-    description: "Runs flutter pub get when the ephemeral FlutterGeneratedPluginSwiftPackage is missing, then hydrates the Runner workspace.",
+    description: "Pre-warms compatible packages across different Flutter apps and restores Package.resolved before xcodebuild runs.",
     command: "flutter run",
     href: "/docs/guides/flutter-spm",
     span: "md:col-span-2",
   },
   {
-    title: "A doctor that checks everything",
-    description: "APFS, Xcode and Swift versions, PATH order, store integrity and hook state in one report.",
-    command: "spmx doctor",
-    href: "/docs/commands/doctor",
+    title: "Per-project and machine-wide savings",
+    description: "See semantic versions, linked projects, and estimated disk saved for the current project or across your entire Mac.",
+    command: "spmx store status",
+    href: "/docs/commands/store",
     span: "md:col-span-6",
   },
 ];
 
 const STEPS = [
   { n: 1, title: "Install once", command: "spmx setup", note: "Creates ~/.spmx, links the shims and adds them to your shell profile." },
-  { n: 2, title: "Add a worktree", command: "git worktree add ../app-feature", note: "Your usual Git workflow. Nothing to change." },
-  { n: 3, title: "Hydration runs for you", command: "spmx hydrate", note: "Fired by the shim before the build, or by the opt-in hook at checkout." },
-  { n: 4, title: "Build as usual", command: "flutter run", note: "Or xcodebuild, or swift build. New packages are harvested back into the store." },
+  { n: 2, title: "Link your existing projects", command: "spmx link", note: "Scans your Mac, shows estimated GB saved, and asks before deduplicating." },
+  { n: 3, title: "Isolate any project if needed", command: "spmx unlink ~/dimension/c-131", note: "Optional opt-out so a project uses only its local Xcode or SwiftPM cache." },
+  { n: 4, title: "Check versions and savings", command: "spmx status", note: "Shows linked state, semantic versions, and disk saved in the current project." },
 ];
 
 const COMPARISON = [
-  ["Package checkouts", "Fetched again in every worktree", "Cloned from the store"],
-  ["Binary XCFrameworks", "Downloaded and unpacked per worktree", "Cloned, sharing disk blocks"],
-  ["Swift macro prebuilts", "Fetched or rebuilt per worktree", "Cloned, keyed by toolchain"],
-  ["Compiler output", "Per-DerivedData, starts empty", "One shared compilation cache"],
-  ["Setup per project", "—", "None after spmx setup"],
+  ["Package checkouts", "Fetched again in every DerivedData", "Cloned once per (package, version)"],
+  ["Bare Git repositories", "Re-cloned when bumping 1.0.0 to 1.0.1", "Shared in ~/.spmx/store/repositories/"],
+  ["Binary XCFrameworks", "Downloaded and unpacked per project", "Cloned, sharing disk blocks"],
+  ["Swift macro prebuilts", "Fetched or rebuilt per project", "Cloned, keyed by toolchain"],
+  ["Compiler output", "Per-DerivedData, starts empty", "One shared LLVM CAS cache"],
+  ["Opt-out per project", "N/A", "spmx unlink"],
 ] as const;
 
 function Stat({ value, label }: { value: string; label: string }) {
@@ -172,8 +173,8 @@ export default function HomePage() {
             </div>
             <h1 className="text-hero font-bold tracking-tight">{SITE.tagline}</h1>
             <p className="mt-5 max-w-[34rem] text-lead text-ink-muted">
-              Keep your <code>swift</code>, <code>xcodebuild</code>, and <code>flutter</code> workflows unchanged. spmx
-              shares one APFS copy-on-write package store and build cache across every project and Git worktree on your Mac.
+              spmx gives every Swift, Xcode, Flutter, React Native, and KMP project on your Mac one shared APFS
+              copy-on-write store and LLVM CAS build cache, across all repos, branches, and worktrees.
             </p>
             <div className="mt-8 max-w-[34rem]">
               <InstallTabs idPrefix="hero" />
@@ -192,20 +193,20 @@ export default function HomePage() {
       {/* 2 · Problem */}
       <Container as="section" className="py-16 md:py-24" aria-labelledby="problem">
         <h2 id="problem" className="max-w-2xl text-h2 font-bold tracking-tight">
-          Every project and worktree starts from zero.
+          Every DerivedData folder starts from zero.
         </h2>
         <div className="mt-10 grid gap-8 md:grid-cols-3">
           <div>
-            <h3 className="font-semibold">A new worktree gets a new DerivedData hash</h3>
-            <p className="mt-2 text-ink-muted">Xcode derives the build folder name from the workspace path, so a fresh checkout has nothing in it.</p>
+            <h3 className="font-semibold">Xcode isolates every project and worktree</h3>
+            <p className="mt-2 text-ink-muted">Each workspace gets its own <code className="font-mono text-sm">DerivedData/&lt;App&gt;-&lt;Hash&gt;/SourcePackages</code>, so even identical SDKs start empty.</p>
           </div>
           <div>
-            <h3 className="font-semibold">Every package downloads again</h3>
-            <p className="mt-2 text-ink-muted">Source checkouts, binary XCFrameworks and macro prebuilts are fetched per worktree.</p>
+            <h3 className="font-semibold">The same SDKs download over and over</h3>
+            <p className="mt-2 text-ink-muted">Firebase, Stripe, gRPC, and SwiftSyntax get fetched, unpacked, and compiled separately in every app and branch.</p>
           </div>
           <div>
-            <h3 className="font-semibold">Gigabytes multiply</h3>
-            <p className="mt-2 text-ink-muted">Five worktrees of a project with heavy SDKs means five copies of the same SDKs on your SSD.</p>
+            <h3 className="font-semibold">Gigabytes multiply across your SSD</h3>
+            <p className="mt-2 text-ink-muted">Four client apps and three worktrees mean seven physical copies of the same packages sitting on disk.</p>
           </div>
         </div>
       </Container>
@@ -217,12 +218,12 @@ export default function HomePage() {
         <Container className="grid items-center gap-10 py-16 md:grid-cols-2 md:gap-16 md:py-24">
           <StoreDiagram />
           <div>
-            <h2 id="how" className="text-h2 font-bold tracking-tight">One store, linked everywhere.</h2>
+            <h2 id="how" className="text-h2 font-bold tracking-tight">One store, linked across your Mac.</h2>
             <ul className="mt-6 space-y-4 text-ink-muted">
-              <li><strong className="text-ink">Saved once.</strong> Packages live under <code className="font-mono text-sm">~/.spmx/store</code>, keyed by identity and revision.</li>
-              <li><strong className="text-ink">Cloned, not copied.</strong> APFS <code className="font-mono text-sm">clonefile()</code> creates real files that share disk blocks. Edit one and only the changed blocks are allocated.</li>
-              <li><strong className="text-ink">Hands-off.</strong> Shims hydrate before a build and harvest new packages afterwards.</li>
-              <li><strong className="text-ink">Safe in parallel.</strong> File locks and atomic staging let several worktrees, or several agents, write at once.</li>
+              <li><strong className="text-ink">Deduplicated by (package, version).</strong> <code className="font-mono text-sm">c-137</code> on <code className="font-mono text-sm">firebase 1.0.0</code> and <code className="font-mono text-sm">c-131</code> on <code className="font-mono text-sm">1.0.1</code> coexist cleanly, while shared versions like <code className="font-mono text-sm">stripe 3.4.5</code> are stored once.</li>
+              <li><strong className="text-ink">Cloned, not copied.</strong> APFS <code className="font-mono text-sm">clonefile()</code> creates real files that share disk blocks. Dirty checkouts are never harvested back into the store.</li>
+              <li><strong className="text-ink">Partial cache hits work.</strong> If a new project shares half its dependencies with the store, SwiftPM resolves only the missing delta.</li>
+              <li><strong className="text-ink">Safe in parallel.</strong> File locks and atomic staging let multiple projects, worktrees, or AI agents build at once.</li>
             </ul>
             <TextLink href="/docs/concepts/global-store" className="mt-6 inline-block font-medium">How the store works</TextLink>
           </div>
@@ -231,7 +232,7 @@ export default function HomePage() {
 
       {/* 4 · Workflow */}
       <Container as="section" className="py-16 md:py-24" aria-labelledby="workflow">
-        <h2 id="workflow" className="max-w-2xl text-h2 font-bold tracking-tight">Four steps, one of them yours.</h2>
+        <h2 id="workflow" className="max-w-2xl text-h2 font-bold tracking-tight">Automatic by default, opt-out in one command.</h2>
         <ol className="mt-10 grid gap-5 md:grid-cols-2">
           {STEPS.map((s) => (
             <li key={s.n} className="flex gap-4 rounded-lg border border-line p-5">

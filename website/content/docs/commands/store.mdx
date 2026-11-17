@@ -1,44 +1,39 @@
 ---
 title: spmx store
-description: Inspect and manage the global store and the compilation cache.
+description: Inspect cached package versions, per-project and global savings, and prune unreferenced store entries.
 ---
 
-```bash
-spmx store path
-spmx store status        # default subcommand
-spmx store prune [--dry-run] [--older-than <days>]
-```
+Manage `~/.spmx/store` and `~/.spmx/compilation-cache`.
 
-## `store path`
+## Subcommands
 
-Prints the absolute path of the store (`~/.spmx/store`, or `SPMX_STORE_DIR`).
+### `spmx store path`
 
-## `store status`
+Prints the resolved store directory path (`~/.spmx/store` or `SPMX_STORE_DIR`).
 
-Lists checkouts, artifacts and prebuilts (prebuilts grouped by toolchain), the logical store size, the compilation cache location and size, how many projects are registered, and an estimate of the space copy-on-write saves.
+### `spmx store list`
 
-```text
-Global Store Status
-  Store path:         ~/.spmx/store
-  Checkouts:          1 (1.9 MB)
-  Artifacts:          0 (Zero bytes)
-  Prebuilts:          0 (Zero bytes)
-  Logical store size: 1.9 MB
-  Compilation cache:  ~/.spmx/compilation-cache (Zero bytes)
-  Registered projects: 2 total (2 active, 0 missing on disk)
-  Est. CoW savings:   3.8 MB
-```
-
-## `store prune`
-
-Drops registered projects whose folders no longer exist, deletes packages no active project references, and trims old compilation-cache files.
-
-| Option | Description |
-| :--- | :--- |
-| `--dry-run` | show what would be removed without deleting |
-| `--older-than <days>` | only remove unreferenced entries and cache files older than this. Default 30 |
+Lists every cached `(package, version)` slice in `~/.spmx/store` with its semantic version, Git revision, size, and the linked projects that pull from it. Pass `--json` for machine-readable output.
 
 ```bash
-spmx store prune --dry-run
-spmx store prune --older-than 7
+spmx store list
+spmx store list --json
 ```
+
+### `spmx store status`
+
+Reports checkout, bare repository, artifact, and toolchain-grouped prebuilt counts, compilation cache size, a per-project breakdown of saved disk space, and the total estimated disk saved across your Mac. Pass `--json` for machine-readable output.
+
+```bash
+spmx store status
+spmx store status --json
+```
+
+### `spmx store prune`
+
+Removes missing project registrations, unreferenced store entries, and old compilation cache files.
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--dry-run` | `false` | Preview removals and reclaimable bytes without deleting anything. |
+| `--older-than <days>` | `30` | Only prune unreferenced entries and cache files older than this many days (`0` prunes all unreferenced). |

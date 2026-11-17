@@ -1,0 +1,37 @@
+---
+title: spmx unlink
+description: Exclude a project from the global store so it uses only its local Xcode or SwiftPM cache.
+---
+
+Marks a project as unlinked in `~/.spmx/store/index.json` (`excludedProjects`). Shims (`swift`, `xcodebuild`, `flutter`), Git hooks, and machine-wide scans ignore unlinked projects and pass through directly to the native toolchain and local cache.
+
+Your project's existing `SourcePackages` or `.build` directory stays intact on disk.
+
+You can also exclude a project by placing an empty `.spmxignore` file in its root directory.
+
+## Usage
+
+```bash
+spmx unlink [path] [flags]
+```
+
+## Flags
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `[path]` | `.` | Project directory to unlink. |
+| `--reason <text>` | none | Optional note stored in `index.json`. |
+| `--json` | `false` | Print machine-readable JSON output. |
+
+## Examples
+
+```bash
+# Unlink the current project
+spmx unlink
+
+# Unlink a specific project with a reason
+spmx unlink ~/projects/legacy-app --reason "custom local fork"
+
+# Re-link later
+spmx link ~/projects/legacy-app
+```

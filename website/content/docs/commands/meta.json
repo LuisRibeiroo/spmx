@@ -2,6 +2,8 @@
   "title": "Commands",
   "pages": [
     "setup",
+    "link",
+    "unlink",
     "hydrate",
     "harvest",
     "migrate",

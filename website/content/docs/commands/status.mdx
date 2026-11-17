@@ -1,34 +1,21 @@
 ---
 title: spmx status
-description: Inspect project detection, DerivedData and SourcePackages paths, cached pins and the compilation cache.
+description: Inspect project link state, package semantic versions, cache hit/miss status, and disk saved.
 ---
 
+Shows how `spmx` sees a project: whether it is linked to the global store or unlinked, the active toolchain fingerprint, resolved `DerivedData` and `SourcePackages` paths, each package's semantic version and cache state (`hydrated / CoW clone`, `in store`, or `missing`), the estimated disk saved in this project, and LLVM CAS compilation cache status.
+
+## Usage
+
 ```bash
-spmx status [<path>] [--project <project>] [--workspace <workspace>]
+spmx status [path] [flags]
 ```
 
-Run it inside a project to see how spmx understands it and how much of `Package.resolved` the store already has.
+## Flags
 
-## Arguments and options
-
-| Name | Description |
-| :--- | :--- |
-| `<path>` | project directory, `.xcworkspace`, `.xcodeproj` or `Package.swift`. Defaults to the current directory |
-| `--project <project>` | explicit `.xcodeproj`, `Package.swift` or project directory |
-| `--workspace <workspace>` | explicit `.xcworkspace` |
-
-## Example
-
-```text
-$ spmx status
-Project Status
-  Project type:       swiftPackage
-  Root path:          ~/dev/app
-  Swift version:      Apple Swift version 6.4.2
-  Xcode version:      Xcode 27.2 / Build version 27B52
-  Toolchain hash:     54083f489f59ce9c
-  SourcePackages:     ~/dev/app/.build
-  Package.resolved:   ~/dev/app/Package.resolved
-  Cached pins:        ✓ 1/1 (0 missing)
-  Compilation cache:  ✓ enabled at ~/.spmx/compilation-cache
-```
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `[path]` | `.` | Project directory, `.xcworkspace`, `.xcodeproj`, or `Package.swift`. |
+| `--project <path>` | none | Explicit `.xcodeproj` or `Package.swift` path. |
+| `--workspace <path>` | none | Explicit `.xcworkspace` path (cannot be combined with `--project`). |
+| `--json` | `false` | Output machine-readable JSON including `isLinked`, `pinStatuses`, and `projectSavedBytes`. |

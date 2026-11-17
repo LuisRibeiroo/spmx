@@ -14,7 +14,7 @@ interface Props {
 /** Feature card that always carries a real command. */
 export function CommandCard({ title, command, description, href, className = "", children }: Props) {
   return (
-    <article className={`not-prose flex flex-col gap-3 rounded-lg border border-line bg-paper p-5 ${className}`}>
+    <article className={`not-prose flex min-w-0 flex-col gap-3 rounded-lg border border-line bg-paper p-5 ${className}`}>
       <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
       <p className="text-[0.9375rem] leading-relaxed text-ink-muted">{description}</p>
       {children}

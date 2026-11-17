@@ -1,6 +1,6 @@
 ---
 title: Quick start
-description: The whole workflow as one commented cheat sheet.
+description: Set up the global SwiftPM store and link projects across your Mac in under two minutes.
 ---
 
 ```bash
@@ -10,38 +10,36 @@ spmx setup
 # 2. Check that APFS, Xcode, PATH order and the store are healthy
 spmx doctor
 
-# 3. Optional: hydrate every new worktree the moment it is created
-spmx hooks enable --global
+# 3. Link existing projects on your Mac (shows plan & GB saved, asks to confirm)
+spmx link
 
-# 4. Use Git worktrees the way you always did
-git worktree add ../app-feature
-cd ../app-feature
+# Or target a specific folder
+spmx link ~/projects/client-x
 
-# 5. Build. The shim hydrates SourcePackages first, harvests new packages after
-flutter run            # Flutter + SwiftPM
+# 4. Build as usual. The shim hydrates SourcePackages first and harvests new versions after
+flutter run                    # Flutter + SwiftPM
 xcodebuild -scheme App build   # native Xcode
-swift build            # SwiftPM CLI
+swift build                    # SwiftPM CLI
 
-# Inspect what spmx knows about this project
+# Inspect link state, semantic versions, and disk saved in this project
 spmx status
 
-# See what the store holds and how much it saves
+# List every (package, version) in ~/.spmx/store and which projects use it
+spmx store list
+
+# See per-project breakdown and total GB saved across your Mac
 spmx store status
 
-# Already have worktrees full of downloaded packages? Preview, then apply
-spmx migrate ~/dev
-spmx migrate ~/dev --apply
+# Isolate a specific project to use only its local Xcode/SwiftPM cache
+spmx unlink ~/projects/legacy-app
 
-# Reclaim space from packages no worktree uses any more
-spmx store prune --dry-run
-spmx store prune
-
-# Bypass spmx for one command
+# Bypass spmx for a single command
 SPMX_DISABLE=1 flutter run
 ```
 
 ## Where to go next
 
 - [How the global store works](/docs/concepts/global-store)
+- [Link and unlink projects](/docs/commands/link)
 - [Flutter with SwiftPM](/docs/guides/flutter-spm)
 - [Commands reference](/docs/commands/setup)

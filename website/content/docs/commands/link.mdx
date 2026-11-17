@@ -1,0 +1,41 @@
+---
+title: spmx link
+description: Link a project or scan your Mac to harvest and deduplicate SwiftPM caches into the global store.
+---
+
+Scans a project, directory, or your entire Mac (`~` and `DerivedData`) for Swift, Xcode, and Flutter projects, previews the estimated disk savings, and asks for confirmation before harvesting and deduplicating caches into `~/.spmx/store`.
+
+## Usage
+
+```bash
+spmx link [path] [flags]
+```
+
+If `[path]` points directly to a project previously excluded with `spmx unlink`, `spmx link` re-links it and deduplicates its cache. If `[path]` is omitted, `spmx link` scans your home directory (`~`) while skipping slow or macOS-protected folders (`~/Library`, `~/.Trash`, `node_modules`, `Pods`, `.git`, `.spmx`).
+
+## Flags
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `-y`, `--yes` | `false` | Skip the interactive `[y/N]` confirmation prompt. |
+| `--dry-run` | `false` | Show discovered projects and estimated disk saved without modifying disk. |
+| `--deduplicate` / `--no-deduplicate` | `true` | Replace clean `SourcePackages` / `.build` entries with APFS CoW clones after harvesting. |
+| `--install-hooks` | `false` | Install repo-local `post-checkout` hooks in discovered Git repositories. |
+| `--max-depth <n>` | `6` | Maximum directory traversal depth. |
+| `--exclude <pattern>` | `[]` | Exclude directory names, path substrings, or glob patterns (repeatable). |
+| `--timeout <seconds>` | `30` | Inactivity timeout for external subcommands (`0` disables). |
+| `-v`, `--verbose` | `false` | Print detailed per-path logs. |
+| `-q`, `--quiet` | `false` | Suppress normal output. |
+
+## Examples
+
+```bash
+# Scan the whole Mac, review the plan, and confirm
+spmx link
+
+# Scan a client folder without prompting
+spmx link ~/projects/client-x --yes
+
+# Preview savings only
+spmx link --dry-run
+```

@@ -30,7 +30,7 @@ export function CliSample() {
         ))}
       </CodeBlock>
       <figcaption className="mt-3 text-xs text-ink-muted">
-        Captured from <code className="font-mono">spmx hydrate</code> v{sample.cliVersion} on a small SwiftPM project.
+        Output from <code className="font-mono">{sample.command}</code> v{sample.cliVersion} across three linked projects.
         Paths shortened.
       </figcaption>
     </figure>
