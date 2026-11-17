@@ -33,3 +33,4 @@ xcuserdata/
 
 # Local index
 /.codegraph/
+.wrangler/
