@@ -1,0 +1,8 @@
+name = "spmx-get"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+workers_dev = false
+
+routes = [
+  { pattern = "get.spmx.io", custom_domain = true }
+]

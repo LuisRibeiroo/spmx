@@ -73,8 +73,8 @@ for arg in "$@"; do
 Install spmx (Performant Swift Package Manager) on macOS.
 
 Usage:
-  curl -fsSL https://raw.githubusercontent.com/LuisRibeiroo/spmx/main/scripts/install.sh | sh
-  curl -fsSL https://raw.githubusercontent.com/LuisRibeiroo/spmx/main/scripts/install.sh | sh -s -- --no-modify-path
+  curl -fsSL https://get.spmx.io | sh
+  curl -fsSL https://get.spmx.io | sh -s -- --no-modify-path
 
 Environment variables:
   SPMX_VERSION         Specific release tag to install (e.g., v0.1.0). Defaults to latest.

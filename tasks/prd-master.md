@@ -27,7 +27,7 @@ Regras:
 | PRD | Status | Stories | File |
 | :--- | :--- | :--- | :--- |
 | **spmx — Performant Swift Package Manager (CLI)** | Implemented (v1) | `US-001` – `US-009` | [prd-spmx-cli.md](./prd-spmx-cli.md) |
-| **spmx — Landing Page + Docs + Benchmarks** | In progress (US-001–008 implemented; US-009 partial; US-010 pending) | `US-001` – `US-010` | [prd-site.md](./prd-site.md) |
+| **spmx — Landing Page + Docs + Benchmarks** | Implemented (`US-001` – `US-010`) | `US-001` – `US-010` | [prd-site.md](./prd-site.md) |
 
 ---
 
@@ -55,8 +55,25 @@ Regras:
 - [x] **US-006:** Documentação (Fumadocs)
 - [x] **US-007:** Página `/benchmarks`
 - [x] **US-008:** Kit de SEO e Descoberta por Agentes
-- [ ] **US-009:** Qualidade — Lighthouse CI, Acessibilidade e Mobile _(parcial: contraste, overflow/quebra em 320–768 px e screenshots automatizados; falta Lighthouse CI no GitHub Actions e job `bench --quick`)_
-- [ ] **US-010:** Deploy e Domínio
+- [x] **US-009:** Qualidade — Lighthouse CI, Acessibilidade e Mobile
+- [x] **US-010:** Deploy e Domínio
+
+---
+
+## Pending Tasks (CI/CD, Release & Infra)
+
+- [ ] **GitHub Actions — Deploy do Site (`website/`):** Configurar workflow no GitHub Actions para fazer deploy do site quando necessário (ex.: alterações em `website/` na `main` e disparo manual via `workflow_dispatch`).
+- [ ] **GitHub Actions — Nova Release (Versionamento):** Configurar action (integrada ao [`.github/workflows/release.yml`](../.github/workflows/release.yml)) para gerar uma nova release via `workflow_dispatch`:
+  - **Default:** `patch` update automático com base na última tag semver (`vX.Y.Z` → `vX.Y.(Z+1)`).
+  - **Opcional:** campo de entrada para definir manualmente a nova versão (ex.: `vX.Y.Z` ou tipo de bump) quando necessário.
+- [ ] **URL Curta de Instalação (`get.spmx.io`) — Hostinger, Cloudflare e Código:** Substituir a URL longa do `curl` (`raw.githubusercontent.com/LuisRibeiroo/spmx/main/scripts/install.sh`) por `https://get.spmx.io`:
+  1. **Hostinger (Domínio & Nameservers):** Verificar domínio `spmx.io` ativo na Hostinger e apontar os nameservers para o Cloudflare (ou, se mantiver DNS na Hostinger, criar `CNAME` `get` para o endpoint no Cloudflare com SSL ativo).
+  2. **Cloudflare (DNS, SSL e Rota `get.spmx.io`):**
+     - Adicionar a zona `spmx.io` no Cloudflare, definir SSL/TLS como **Full (strict)** e ativar **Always Use HTTPS**.
+     - Criar o registro DNS proxied (nuvem laranja) para `get.spmx.io` (ex.: `A 192.0.2.1` placeholder proxied ou `CNAME` para o Pages/Worker).
+     - Configurar **Cloudflare Worker** na rota `get.spmx.io/*` para servir `scripts/install.sh` com `200 OK` e `Content-Type: text/plain; charset=utf-8` (ou *Redirect Rule* para `https://raw.githubusercontent.com/LuisRibeiroo/spmx/main/scripts/install.sh` / `https://spmx.io/install.sh`).
+     - Testar com `curl -fsSL https://get.spmx.io | head -n 20`.
+  3. **Atualização no Repositório:** Trocar a URL do `curl` para `https://get.spmx.io` em [`website/lib/repo.ts`](../website/lib/repo.ts), [`website/content/docs/getting-started/installation.mdx`](../website/content/docs/getting-started/installation.mdx), [`website/content/docs/guides/ci.mdx`](../website/content/docs/guides/ci.mdx), [`README.md`](../README.md) e [`scripts/install.sh`](../scripts/install.sh), e validar o build com `make site`.
 
 ---
 

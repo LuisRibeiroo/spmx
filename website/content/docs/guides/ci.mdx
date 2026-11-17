@@ -11,7 +11,7 @@ Point the store at a directory your CI can save and restore, and install spmx in
 
 ```bash
 export SPMX_STORE_DIR="$HOME/spmx-store"     # restore this directory from your CI cache
-curl -fsSL https://raw.githubusercontent.com/LuisRibeiroo/spmx/main/scripts/install.sh | sh -s -- --no-modify-path
+curl -fsSL https://get.spmx.io | sh -s -- --no-modify-path
 export PATH="$HOME/.spmx/shims:$HOME/.spmx/bin:$PATH"
 
 xcodebuild -workspace App.xcworkspace -scheme App build

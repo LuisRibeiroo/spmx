@@ -1,0 +1,106 @@
+name: Benchmark Quick (PR Regression Alert)
+
+on:
+  pull_request:
+    paths:
+      - "Sources/**"
+      - "Package.swift"
+      - "Package.resolved"
+      - "bench/**"
+      - ".github/workflows/bench-quick.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bench-quick:
+    name: bench --quick (S3 + S5)
+    runs-on: macos-15
+    # Advisory regression alert only: never blocks PRs and never feeds the site.
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install hyperfine
+        run: brew install hyperfine
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build spmx (release)
+        run: swift build -c release
+
+      - name: Run bench --quick (S3 + S5)
+        env:
+          BENCH_RUNS: "5"
+          BENCH_WARMUP: "1"
+          BENCH_RUNS_S5: "30"
+        run: bench/run.sh --quick
+
+      - name: Summarize results & check regressions
+        if: always()
+        run: |
+          /usr/bin/python3 - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+
+          p = Path("bench/results/latest.json")
+          if not p.exists():
+              print("::warning::bench/results/latest.json was not produced.")
+              sys.exit(0)
+
+          data = json.loads(p.read_text())
+          lines = [
+              "### `bench --quick` (S3 + S5) — Advisory Regression Check",
+              "",
+              f"- **Machine:** {data.get('machine', {}).get('chip', 'unknown')} / macOS {data.get('machine', {}).get('macos', '?')}",
+              f"- **Swift:** {data.get('machine', {}).get('swift', '?')}",
+              "",
+              "| Scenario | Fixture | Baseline (median) | spmx (median) | Delta |",
+              "| :--- | :--- | ---: | ---: | :--- |",
+          ]
+          for s in data.get("scenarios", []):
+              sid = s.get("id")
+              if sid not in ("S3", "S5"):
+                  continue
+              fx = s.get("fixture")
+              b = s.get("baseline", {}).get("median_s")
+              x = s.get("spmx", {}).get("median_s")
+              if b is None or x is None:
+                  continue
+              if sid == "S5":
+                  b_str = f"{b * 1000:.2f} ms"
+                  x_str = f"{x * 1000:.2f} ms"
+                  diff_ms = (x - b) * 1000
+                  delta = f"+{diff_ms:.2f} ms" if diff_ms >= 0 else f"{diff_ms:.2f} ms"
+                  if x * 1000 > 5.0:
+                      print(f"::warning::S5 shim overhead ({fx}) exceeded 5 ms target: {x * 1000:.2f} ms")
+              else:
+                  b_str = f"{b:.3f} s"
+                  x_str = f"{x:.3f} s"
+                  ratio = (b / x) if x > 0 else 0
+                  delta = f"{ratio:.2f}x faster" if x <= b else f"{(x / b):.2f}x slower"
+                  if x > b:
+                      print(f"::warning::S3 ({fx}) spmx ({x:.3f} s) was slower than baseline ({b:.3f} s)")
+              lines.append(f"| {sid} | `{fx}` | {b_str} | {x_str} | {delta} |")
+
+          summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary:
+              with open(summary, "a", encoding="utf-8") as f:
+                  f.write("\n".join(lines) + "\n")
+          print("\n".join(lines))
+          PY
+
+      - name: Upload quick benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-quick-results
+          path: bench/results/latest.json
+          retention-days: 14

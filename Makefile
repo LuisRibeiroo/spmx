@@ -7,7 +7,7 @@ bench-quick:
 	bench/run.sh --quick
 
 site:
-	cd website && npm ci && npm run build
+	cd website && pnpm install --frozen-lockfile && pnpm run build
 
 site-dev:
-	cd website && npm install && npm run dev
+	cd website && pnpm install && pnpm run dev

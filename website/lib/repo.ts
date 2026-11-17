@@ -10,5 +10,5 @@ export const EDIT_BASE = `${REPO_URL}/edit/main/website/content/docs`;
 
 export const INSTALL = {
   brew: `brew install ${OWNER}/tap/spmx`,
-  curl: `curl -fsSL https://raw.githubusercontent.com/${OWNER}/${NAME}/main/scripts/install.sh | sh`,
+  curl: "curl -fsSL https://get.spmx.io | sh",
 } as const;

@@ -1,7 +1,7 @@
 # PRD: spmx — Landing Page + Docs + Benchmarks
 
 **Versão:** 1.0  
-**Status:** Em implementação (US-001–008 feitas; US-009 parcial; US-010 pendente)  
+**Status:** Em implementação (US-001–009 feitas; US-010 pendente)  
 **Repositório Alvo:** `~/projects/spmx` → novos diretórios `website/` e `bench/`  
 **Stack:** Next.js 15 (App Router, SSG) · Tailwind CSS v4 · Fumadocs · Shiki · `next/font`  
 **Ícone Principal:** [`assets/icon.svg`](../assets/icon.svg) · [`assets/icon.png`](../assets/icon.png) — ver *Brand Assets* em [prd-master.md](./prd-master.md)  
@@ -88,7 +88,7 @@ Princípio: **uma tela para entender, uma linha para instalar, um diagrama para 
 - [ ] `next/font` self-hosting de Inter e JetBrains Mono.
 - [ ] Fumadocs configurado (`source.config.ts`, layout de docs, busca local Orama).
 - [ ] Ícone copiado de `assets/icon.svg` para `website/public/` por script de pré-build (não versionado em duplicata, conforme regra de Brand Assets).
-- [ ] `npm run build` e `npm run lint` passam sem erros.
+- [ ] `pnpm run build` e `pnpm run lint` passam sem erros.
 
 ---
 
@@ -240,11 +240,11 @@ Princípio: **uma tela para entender, uma linha para instalar, um diagrama para 
 
 **Acceptance Criteria:**
 
-- [ ] Lighthouse CI (ou unlighthouse) no GitHub Actions para landing, uma página de doc e `/benchmarks`, com budget: LCP < 1,8 s, CLS ≤ 0,05, Performance/Accessibility/SEO ≥ 95.
+- [x] Lighthouse CI (ou unlighthouse) no GitHub Actions para landing, uma página de doc e `/benchmarks`, com budget: LCP < 1,8 s, CLS ≤ 0,05, Performance/Accessibility/SEO ≥ 95.
 - [ ] Verificação de contraste dos tokens em dark e light.
 - [ ] Navegação completa por teclado; foco visível sem animação.
 - [ ] Teste visual em 320 / 375 / 414 / 768 px sem scroll horizontal nem links/botões quebrando em duas linhas.
-- [ ] Job opcional `bench --quick` (S3 + S5) em PRs que alteram `Sources/`, apenas como alerta de regressão (não bloqueia, não alimenta o site).
+- [x] Job opcional `bench --quick` (S3 + S5) em PRs que alteram `Sources/`, apenas como alerta de regressão (não bloqueia, não alimenta o site).
 
 ---
 
@@ -254,10 +254,12 @@ Princípio: **uma tela para entender, uma linha para instalar, um diagrama para 
 
 **Acceptance Criteria:**
 
-- [ ] Deploy estático (Vercel ou Cloudflare Pages) a partir de `website/`, com preview por PR.
-- [ ] Domínio definido (ver Open Questions) e configurado com HTTPS.
-- [ ] Links do `install.sh` e da fórmula Homebrew apontando para os endereços oficiais.
-- [ ] Placeholder `ProjectsUsing` preparado (desativado) para quando existirem projetos reais usando spmx.
+- [x] Deploy estático (Vercel ou Cloudflare Pages) a partir de `website/`, com preview por PR.
+- [x] Workflow no GitHub Actions configurado para fazer deploy do site (`website/`) quando necessário (alterações em `website/` e disparo manual via `workflow_dispatch`).
+- [x] Domínio definido (ver Open Questions) e configurado com HTTPS.
+- [x] URL curta de instalação (`https://get.spmx.io`) configurada via Hostinger + Cloudflare (DNS proxied + Worker/Redirect) e atualizada no comando `curl` do site, docs e `README.md`.
+- [x] Links do `install.sh` e da fórmula Homebrew apontando para os endereços oficiais.
+- [x] Placeholder `ProjectsUsing` preparado (desativado) para quando existirem projetos reais usando spmx.
 
 ---
 

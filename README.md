@@ -48,13 +48,13 @@
 ### One-line installer (recommended)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/LuisRibeiroo/spmx/main/scripts/install.sh | sh
+curl -fsSL https://get.spmx.io | sh
 ```
 
 To skip modifying your shell RC file (`PATH`), pass `--no-modify-path`:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/LuisRibeiroo/spmx/main/scripts/install.sh | sh -s -- --no-modify-path
+curl -fsSL https://get.spmx.io | sh -s -- --no-modify-path
 ```
 
 You can also pin a release tag with `SPMX_VERSION=v0.1.0`.

@@ -20,12 +20,16 @@ mkdirSync(join(site, "public"), { recursive: true });
 mkdirSync(join(site, "content", "generated"), { recursive: true });
 mkdirSync(join(site, "content", "benchmarks"), { recursive: true });
 
-// 1. Icon -------------------------------------------------------------------
+// 1. Icon + Install script ---------------------------------------------------
 for (const file of ["icon.svg", "icon.png"]) {
   const src = join(root, "assets", file);
   if (!existsSync(src)) fail(`missing ${src}`);
   cpSync(src, join(site, "public", file));
 }
+
+const installScriptSrc = join(root, "scripts", "install.sh");
+if (!existsSync(installScriptSrc)) fail(`missing ${installScriptSrc}`);
+cpSync(installScriptSrc, join(site, "public", "install.sh"));
 
 // 2. Benchmarks -------------------------------------------------------------
 const { benchmarkSchema } = await import("../lib/benchmark-schema.ts");
@@ -40,7 +44,7 @@ if (!existsSync(real)) {
     fail(
       "bench/results/latest.json not found.\n" +
         "  Run `make bench` first (see bench/README.md), or for a local layout preview only:\n" +
-        "  SPMX_SITE_SAMPLE_BENCH=1 npm run build",
+        "  SPMX_SITE_SAMPLE_BENCH=1 pnpm run build",
     );
   }
 }

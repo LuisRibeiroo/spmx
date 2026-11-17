@@ -9,6 +9,7 @@ import { CommandCard } from "@/components/CommandCard";
 import { Container } from "@/components/Container";
 import { Faq, type FaqItem } from "@/components/Faq";
 import { InstallTabs } from "@/components/InstallTabs";
+import { ProjectsUsing } from "@/components/ProjectsUsing";
 import { StoreDiagram } from "@/components/StoreDiagram";
 import { TextLink } from "@/components/TextLink";
 import { TARGETS, diskResult, entries, hydrateHeadline, isSample, machine, results, shimResult } from "@/lib/benchmarks";
@@ -367,6 +368,8 @@ export default function HomePage() {
           <Faq items={FAQ} />
         </div>
       </Container>
+
+      <ProjectsUsing />
 
       {/* 10 · Final CTA */}
       <section className="border-y border-line bg-surface-warm" aria-labelledby="cta">

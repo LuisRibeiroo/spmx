@@ -18,7 +18,7 @@ function resolveSiteUrl(): string {
   }
   if (process.env.NODE_ENV === "production" && typeof window === "undefined") {
     throw new Error(
-      "SITE_URL is not set. Set it to the public origin of the site, e.g. SITE_URL=https://example.com npm run build " +
+      "SITE_URL is not set. Set it to the public origin of the site, e.g. SITE_URL=https://example.com pnpm run build " +
         "(use SITE_URL=http://localhost:3000 only for a local build you will not deploy).",
     );
   }

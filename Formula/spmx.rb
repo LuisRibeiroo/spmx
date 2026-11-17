@@ -1,6 +1,6 @@
 class Spmx < Formula
   desc "Performant Swift Package Manager — global APFS CoW store and transparent shims for Swift & Flutter"
-  homepage "https://github.com/LuisRibeiroo/spmx"
+  homepage "https://spmx.io"
   version "0.1.0"
   url "https://github.com/LuisRibeiroo/spmx/releases/download/v#{version}/spmx-macos-universal.tar.gz"
   # Replace with the SHA-256 printed by `.github/workflows/release.yml` when cutting a release.
