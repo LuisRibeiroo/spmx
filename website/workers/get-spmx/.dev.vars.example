@@ -1,0 +1,3 @@
+# PostHog Analytics for edge download events (get.spmx.io)
+POSTHOG_PROJECT_TOKEN=
+POSTHOG_HOST=

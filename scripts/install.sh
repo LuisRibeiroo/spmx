@@ -120,9 +120,11 @@ fi
 
 if [ -n "${SPMX_VERSION:-}" ] && [ "${SPMX_VERSION}" != "latest" ]; then
     TAG="v${SPMX_VERSION#v}"
-    BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+    DOWNLOAD_URL="https://get.spmx.io/releases/download/${TAG}"
+    FALLBACK_URL="https://github.com/${REPO}/releases/download/${TAG}"
 else
-    BASE_URL="https://github.com/${REPO}/releases/latest/download"
+    DOWNLOAD_URL="https://get.spmx.io/releases/latest/download"
+    FALLBACK_URL="https://github.com/${REPO}/releases/latest/download"
 fi
 
 TMP_DIR="$(mktemp -d)"
@@ -133,10 +135,15 @@ trap cleanup EXIT INT TERM
 
 ARCHIVE_FILE="${TMP_DIR}/${ARCHIVE_NAME}"
 CHECKSUM_FILE="${TMP_DIR}/${CHECKSUM_NAME}"
+INSTALLER_UA="spmx-installer/1.0 (${OS}; ${ARCH})"
 
-step_running "Downloading spmx from ${BASE_URL}..."
-curl -fsSL "${BASE_URL}/${ARCHIVE_NAME}" -o "$ARCHIVE_FILE"
-curl -fsSL "${BASE_URL}/${CHECKSUM_NAME}" -o "$CHECKSUM_FILE"
+step_running "Downloading spmx from ${DOWNLOAD_URL}..."
+if ! curl -fsSL -A "$INSTALLER_UA" "${DOWNLOAD_URL}/${ARCHIVE_NAME}" -o "$ARCHIVE_FILE"; then
+    curl -fsSL -A "$INSTALLER_UA" "${FALLBACK_URL}/${ARCHIVE_NAME}" -o "$ARCHIVE_FILE"
+fi
+if ! curl -fsSL -A "$INSTALLER_UA" "${DOWNLOAD_URL}/${CHECKSUM_NAME}" -o "$CHECKSUM_FILE"; then
+    curl -fsSL -A "$INSTALLER_UA" "${FALLBACK_URL}/${CHECKSUM_NAME}" -o "$CHECKSUM_FILE"
+fi
 step_success "Downloaded archive" "$ARCHIVE_NAME"
 
 step_running "Verifying SHA-256 checksum..."
