@@ -5,7 +5,7 @@
 <h1 align="center">spmx</h1>
 
 <p align="center">
-  <strong>Performant Swift Package Manager</strong> — Global APFS copy-on-write store, LLVM CAS compilation cache, and transparent shims for Swift, Xcode, Flutter, React Native, and any SwiftPM-based iOS/macOS toolchain.
+  <strong>Stop re-downloading SwiftPM packages for every project and worktree.</strong> — Global APFS copy-on-write store and LLVM CAS compilation cache shared across all your Swift, Xcode, Flutter, React Native, and SwiftPM projects.
 </p>
 
 <p align="center">
@@ -17,7 +17,7 @@
 
 ---
 
-`spmx` eliminates redundant Swift Package Manager downloads, checkouts, and cold builds across repositories, branches, and `git worktree`s. It intercepts `swift`, `xcodebuild`, and `flutter` transparently via lightweight `PATH` shims, hydrates `DerivedData/SourcePackages` from a content-addressable global store using APFS `clonefile()` (zero-copy, instant), and enables native LLVM CAS compilation caching (`~/.spmx/compilation-cache`). Because cross-platform tools such as **React Native**, **Expo**, **Capacitor**, and **Kotlin Multiplatform (KMP)** invoke `xcodebuild` under the hood, any project using SwiftPM gets the same deduplication automatically.
+`spmx` eliminates redundant Swift Package Manager downloads, checkouts, and cold builds across **all projects, repositories, branches, and `git worktree`s** on your Mac. It intercepts `swift`, `xcodebuild`, and `flutter` transparently via lightweight `PATH` shims, hydrates `DerivedData/SourcePackages` from one shared global store using APFS `clonefile()` (zero-copy, instant), and enables native LLVM CAS compilation caching (`~/.spmx/compilation-cache`). Because cross-platform tools such as **React Native**, **Expo**, **Capacitor**, and **Kotlin Multiplatform (KMP)** invoke `xcodebuild` under the hood, any project using SwiftPM gets the same deduplication automatically.
 
 ## Supported Frameworks & Toolchains
 

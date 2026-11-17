@@ -172,8 +172,8 @@ export default function HomePage() {
             </div>
             <h1 className="text-hero font-bold tracking-tight">{SITE.tagline}</h1>
             <p className="mt-5 max-w-[34rem] text-lead text-ink-muted">
-              spmx keeps one APFS copy-on-write store of checkouts, artifacts and prebuilts, and clones it into
-              every Git worktree. No re-downloads, no duplicated gigabytes.
+              Keep your <code>swift</code>, <code>xcodebuild</code>, and <code>flutter</code> workflows unchanged. spmx
+              shares one APFS copy-on-write package store and build cache across every project and Git worktree on your Mac.
             </p>
             <div className="mt-8 max-w-[34rem]">
               <InstallTabs idPrefix="hero" />
@@ -192,7 +192,7 @@ export default function HomePage() {
       {/* 2 · Problem */}
       <Container as="section" className="py-16 md:py-24" aria-labelledby="problem">
         <h2 id="problem" className="max-w-2xl text-h2 font-bold tracking-tight">
-          Every worktree starts from zero.
+          Every project and worktree starts from zero.
         </h2>
         <div className="mt-10 grid gap-8 md:grid-cols-3">
           <div>
