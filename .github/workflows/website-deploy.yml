@@ -18,6 +18,11 @@ on:
       - "Sources/spmx/SPMXCommand.swift"
       - ".github/workflows/website-deploy.yml"
   workflow_dispatch:
+  workflow_run:
+    workflows:
+      - "Release"
+    types:
+      - completed
 
 permissions:
   contents: read
@@ -26,6 +31,7 @@ permissions:
 jobs:
   deploy:
     name: Build & Deploy to Cloudflare Pages
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     defaults:
       run:
