@@ -1,4 +1,5 @@
 import { meta, releases } from "@/lib/meta";
+import { TextLink } from "./TextLink";
 
 function majorOf(tag: string): string {
   const major = /^v?(\d+)/.exec(tag)?.[1] ?? "0";
@@ -26,7 +27,7 @@ export function Changelog() {
             {items.map((r) => (
               <li key={r.tag} className="border-l-2 border-line pl-4">
                 <h3 className="font-semibold">
-                  <a href={r.url} className="link">{r.name}</a>
+                  <TextLink href={r.url}>{r.name}</TextLink>
                   <time className="ml-3 text-xs font-normal tabular-nums text-ink-muted" dateTime={r.date}>
                     {r.date.slice(0, 10)}
                   </time>

@@ -7,7 +7,7 @@ import { softwareApplication, webSite } from "@/lib/jsonld";
 
 // Two families: Geist for text and UI, IBM Plex Mono only for code, terminal output and the wordmark.
 const sans = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
-const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-plex-mono", display: "swap" });
+const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "600"], variable: "--font-plex-mono", display: "swap" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),

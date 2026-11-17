@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import { INSTALL } from "@/lib/repo";
+import { CodeBlock } from "./CodeBlock";
 import { CopyButton } from "./CopyButton";
 
 type Tab = keyof typeof INSTALL;
@@ -75,12 +76,10 @@ export function InstallTabs({ idPrefix = "install" }: { idPrefix?: string }) {
         aria-labelledby={`${uid}-${idPrefix}-${tab}`}
         className="mt-3 flex items-center gap-2"
       >
-        <pre className="codeblock min-w-0 flex-1 !py-3 max-sm:!text-xs">
-          <code>
-            <span className="c-muted select-none">$ </span>
-            {INSTALL[tab]}
-          </code>
-        </pre>
+        <CodeBlock padding="lg" responsiveText className="min-w-0 flex-1">
+          <span className="text-ink-muted select-none">$ </span>
+          {INSTALL[tab]}
+        </CodeBlock>
         <CopyButton text={INSTALL[tab]} label="Copy install command" />
       </div>
       {notMac ? (

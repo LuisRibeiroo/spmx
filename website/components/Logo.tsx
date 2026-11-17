@@ -10,7 +10,7 @@ export function Logo({ size = 28 }: { size?: number }) {
         width={size}
         height={Math.round((size * 47) / 41)}
         unoptimized
-        className="pixelated"
+        className="[image-rendering:pixelated]"
       />
       <span className="font-mono text-base">spmx</span>
     </Link>

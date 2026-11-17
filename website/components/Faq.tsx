@@ -6,13 +6,13 @@ export interface FaqItem {
 /** Native <details>: keyboard accessible and works without JavaScript. */
 export function Faq({ items }: { items: FaqItem[] }) {
   return (
-    <div className="faq divide-y divide-line border-y border-line">
+    <div data-faq="" className="divide-y divide-line border-y border-line">
       {items.map((item) => (
         <details key={item.q} className="group py-1">
-          <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-4 py-3 text-left font-medium">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 py-3 text-left font-medium [&::-webkit-details-marker]:hidden">
             <span>{item.q}</span>
             <svg
-              className="faq-plus shrink-0 text-ink-muted"
+              className="shrink-0 text-ink-muted transition-transform duration-200 ease-out group-open:rotate-45 motion-reduce:transition-none"
               width="16"
               height="16"
               viewBox="0 0 16 16"

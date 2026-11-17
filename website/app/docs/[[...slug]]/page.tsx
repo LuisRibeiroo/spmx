@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/page";
 import { CopyMarkdown } from "@/components/CopyMarkdown";
+import { TextLink } from "@/components/TextLink";
 import { join } from "node:path";
 import { breadcrumbs, techArticle } from "@/lib/jsonld";
 import { lastModified } from "@/lib/lastmod";
@@ -64,16 +65,16 @@ export default async function Page({ params }: Props) {
       <div className="mt-12 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-4 text-sm text-ink-muted">
         <span>
           Maintained by{" "}
-          <a className="link" href={OWNER_URL}>
+          <TextLink href={OWNER_URL}>
             {SITE.repo.owner}
-          </a>
+          </TextLink>
         </span>
         <span>
           Last updated <time dateTime={modified.toISOString()}>{modified.toISOString().slice(0, 10)}</time>
         </span>
-        <a className="link" href={`${EDIT_BASE}/${page.path}`}>
+        <TextLink href={`${EDIT_BASE}/${page.path}`}>
           Edit this page on GitHub
-        </a>
+        </TextLink>
       </div>
     </DocsPage>
   );

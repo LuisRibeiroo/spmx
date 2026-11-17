@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { BenchBars } from "@/components/BenchBars";
+import { Container } from "@/components/Container";
+import { TextLink } from "@/components/TextLink";
 import { isSample, machine, results, TARGETS } from "@/lib/benchmarks";
 import { formatBytes, formatDuration, formatPercent } from "@/lib/format";
 import { breadcrumbs } from "@/lib/jsonld";
@@ -16,7 +17,7 @@ export const metadata: Metadata = pageMetadata({
 export default function BenchmarksPage() {
   const m = results.methodology;
   return (
-    <div className="container-page py-14 md:py-20">
+    <Container className="py-14 md:py-20">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -113,12 +114,12 @@ export default function BenchmarksPage() {
           ) : null}
 
           <section className="flex flex-col gap-2">
-            <a className="link w-fit" href="/benchmarks/latest.json">Raw results (JSON)</a>
-            <Link className="link w-fit" href="/docs/guides/reproduce-the-benchmarks">Reproduce the benchmarks</Link>
-            <a className="link w-fit" href={`${REPO_URL}/tree/main/bench`}>Harness source</a>
+            <TextLink className="w-fit" href="/benchmarks/latest.json">Raw results (JSON)</TextLink>
+            <TextLink className="w-fit" href="/docs/guides/reproduce-the-benchmarks">Reproduce the benchmarks</TextLink>
+            <TextLink className="w-fit" href={`${REPO_URL}/tree/main/bench`}>Harness source</TextLink>
           </section>
         </aside>
       </div>
-    </div>
+    </Container>
   );
 }

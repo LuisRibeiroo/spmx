@@ -9,6 +9,9 @@ const config = {
   trailingSlash: false,
   images: { unoptimized: true },
   typescript: { ignoreBuildErrors: false },
+  experimental: {
+    inlineCss: true,
+  },
 };
 
 export default withMDX(config);

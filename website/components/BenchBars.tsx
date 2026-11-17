@@ -1,6 +1,7 @@
 import type { Scenario } from "@/lib/benchmark-schema";
 import { SCENARIO_TITLES, targetStatus } from "@/lib/benchmarks";
 import { formatBytes, formatDuration } from "@/lib/format";
+import { Chip } from "./Chip";
 
 interface Row {
   label: string;
@@ -50,12 +51,12 @@ export function BenchBars({ scenarios, compact = false }: { scenarios: Scenario[
         return (
           <section key={`${s.id}-${s.fixture}`} aria-labelledby={`bench-${s.id}-${s.fixture}`}>
             <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="chip">{s.id}</span>
+              <Chip>{s.id}</Chip>
               <h3 id={`bench-${s.id}-${s.fixture}`} className="text-base font-semibold">{info.title}</h3>
-              <span className="chip font-mono !font-normal">{s.fixture}</span>
-              {s.network_dependent ? <span className="chip">network-dependent</span> : null}
+              <Chip weight="normal" className="font-mono">{s.fixture}</Chip>
+              {s.network_dependent ? <Chip>network-dependent</Chip> : null}
               {status !== "informational" ? (
-                <span className={`chip ${status === "met" ? "!text-ok" : "!text-warn"}`}>{STATUS_LABEL[status]}</span>
+                <Chip tone={status === "met" ? "ok" : "warn"}>{STATUS_LABEL[status]}</Chip>
               ) : null}
             </div>
             {compact ? null : <p className="mb-3 text-sm text-ink-muted">{info.detail}</p>}

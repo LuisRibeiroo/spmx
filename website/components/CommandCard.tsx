@@ -1,5 +1,6 @@
-import Link from "next/link";
+import { CodeBlock } from "./CodeBlock";
 import { CopyButton } from "./CopyButton";
+import { TextLink } from "./TextLink";
 
 interface Props {
   title: string;
@@ -18,18 +19,16 @@ export function CommandCard({ title, command, description, href, className = "",
       <p className="text-[0.9375rem] leading-relaxed text-ink-muted">{description}</p>
       {children}
       <div className="mt-auto flex items-center gap-2 pt-1">
-        <pre className="codeblock min-w-0 flex-1 !py-2.5">
-          <code>
-            <span className="c-muted select-none">$ </span>
-            {command}
-          </code>
-        </pre>
+        <CodeBlock padding="md" className="min-w-0 flex-1">
+          <span className="text-ink-muted select-none">$ </span>
+          {command}
+        </CodeBlock>
         <CopyButton text={command} label="Copy command" />
       </div>
       {href ? (
-        <Link href={href} className="link w-fit text-sm font-medium">
+        <TextLink href={href} className="w-fit text-sm font-medium">
           Read the docs
-        </Link>
+        </TextLink>
       ) : null}
     </article>
   );

@@ -48,8 +48,8 @@ const evaluate = async (expression) => (await send("Runtime.evaluate", { express
 const CHECK = `(() => {
   const overflow = document.documentElement.scrollWidth - window.innerWidth;
   const wrapped = [];
-  for (const el of document.querySelectorAll("a, button, .chip, summary")) {
-    if (!el.textContent.trim() || el.querySelector("p, div, h1, h2, h3, h4") || el.closest("p, li, .faq, .prose, td, th, dd, figcaption, h1, h2, h3, article")) continue;
+  for (const el of document.querySelectorAll("a, button, [data-chip], summary")) {
+    if (!el.textContent.trim() || el.querySelector("p, div, h1, h2, h3, h4") || el.closest("p, li, [data-faq], .prose, td, th, dd, figcaption, h1, h2, h3, article")) continue;
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       if (!n.textContent.trim()) continue;

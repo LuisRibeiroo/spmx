@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { REPO_URL } from "@/lib/site";
+import { Container } from "./Container";
 import { Logo } from "./Logo";
 import { SearchPill } from "./SearchPill";
 import { ThemeToggle } from "./ThemeToggle";
@@ -10,7 +11,7 @@ const linkClass =
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-paper/90 backdrop-blur supports-[backdrop-filter]:bg-paper/75">
-      <div className="container-page flex h-16 items-center gap-1 sm:gap-2">
+      <Container className="flex h-16 items-center gap-1 sm:gap-2">
         <Logo />
         <nav aria-label="Main" className="ml-1 flex items-center sm:ml-4">
           <Link href="/docs" className={`${linkClass} inline-flex`}>
@@ -27,7 +28,7 @@ export function SiteHeader() {
           <SearchPill />
           <ThemeToggle />
         </div>
-      </div>
+      </Container>
     </header>
   );
 }
