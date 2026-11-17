@@ -14,3 +14,9 @@ public/benchmarks/
 screenshots/
 .wrangler/
 .lighthouseci/
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+.vercel/

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://spmx.io/docs
+    about: Read the official spmx documentation, command reference, and guides.
+  - name: Troubleshooting & FAQ
+    url: https://spmx.io/docs/troubleshooting
+    about: Check common setup, PATH shim, and APFS store issues before opening an issue.

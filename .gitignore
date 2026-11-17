@@ -15,3 +15,20 @@ xcuserdata/
 .idea/
 *.swp
 *~
+
+# Build & Release artifacts
+/dist/
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.mobileprovision
+.dev.vars
+.dev.vars.*
+
+# Local index
+/.codegraph/

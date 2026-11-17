@@ -60,13 +60,13 @@ Regras:
 
 ---
 
-## Pending Tasks (CI/CD, Release & Infra)
+## Pending Tasks (CI/CD, Release, Infra & Segurança)
 
-- [ ] **GitHub Actions — Deploy do Site (`website/`):** Configurar workflow no GitHub Actions para fazer deploy do site quando necessário (ex.: alterações em `website/` na `main` e disparo manual via `workflow_dispatch`).
-- [ ] **GitHub Actions — Nova Release (Versionamento):** Configurar action (integrada ao [`.github/workflows/release.yml`](../.github/workflows/release.yml)) para gerar uma nova release via `workflow_dispatch`:
+- [x] **GitHub Actions — Deploy do Site (`website/`):** Configurar workflow no GitHub Actions para fazer deploy do site quando necessário (ex.: alterações em `website/` na `main` e disparo manual via `workflow_dispatch`).
+- [x] **GitHub Actions — Nova Release (Versionamento):** Configurar action (integrada ao [`.github/workflows/release.yml`](../.github/workflows/release.yml)) para gerar uma nova release via `workflow_dispatch`:
   - **Default:** `patch` update automático com base na última tag semver (`vX.Y.Z` → `vX.Y.(Z+1)`).
   - **Opcional:** campo de entrada para definir manualmente a nova versão (ex.: `vX.Y.Z` ou tipo de bump) quando necessário.
-- [ ] **URL Curta de Instalação (`get.spmx.io`) — Hostinger, Cloudflare e Código:** Substituir a URL longa do `curl` (`raw.githubusercontent.com/LuisRibeiroo/spmx/main/scripts/install.sh`) por `https://get.spmx.io`:
+- [x] **URL Curta de Instalação (`get.spmx.io`) — Hostinger, Cloudflare e Código:** Substituir a URL longa do `curl` (`raw.githubusercontent.com/LuisRibeiroo/spmx/main/scripts/install.sh`) por `https://get.spmx.io`:
   1. **Hostinger (Domínio & Nameservers):** Verificar domínio `spmx.io` ativo na Hostinger e apontar os nameservers para o Cloudflare (ou, se mantiver DNS na Hostinger, criar `CNAME` `get` para o endpoint no Cloudflare com SSL ativo).
   2. **Cloudflare (DNS, SSL e Rota `get.spmx.io`):**
      - Adicionar a zona `spmx.io` no Cloudflare, definir SSL/TLS como **Full (strict)** e ativar **Always Use HTTPS**.
@@ -74,6 +74,11 @@ Regras:
      - Configurar **Cloudflare Worker** na rota `get.spmx.io/*` para servir `scripts/install.sh` com `200 OK` e `Content-Type: text/plain; charset=utf-8` (ou *Redirect Rule* para `https://raw.githubusercontent.com/LuisRibeiroo/spmx/main/scripts/install.sh` / `https://spmx.io/install.sh`).
      - Testar com `curl -fsSL https://get.spmx.io | head -n 20`.
   3. **Atualização no Repositório:** Trocar a URL do `curl` para `https://get.spmx.io` em [`website/lib/repo.ts`](../website/lib/repo.ts), [`website/content/docs/getting-started/installation.mdx`](../website/content/docs/getting-started/installation.mdx), [`website/content/docs/guides/ci.mdx`](../website/content/docs/guides/ci.mdx), [`README.md`](../README.md) e [`scripts/install.sh`](../scripts/install.sh), e validar o build com `make site`.
+- [x] **Governança e Proteção do Repositório (GitHub):** Validar as configurações de acesso e *branch protection* / *rulesets* da `main` para garantir que apenas o mantenedor (`LuisRibeiroo`) possui acesso de escrita e que PRs exijam aprovação do mantenedor (ex.: `CODEOWNERS` + *Require review from Code Owners*) para serem mergeadas.
+- [x] **Issue Templates (`.github/ISSUE_TEMPLATE/`):** Criar templates de issue padronizados (ex.: *Bug report*, *Feature request* e `config.yml`).
+- [x] **Auditoria de Segredos e Arquivos Privados:** Varrer o repositório (working tree e histórico Git) para garantir que nenhuma chave, token, credencial ou arquivo privado (como `.env`) esteja commitado, e reforçar o `.gitignore` se necessário.
+- [ ] **SEO & OG Images para Redes Sociais (`website/`):** Melhorar o SEO do site e adicionar/aprimorar OG images (Open Graph, Twitter/X `summary_large_image` e demais redes sociais), utilizando o ícone/logo oficial do app ([`assets/icon.svg`](../assets/icon.svg) / [`assets/icon.png`](../assets/icon.png)) como elemento principal da imagem.
+- [ ] **Auditoria de Segurança (Skill de Segurança):** Executar análise de segurança no repositório (CLI Swift, scripts `install.sh`, workflows do GitHub Actions, Cloudflare Worker e `website/`) para identificar e corrigir possíveis vulnerabilidades.
 
 ---
 
