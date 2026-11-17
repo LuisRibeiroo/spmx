@@ -3,7 +3,7 @@
 /.build
 /Packages
 xcuserdata/
-DerivedData/
+/DerivedData/
 .swiftpm/config/package.resolved
 .swiftpm/xcode/package.xcworkspace/xcuserdata/
 
