@@ -53,6 +53,8 @@ struct SPMXCommand: ParsableCommand {
             HydrateCommand.self,
             InstallCommand.self,
             HarvestCommand.self,
+            LinkCommand.self,
+            UnlinkCommand.self,
             MigrateCommand.self,
             StoreCommand.self,
             StatusCommand.self,

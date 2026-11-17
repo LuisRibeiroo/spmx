@@ -25,6 +25,12 @@ struct StatusCommand: ParsableCommand {
     )
     var workspace: String?
 
+    @Flag(
+        name: .long,
+        help: "Output machine-readable JSON."
+    )
+    var json: Bool = false
+
     func validate() throws {
         if project != nil && workspace != nil {
             throw ValidationError("Cannot specify both --project and --workspace.")
@@ -32,15 +38,52 @@ struct StatusCommand: ParsableCommand {
     }
 
     func run() throws {
-        let style = TerminalStyle.stdout
         let report = try ProjectStatusInspector().inspect(
             in: path,
             projectPath: project,
             workspacePath: workspace
         )
 
+        if json {
+            let payload = StatusJSONOutput(
+                projectType: report.projectType.rawValue,
+                rootPath: report.rootPath,
+                containerPath: report.containerPath,
+                isLinked: report.isLinked,
+                swiftVersion: report.swiftVersion,
+                xcodeVersion: report.xcodeVersion,
+                toolchainHash: report.toolchainHash,
+                derivedDataPath: report.derivedDataPath,
+                sourcePackagesPath: report.sourcePackagesPath,
+                packageResolvedPath: report.packageResolvedPath,
+                totalPins: report.totalPins,
+                cachedPinsCount: report.cachedPinsCount,
+                pinStatuses: report.pinStatuses,
+                cachedPrebuiltsCount: report.cachedPrebuiltsCount,
+                projectSavedBytes: report.projectSavedBytes,
+                compilationCache: CompilationCacheJSONOutput(
+                    path: report.compilationCache.path,
+                    enabled: report.compilationCache.enabled,
+                    sizeBytes: report.compilationCache.sizeBytes,
+                    reason: report.compilationCache.reason
+                )
+            )
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(payload)
+            if let text = String(data: data, encoding: .utf8) {
+                print(text)
+            }
+            return
+        }
+
+        let style = TerminalStyle.stdout
         print("\(style.heading("spmx status")) \(style.gray("[\(report.projectType.rawValue)]"))")
         print(style.scopeLine(report.rootPath))
+        let linkLabel = report.isLinked
+            ? style.green("\(style.successIcon) Linked to global store")
+            : style.yellow("\(style.skippedIcon) Unlinked (using local project cache)")
+        print("  \(style.gray("Store link:"))      \(linkLabel)")
         if let containerPath = report.containerPath {
             print("  \(style.gray("Container:"))       \(containerPath)")
         }
@@ -80,9 +123,25 @@ struct StatusCommand: ParsableCommand {
             if report.cachedPrebuiltsCount > 0 {
                 print("  \(style.gray("Prebuilts:"))       \(style.green("\(report.cachedPrebuiltsCount)")) \(style.gray("(matching active toolchain)"))")
             }
-            for pin in report.missingPins {
-                let versionLabel = pin.version ?? pin.revision ?? pin.branch ?? "unknown"
-                print("    \(style.warningIcon) \(pin.identity) \(style.gray("(\(versionLabel))"))")
+            for entry in report.pinStatuses {
+                let versionLabel = entry.version ?? entry.branch ?? entry.revision.map { String($0.prefix(8)) } ?? "unknown"
+                let statusText: String
+                let icon: String
+                switch entry.status {
+                case .hydrated:
+                    icon = style.successIcon
+                    statusText = style.green("hydrated / CoW clone")
+                case .inStore:
+                    icon = style.addIcon
+                    statusText = style.primary("in store")
+                case .missing:
+                    icon = style.warningIcon
+                    statusText = style.yellow("missing")
+                }
+                print("    \(icon) \(entry.identity) \(style.gray("@ \(versionLabel)"))  \(statusText)")
+            }
+            if report.isLinked {
+                print("  \(style.gray("Estimated disk saved in this project:")) \(style.green(style.bold(formatBytes(report.projectSavedBytes))))")
             }
         } else {
             print("  \(style.gray("Package.resolved:")) \(style.gray("none found"))")
@@ -106,4 +165,30 @@ struct StatusCommand: ParsableCommand {
         formatter.allowedUnits = [.useBytes, .useKB, .useMB, .useGB, .useTB]
         return formatter.string(fromByteCount: Int64(min(bytes, UInt64(Int64.max))))
     }
+}
+
+private struct StatusJSONOutput: Encodable {
+    let projectType: String
+    let rootPath: String
+    let containerPath: String?
+    let isLinked: Bool
+    let swiftVersion: String?
+    let xcodeVersion: String?
+    let toolchainHash: String?
+    let derivedDataPath: String
+    let sourcePackagesPath: String
+    let packageResolvedPath: String?
+    let totalPins: Int
+    let cachedPinsCount: Int
+    let pinStatuses: [PinStatusEntry]
+    let cachedPrebuiltsCount: Int
+    let projectSavedBytes: UInt64
+    let compilationCache: CompilationCacheJSONOutput
+}
+
+private struct CompilationCacheJSONOutput: Encodable {
+    let path: String
+    let enabled: Bool
+    let sizeBytes: UInt64
+    let reason: String?
 }

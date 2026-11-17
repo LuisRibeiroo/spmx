@@ -10,6 +10,7 @@ public struct MigrationOptions: Sendable {
     public var excludePatterns: [String]
     public var includeGitWorktreeDiscovery: Bool
     public var installRepoHooks: Bool
+    public var includeExcluded: Bool
     public var commandTimeout: TimeInterval?
     public var verboseLogger: (@Sendable (String) -> Void)?
 
@@ -21,6 +22,7 @@ public struct MigrationOptions: Sendable {
         excludePatterns: [String] = [],
         includeGitWorktreeDiscovery: Bool = true,
         installRepoHooks: Bool = false,
+        includeExcluded: Bool = false,
         commandTimeout: TimeInterval? = CommandExecutor.resolveDefaultTimeout(),
         verboseLogger: (@Sendable (String) -> Void)? = nil
     ) {
@@ -31,6 +33,7 @@ public struct MigrationOptions: Sendable {
         self.excludePatterns = excludePatterns
         self.includeGitWorktreeDiscovery = includeGitWorktreeDiscovery
         self.installRepoHooks = installRepoHooks
+        self.includeExcluded = includeExcluded
         self.commandTimeout = commandTimeout
         self.verboseLogger = verboseLogger
     }
@@ -155,13 +158,13 @@ public struct MigrationManager: Sendable {
 
     private static let alwaysIgnoredDirectoryNames: Set<String> = [
         "DerivedData", "node_modules", "Pods", "ephemeral", "Carthage",
-        "SourcePackages", "checkouts", "artifacts", "prebuilts", "build", "dist", "target",
-        "__pycache__", "venv"
+        "SourcePackages", "checkouts", "repositories", "artifacts", "prebuilts",
+        "build", ".build", ".spmx", "dist", "target", "__pycache__", "venv"
     ]
 
     private static let homeTopLevelIgnoredNames: Set<String> = [
         "Library", "Movies", "Music", "Pictures", "Photos", "Public", "Applications",
-        "CloudStorage", "Parallels", "Virtual Machines.localized"
+        "CloudStorage", "Parallels", "Virtual Machines.localized", ".Trash", ".spmx"
     ]
 
     private static let bundleExtensionsToSkip: Set<String> = [
@@ -218,6 +221,7 @@ public struct MigrationManager: Sendable {
             maxDepth: max(0, options.maxDepth),
             excludePatterns: options.excludePatterns,
             includeGitWorktrees: options.includeGitWorktreeDiscovery,
+            includeExcluded: options.includeExcluded,
             commandTimeout: options.commandTimeout,
             verboseLogger: options.verboseLogger,
             progressObserver: progressObserver
@@ -253,6 +257,7 @@ public struct MigrationManager: Sendable {
         maxDepth: Int = 6,
         excludePatterns: [String] = [],
         includeGitWorktrees: Bool = true,
+        includeExcluded: Bool = false,
         commandTimeout: TimeInterval? = CommandExecutor.resolveDefaultTimeout(),
         verboseLogger: (@Sendable (String) -> Void)? = nil,
         progressObserver: (@Sendable (MigrationProgressEvent) -> Void)? = nil
@@ -265,6 +270,10 @@ public struct MigrationManager: Sendable {
         func record(_ project: DetectedProject) {
             let key = URL(fileURLWithPath: project.rootPath).standardizedFileURL.resolvingSymlinksInPath().path
             guard discoveredByRoot[key] == nil else { return }
+            if !includeExcluded && store.isProjectExcluded(at: key, fileManager: fileManager) {
+                verboseLogger?("Skipping unlinked/excluded project: \(key)")
+                return
+            }
             discoveredByRoot[key] = project
             orderedRoots.append(key)
             progressObserver?(.discovered(projectRoot: project.rootPath, type: project.type))
@@ -478,6 +487,10 @@ public struct MigrationManager: Sendable {
             }
         }
 
+        if !options.dryRun && options.includeExcluded {
+            _ = try? store.includeProject(at: project.rootPath)
+        }
+
         for (target, spURL) in targetAndSPPairs {
             guard cacheSubdirectoriesSizeBytes(at: spURL) > 0 else {
                 continue
@@ -606,7 +619,7 @@ public struct MigrationManager: Sendable {
     }
 
     private func cacheSubdirectoriesSizeBytes(at sourcePackagesURL: URL) -> UInt64 {
-        ["checkouts", "artifacts", "prebuilts"].reduce(UInt64(0)) { sum, folder in
+        ["checkouts", "repositories", "artifacts", "prebuilts"].reduce(UInt64(0)) { sum, folder in
             let subURL = sourcePackagesURL.appendingPathComponent(folder)
             return sum + DiagnosticsSupport.directorySizeBytes(at: subURL, fileManager: fileManager)
         }

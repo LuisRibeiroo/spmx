@@ -186,6 +186,26 @@ public struct HydratedPrebuilt: Sendable, Equatable {
     }
 }
 
+/// Details of a bare Git repository materialized into `SourcePackages/repositories` (or `.build/repositories`).
+public struct HydratedRepository: Sendable, Equatable {
+    public let identity: String
+    public let folderName: String
+    public let destinationURL: URL
+    public let cloneMethod: CloneMethod
+
+    public init(
+        identity: String,
+        folderName: String,
+        destinationURL: URL,
+        cloneMethod: CloneMethod
+    ) {
+        self.identity = identity
+        self.folderName = folderName
+        self.destinationURL = destinationURL
+        self.cloneMethod = cloneMethod
+    }
+}
+
 /// Summary returned by ``PackageSyncEngine/hydrate(project:options:)``.
 public struct HydrateResult: Sendable, Equatable {
     public let project: DetectedProject
@@ -194,6 +214,7 @@ public struct HydrateResult: Sendable, Equatable {
     public let toolchainHash: String?
     public let hydratedCheckouts: [HydratedCheckout]
     public let skippedCheckouts: [SkippedCheckout]
+    public let hydratedRepositories: [HydratedRepository]
     public let hydratedArtifacts: [HydratedArtifact]
     public let hydratedPrebuilts: [HydratedPrebuilt]
     public let workspaceStateURL: URL?
@@ -206,6 +227,7 @@ public struct HydrateResult: Sendable, Equatable {
         toolchainHash: String?,
         hydratedCheckouts: [HydratedCheckout],
         skippedCheckouts: [SkippedCheckout],
+        hydratedRepositories: [HydratedRepository] = [],
         hydratedArtifacts: [HydratedArtifact],
         hydratedPrebuilts: [HydratedPrebuilt],
         workspaceStateURL: URL?,
@@ -217,6 +239,7 @@ public struct HydrateResult: Sendable, Equatable {
         self.toolchainHash = toolchainHash
         self.hydratedCheckouts = hydratedCheckouts
         self.skippedCheckouts = skippedCheckouts
+        self.hydratedRepositories = hydratedRepositories
         self.hydratedArtifacts = hydratedArtifacts
         self.hydratedPrebuilts = hydratedPrebuilts
         self.workspaceStateURL = workspaceStateURL
@@ -323,12 +346,39 @@ public struct SkippedHarvestItem: Sendable, Equatable {
     }
 }
 
+/// Details of a bare Git repository harvested into ``GlobalStore``.
+public struct HarvestedRepository: Sendable, Equatable {
+    public let identity: String
+    public let folderName: String
+    public let sourceURL: URL
+    public let storeURL: URL
+    public let alreadyCached: Bool
+    public let cloneMethod: CloneMethod?
+
+    public init(
+        identity: String,
+        folderName: String,
+        sourceURL: URL,
+        storeURL: URL,
+        alreadyCached: Bool,
+        cloneMethod: CloneMethod?
+    ) {
+        self.identity = identity
+        self.folderName = folderName
+        self.sourceURL = sourceURL
+        self.storeURL = storeURL
+        self.alreadyCached = alreadyCached
+        self.cloneMethod = cloneMethod
+    }
+}
+
 /// Summary returned by ``PackageSyncEngine/harvest(project:options:)``.
 public struct HarvestResult: Sendable, Equatable {
     public let project: DetectedProject
     public let sourcePackagesURL: URL
     public let toolchainHash: String?
     public let harvestedCheckouts: [HarvestedCheckout]
+    public let harvestedRepositories: [HarvestedRepository]
     public let harvestedArtifacts: [HarvestedArtifact]
     public let harvestedPrebuilts: [HarvestedPrebuilt]
     public let skippedItems: [SkippedHarvestItem]
@@ -339,6 +389,7 @@ public struct HarvestResult: Sendable, Equatable {
         sourcePackagesURL: URL,
         toolchainHash: String?,
         harvestedCheckouts: [HarvestedCheckout],
+        harvestedRepositories: [HarvestedRepository] = [],
         harvestedArtifacts: [HarvestedArtifact],
         harvestedPrebuilts: [HarvestedPrebuilt],
         skippedItems: [SkippedHarvestItem],
@@ -348,6 +399,7 @@ public struct HarvestResult: Sendable, Equatable {
         self.sourcePackagesURL = sourcePackagesURL
         self.toolchainHash = toolchainHash
         self.harvestedCheckouts = harvestedCheckouts
+        self.harvestedRepositories = harvestedRepositories
         self.harvestedArtifacts = harvestedArtifacts
         self.harvestedPrebuilts = harvestedPrebuilts
         self.skippedItems = skippedItems

@@ -210,6 +210,29 @@ public struct ShimDispatcher: Sendable {
             )
         }
 
+        if store.isProjectExcluded(at: initialProject.rootPath) {
+            let sanitizedEnv = executableLocator.sanitizedEnvironment(from: environment)
+            let exitCode = try processExecutor.execute(
+                ShimExecutionRequest(
+                    executablePath: realFlutter,
+                    arguments: analysis.forwardedArguments,
+                    workingDirectory: workingDirectory,
+                    environment: sanitizedEnv,
+                    canReplaceProcess: true
+                )
+            )
+            return ShimDispatchOutcome(
+                role: .flutter,
+                exitCode: exitCode,
+                bypassed: true,
+                didHydrate: false,
+                didHarvest: false,
+                injectedCompilationCache: false,
+                executedExecutablePath: realFlutter,
+                forwardedArguments: analysis.forwardedArguments
+            )
+        }
+
         let integrator = makeFlutterIntegrator()
         let syncEngine = PackageSyncEngine(store: store, toolchainProvider: toolchainProvider)
 
@@ -324,26 +347,46 @@ public struct ShimDispatcher: Sendable {
         var anyHydrated = false
 
         for targetProject in targetProjects {
-            guard targetProject.packageResolvedPath != nil || !targetProject.allPackageResolvedPaths.isEmpty else {
-                continue
-            }
             let primaryURL = try? syncEngine.resolveSourcePackagesURL(for: targetProject)
             let candidates = (try? syncEngine.resolveCandidateSourcePackagesURLs(for: targetProject)) ?? []
             let destinations = candidates.filter { url in
                 url.path == primaryURL?.path || fileManager.fileExists(atPath: url.path)
             }
-            for destinationURL in destinations {
-                do {
-                    _ = try syncEngine.hydrate(
-                        project: targetProject,
-                        options: HydrateOptions(
-                            sourcePackagesOverride: destinationURL.path,
-                            verboseLogger: verboseLogger
+
+            if targetProject.packageResolvedPath != nil || !targetProject.allPackageResolvedPaths.isEmpty {
+                for destinationURL in destinations {
+                    do {
+                        _ = try syncEngine.hydrate(
+                            project: targetProject,
+                            options: HydrateOptions(
+                                sourcePackagesOverride: destinationURL.path,
+                                verboseLogger: verboseLogger
+                            )
                         )
-                    )
-                    anyHydrated = true
-                } catch {
-                    verboseLogger?("Flutter hydrate skipped for '\(targetProject.rootPath)': \(error.localizedDescription)")
+                        anyHydrated = true
+                    } catch {
+                        verboseLogger?("Flutter hydrate skipped for '\(targetProject.rootPath)': \(error.localizedDescription)")
+                    }
+                }
+            } else {
+                let integrator = makeFlutterIntegrator()
+                for destinationURL in destinations {
+                    do {
+                        if let prehydrated = try integrator.prehydrateCompatiblePackages(
+                            for: project,
+                            targetProject: targetProject,
+                            destinationURL: destinationURL,
+                            syncEngine: syncEngine
+                        ),
+                           !prehydrated.hydratedCheckouts.isEmpty
+                            || !prehydrated.hydratedRepositories.isEmpty
+                            || !prehydrated.hydratedArtifacts.isEmpty
+                            || !prehydrated.hydratedPrebuilts.isEmpty {
+                            anyHydrated = true
+                        }
+                    } catch {
+                        verboseLogger?("Flutter pre-hydrate skipped for '\(targetProject.rootPath)': \(error.localizedDescription)")
+                    }
                 }
             }
         }
@@ -444,6 +487,29 @@ public struct ShimDispatcher: Sendable {
         var detectedProject: DetectedProject?
         if analysis.shouldHydrate || analysis.shouldHarvest {
             detectedProject = detectXcodeProject(analysis: analysis, workingDirectory: workingDirectory)
+        }
+
+        if let excludedTarget = detectedProject?.rootPath ?? (store.isProjectExcluded(at: workingDirectory) ? workingDirectory : nil),
+           store.isProjectExcluded(at: excludedTarget) {
+            let exitCode = try processExecutor.execute(
+                ShimExecutionRequest(
+                    executablePath: realXcodebuild,
+                    arguments: arguments,
+                    workingDirectory: workingDirectory,
+                    environment: sanitizedEnv,
+                    canReplaceProcess: true
+                )
+            )
+            return ShimDispatchOutcome(
+                role: .xcodebuild,
+                exitCode: exitCode,
+                bypassed: true,
+                didHydrate: false,
+                didHarvest: false,
+                injectedCompilationCache: false,
+                executedExecutablePath: realXcodebuild,
+                forwardedArguments: arguments
+            )
         }
 
         var didHydrate = false
@@ -607,6 +673,28 @@ public struct ShimDispatcher: Sendable {
                 role: .swift,
                 exitCode: exitCode,
                 bypassed: false,
+                didHydrate: false,
+                didHarvest: false,
+                injectedCompilationCache: false,
+                executedExecutablePath: realSwift,
+                forwardedArguments: arguments
+            )
+        }
+
+        if store.isProjectExcluded(at: packageRoot) {
+            let exitCode = try processExecutor.execute(
+                ShimExecutionRequest(
+                    executablePath: realSwift,
+                    arguments: arguments,
+                    workingDirectory: workingDirectory,
+                    environment: sanitizedEnv,
+                    canReplaceProcess: true
+                )
+            )
+            return ShimDispatchOutcome(
+                role: .swift,
+                exitCode: exitCode,
+                bypassed: true,
                 didHydrate: false,
                 didHarvest: false,
                 injectedCompilationCache: false,

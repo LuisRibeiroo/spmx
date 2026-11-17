@@ -23,11 +23,82 @@ public struct PrebuiltToolchainGroup: Sendable, Equatable {
     }
 }
 
+/// Per-project space savings summary in `spmx store status`.
+public struct ProjectSavingsSummary: Sendable, Equatable, Codable {
+    public let projectPath: String
+    public let sharedPackagesCount: Int
+    public let projectSavedBytes: UInt64
+
+    public init(
+        projectPath: String,
+        sharedPackagesCount: Int,
+        projectSavedBytes: UInt64
+    ) {
+        self.projectPath = projectPath
+        self.sharedPackagesCount = sharedPackagesCount
+        self.projectSavedBytes = projectSavedBytes
+    }
+}
+
+/// Single `(identity, version/revision)` slice stored in `~/.spmx/store` for `spmx store list`.
+public struct StorePackageSlice: Sendable, Equatable, Codable {
+    public let identity: String
+    public let version: String?
+    public let branch: String?
+    public let revision: String
+    public let location: String?
+    public let sizeBytes: UInt64
+    public let linkedProjects: [String]
+
+    public init(
+        identity: String,
+        version: String? = nil,
+        branch: String? = nil,
+        revision: String,
+        location: String? = nil,
+        sizeBytes: UInt64,
+        linkedProjects: [String]
+    ) {
+        self.identity = identity
+        self.version = version
+        self.branch = branch
+        self.revision = revision
+        self.location = location
+        self.sizeBytes = sizeBytes
+        self.linkedProjects = linkedProjects
+    }
+}
+
+/// Report returned by `StoreManager.list()`.
+public struct StoreListReport: Sendable, Equatable, Codable {
+    public let storePath: String
+    public let packages: [StorePackageSlice]
+    public let repositoriesCount: Int
+    public let repositoriesSizeBytes: UInt64
+    public let totalCheckoutsSizeBytes: UInt64
+
+    public init(
+        storePath: String,
+        packages: [StorePackageSlice],
+        repositoriesCount: Int,
+        repositoriesSizeBytes: UInt64,
+        totalCheckoutsSizeBytes: UInt64
+    ) {
+        self.storePath = storePath
+        self.packages = packages
+        self.repositoriesCount = repositoriesCount
+        self.repositoriesSizeBytes = repositoriesSizeBytes
+        self.totalCheckoutsSizeBytes = totalCheckoutsSizeBytes
+    }
+}
+
 /// Snapshot of `~/.spmx/store`, `~/.spmx/compilation-cache`, registered projects, and CoW savings.
 public struct StoreStatusReport: Sendable, Equatable {
     public let storePath: String
     public let checkoutsCount: Int
     public let checkoutsSizeBytes: UInt64
+    public let repositoriesCount: Int
+    public let repositoriesSizeBytes: UInt64
     public let artifactsCount: Int
     public let artifactsSizeBytes: UInt64
     public let prebuiltsCount: Int
@@ -38,7 +109,13 @@ public struct StoreStatusReport: Sendable, Equatable {
     public let compilationCacheSizeBytes: UInt64
     public let activeProjectsCount: Int
     public let missingProjectsCount: Int
+    public let excludedProjects: [String]
+    public let projectSavings: [ProjectSavingsSummary]
     public let estimatedCoWSavingsBytes: UInt64
+
+    public var totalMachineSavedBytes: UInt64 {
+        estimatedCoWSavingsBytes
+    }
 
     public var totalRegisteredProjectsCount: Int {
         activeProjectsCount + missingProjectsCount
@@ -48,6 +125,8 @@ public struct StoreStatusReport: Sendable, Equatable {
         storePath: String,
         checkoutsCount: Int,
         checkoutsSizeBytes: UInt64,
+        repositoriesCount: Int = 0,
+        repositoriesSizeBytes: UInt64 = 0,
         artifactsCount: Int,
         artifactsSizeBytes: UInt64,
         prebuiltsCount: Int,
@@ -58,11 +137,15 @@ public struct StoreStatusReport: Sendable, Equatable {
         compilationCacheSizeBytes: UInt64,
         activeProjectsCount: Int,
         missingProjectsCount: Int,
+        excludedProjects: [String] = [],
+        projectSavings: [ProjectSavingsSummary] = [],
         estimatedCoWSavingsBytes: UInt64
     ) {
         self.storePath = storePath
         self.checkoutsCount = checkoutsCount
         self.checkoutsSizeBytes = checkoutsSizeBytes
+        self.repositoriesCount = repositoriesCount
+        self.repositoriesSizeBytes = repositoriesSizeBytes
         self.artifactsCount = artifactsCount
         self.artifactsSizeBytes = artifactsSizeBytes
         self.prebuiltsCount = prebuiltsCount
@@ -73,6 +156,8 @@ public struct StoreStatusReport: Sendable, Equatable {
         self.compilationCacheSizeBytes = compilationCacheSizeBytes
         self.activeProjectsCount = activeProjectsCount
         self.missingProjectsCount = missingProjectsCount
+        self.excludedProjects = excludedProjects
+        self.projectSavings = projectSavings
         self.estimatedCoWSavingsBytes = estimatedCoWSavingsBytes
     }
 }
@@ -176,10 +261,12 @@ public struct StoreManager: Sendable {
         }
 
         let checkoutEntries = scanCheckouts(fileManager: fileManager)
+        let repositoryEntries = scanRepositories(fileManager: fileManager)
         let artifactEntries = scanArtifacts(fileManager: fileManager)
         let prebuiltEntries = scanPrebuilts(fileManager: fileManager)
 
         let checkoutsSize = checkoutEntries.reduce(UInt64(0)) { $0 + $1.sizeBytes }
+        let repositoriesSize = repositoryEntries.reduce(UInt64(0)) { $0 + $1.sizeBytes }
         let artifactsSize = artifactEntries.reduce(UInt64(0)) { $0 + $1.sizeBytes }
         let prebuiltsSize = prebuiltEntries.reduce(UInt64(0)) { $0 + $1.sizeBytes }
 
@@ -214,9 +301,10 @@ public struct StoreManager: Sendable {
             }
         }
 
-        let estimatedSavings = estimateCoWSavingsBytes(
+        let (estimatedSavings, projectSavings) = computeSavings(
             activeProjects: activeProjects,
             checkouts: checkoutEntries,
+            repositories: repositoryEntries,
             artifacts: artifactEntries,
             prebuilts: prebuiltEntries,
             fileManager: fileManager
@@ -226,6 +314,8 @@ public struct StoreManager: Sendable {
             storePath: store.rootURL.path,
             checkoutsCount: checkoutEntries.count,
             checkoutsSizeBytes: checkoutsSize,
+            repositoriesCount: repositoryEntries.count,
+            repositoriesSizeBytes: repositoriesSize,
             artifactsCount: artifactEntries.count,
             artifactsSizeBytes: artifactsSize,
             prebuiltsCount: prebuiltEntries.count,
@@ -236,7 +326,94 @@ public struct StoreManager: Sendable {
             compilationCacheSizeBytes: compilationCacheSize,
             activeProjectsCount: activeProjects.count,
             missingProjectsCount: missingProjectsCount,
+            excludedProjects: index.excludedProjects.keys.sorted(),
+            projectSavings: projectSavings,
             estimatedCoWSavingsBytes: estimatedSavings
+        )
+    }
+
+    /// Lists all cached `(package, version/revision)` slices in `~/.spmx/store` with semantic versions and linked projects.
+    public func list() throws -> StoreListReport {
+        let fileManager = FileManager.default
+        let index: StoreIndex
+        if fileManager.fileExists(atPath: store.indexURL.path) || fileManager.fileExists(atPath: store.rootURL.path) {
+            index = try store.readIndex()
+        } else {
+            index = StoreIndex()
+        }
+
+        let checkoutEntries = scanCheckouts(fileManager: fileManager)
+        let repositoryEntries = scanRepositories(fileManager: fileManager)
+        let templates = PackageSyncEngine(store: store, fileManager: fileManager).loadAllPackageTemplates()
+        var templateByFolder: [String: PackageSyncEngine.PackageTemplateRecord] = [:]
+        for record in templates {
+            let folderKey = sanitizeStoreComponent("\(record.identity.lowercased())-\(record.revision)").lowercased()
+            templateByFolder[folderKey] = record
+        }
+
+        let activeProjects = index.projects.values
+            .filter { DiagnosticsSupport.isDirectory(atPath: $0.path, fileManager: fileManager) }
+            .sorted { $0.path < $1.path }
+
+        // Precompute refs for projects without pinnedDependencies
+        var fallbackProjectRefs: [String: ProjectReferences] = [:]
+        for project in activeProjects where project.pinnedDependencies.isEmpty {
+            fallbackProjectRefs[project.path] = collectProjectReferences(for: project, fileManager: fileManager)
+        }
+
+        let packages: [StorePackageSlice] = checkoutEntries.map { entry in
+            let template = templateByFolder[entry.folderName.lowercased()]
+            let identity = template?.identity.lowercased() ?? entry.identity
+            let revision = template?.revision ?? extractRevisionFromCheckoutFolder(entry.folderName, identity: identity)
+
+            var linked: [String] = []
+            var resolvedVersion = template?.version
+            var resolvedBranch = template?.branch
+            var resolvedLocation = template?.location
+
+            for project in activeProjects {
+                if !project.pinnedDependencies.isEmpty {
+                    if let matchedPin = project.pinnedDependencies.first(where: { pin in
+                        pin.identity.lowercased() == identity && (pin.revision == revision || revision.isEmpty)
+                    }) {
+                        linked.append(project.path)
+                        if resolvedVersion == nil { resolvedVersion = matchedPin.version }
+                        if resolvedBranch == nil { resolvedBranch = matchedPin.branch }
+                        if resolvedLocation == nil { resolvedLocation = matchedPin.location }
+                    }
+                } else if let refs = fallbackProjectRefs[project.path] {
+                    if refs.checkoutFolderNames.contains(entry.folderName)
+                        || refs.fallbackIdentities.contains(identity) {
+                        linked.append(project.path)
+                    }
+                }
+            }
+
+            return StorePackageSlice(
+                identity: identity,
+                version: resolvedVersion,
+                branch: resolvedBranch,
+                revision: revision,
+                location: resolvedLocation,
+                sizeBytes: entry.sizeBytes,
+                linkedProjects: linked.sorted()
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.identity != rhs.identity {
+                return lhs.identity < rhs.identity
+            }
+            let lhsVer = lhs.version ?? lhs.branch ?? lhs.revision
+            let rhsVer = rhs.version ?? rhs.branch ?? rhs.revision
+            return lhsVer < rhsVer
+        }
+
+        return StoreListReport(
+            storePath: store.rootURL.path,
+            packages: packages,
+            repositoriesCount: repositoryEntries.count,
+            repositoriesSizeBytes: repositoryEntries.reduce(UInt64(0)) { $0 + $1.sizeBytes },
+            totalCheckoutsSizeBytes: checkoutEntries.reduce(UInt64(0)) { $0 + $1.sizeBytes }
         )
     }
 
@@ -368,6 +545,12 @@ public struct StoreManager: Sendable {
         let sizeBytes: UInt64
     }
 
+    private struct RepositoryEntry {
+        let identity: String
+        let url: URL
+        let sizeBytes: UInt64
+    }
+
     private struct ArtifactEntry {
         let identity: String
         let entryName: String
@@ -396,6 +579,29 @@ public struct StoreManager: Sendable {
             let size = DiagnosticsSupport.itemSizeBytes(at: url, fileManager: fileManager)
             return CheckoutEntry(folderName: name, identity: identity, url: url, sizeBytes: size)
         }
+    }
+
+    private func scanRepositories(fileManager: FileManager) -> [RepositoryEntry] {
+        guard DiagnosticsSupport.isDirectory(atPath: store.repositoriesDirectory.path, fileManager: fileManager) else {
+            return []
+        }
+        let entries = nonHiddenContents(of: store.repositoriesDirectory, fileManager: fileManager)
+        return entries.compactMap { url in
+            let identity = url.lastPathComponent.lowercased()
+            let size = DiagnosticsSupport.itemSizeBytes(at: url, fileManager: fileManager)
+            return RepositoryEntry(identity: identity, url: url, sizeBytes: size)
+        }
+    }
+
+    private func extractRevisionFromCheckoutFolder(_ folderName: String, identity: String) -> String {
+        let prefix = "\(identity)-"
+        if folderName.lowercased().hasPrefix(prefix.lowercased()) {
+            return String(folderName.dropFirst(prefix.count))
+        }
+        if let lastDash = folderName.lastIndex(of: "-") {
+            return String(folderName[folderName.index(after: lastDash)...])
+        }
+        return ""
     }
 
     private func scanArtifacts(fileManager: FileManager) -> [ArtifactEntry] {
@@ -615,26 +821,48 @@ public struct StoreManager: Sendable {
         return refs
     }
 
-    private func estimateCoWSavingsBytes(
+    private func computeSavings(
         activeProjects: [StoreIndex.RegisteredProject],
         checkouts: [CheckoutEntry],
+        repositories: [RepositoryEntry],
         artifacts: [ArtifactEntry],
         prebuilts: [PrebuiltEntry],
         fileManager: FileManager
-    ) -> UInt64 {
-        guard !activeProjects.isEmpty, APFSCloner.isAPFS(at: store.rootURL) else {
-            return 0
+    ) -> (totalSavings: UInt64, projectSavings: [ProjectSavingsSummary]) {
+        let sortedProjects = activeProjects.sorted { $0.path < $1.path }
+        guard !sortedProjects.isEmpty, APFSCloner.isAPFS(at: store.rootURL) else {
+            return (0, sortedProjects.map {
+                ProjectSavingsSummary(
+                    projectPath: $0.path,
+                    sharedPackagesCount: $0.packageIdentities.count,
+                    projectSavedBytes: 0
+                )
+            })
         }
 
         var totalSavings: UInt64 = 0
-        for project in activeProjects {
+        var summaries: [ProjectSavingsSummary] = []
+
+        for project in sortedProjects {
             let refs = collectProjectReferences(for: project, fileManager: fileManager)
+            var projectBytes: UInt64 = 0
+            var matchedIdentities: Set<String> = []
 
             for entry in checkouts {
                 let matches = refs.checkoutFolderNames.contains(entry.folderName)
                     || refs.fallbackIdentities.contains { entry.folderName.hasPrefix("\($0)-") }
                 if matches {
-                    totalSavings += entry.sizeBytes
+                    projectBytes += entry.sizeBytes
+                    matchedIdentities.insert(entry.identity)
+                }
+            }
+
+            for entry in repositories {
+                let matches = refs.fallbackIdentities.contains(entry.identity)
+                    || refs.checkoutFolderNames.contains(where: { $0.hasPrefix("\(entry.identity)-") })
+                if matches {
+                    projectBytes += entry.sizeBytes
+                    matchedIdentities.insert(entry.identity)
                 }
             }
 
@@ -642,7 +870,8 @@ public struct StoreManager: Sendable {
                 let matches = refs.artifactKeys.contains(entry.relativeKey)
                     || refs.fallbackIdentities.contains(entry.identity)
                 if matches {
-                    totalSavings += entry.sizeBytes
+                    projectBytes += entry.sizeBytes
+                    matchedIdentities.insert(entry.identity)
                 }
             }
 
@@ -651,12 +880,20 @@ public struct StoreManager: Sendable {
                     || refs.wildcardPrebuiltEntries.contains(entry.entryName)
                     || refs.fallbackToolchainIdentities.contains("\(entry.toolchainHash)/\(entry.identity)")
                 if matches {
-                    totalSavings += entry.sizeBytes
+                    projectBytes += entry.sizeBytes
+                    matchedIdentities.insert(entry.identity)
                 }
             }
+
+            totalSavings += projectBytes
+            summaries.append(ProjectSavingsSummary(
+                projectPath: project.path,
+                sharedPackagesCount: max(matchedIdentities.count, project.packageIdentities.count),
+                projectSavedBytes: projectBytes
+            ))
         }
 
-        return totalSavings
+        return (totalSavings, summaries)
     }
 
     private func candidateWorkspaceStatePaths(

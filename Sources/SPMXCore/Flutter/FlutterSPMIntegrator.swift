@@ -443,6 +443,99 @@ public struct FlutterSPMIntegrator: Sendable {
         return recorded
     }
 
+    /// Pre-hydrates `repositories`, `checkouts`, `artifacts`, and `prebuilts` for a Flutter project
+    /// whose `dependencyHash` is unseen (no `Package.resolved` yet) by inspecting `.flutter-plugins-dependencies`
+    /// and matching referenced SwiftPM packages against entries already cached in ``GlobalStore``.
+    @discardableResult
+    public func prehydrateCompatiblePackages(
+        for project: DetectedProject,
+        targetProject: DetectedProject? = nil,
+        destinationURL: URL,
+        syncEngine: PackageSyncEngine
+    ) throws -> HydrateResult? {
+        guard project.type == .flutter, let flutterInfo = project.flutterInfo else {
+            return nil
+        }
+
+        let targetPlatform: FlutterPlatform? = {
+            guard let containerPath = targetProject?.containerPath else { return nil }
+            return flutterInfo.targets.first(where: { $0.preferredContainerPath == containerPath })?.platform
+        }()
+
+        var candidateIdentities: Set<String> = []
+        var candidateLocations: Set<String> = []
+
+        if let depsPath = flutterInfo.pluginDependenciesPath,
+           let data = try? Data(contentsOf: URL(fileURLWithPath: depsPath)),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let plugins = json["plugins"] as? [String: Any] {
+            let platforms: [FlutterPlatform] = targetPlatform.map { [$0] } ?? FlutterPlatform.allCases
+            for platform in platforms {
+                guard let entries = plugins[platform.rawValue] as? [[String: Any]] else { continue }
+                for entry in entries {
+                    if let name = entry["name"] as? String, !name.isEmpty {
+                        candidateIdentities.insert(name.lowercased())
+                    }
+                    if let pluginPath = entry["path"] as? String, !pluginPath.isEmpty {
+                        collectSwiftPackageDependencies(
+                            inPluginAt: pluginPath,
+                            platform: platform,
+                            identities: &candidateIdentities,
+                            locations: &candidateLocations
+                        )
+                    }
+                }
+            }
+        }
+
+        for target in flutterInfo.targets where targetPlatform == nil || target.platform == targetPlatform {
+            let manifestURL = URL(fileURLWithPath: target.generatedPackagePath)
+                .appendingPathComponent("Package.swift")
+            if let content = try? String(contentsOf: manifestURL, encoding: .utf8) {
+                extractPackageURLs(fromManifest: content, identities: &candidateIdentities, locations: &candidateLocations)
+            }
+        }
+
+        guard !candidateIdentities.isEmpty || !candidateLocations.isEmpty else {
+            return nil
+        }
+
+        let templates = syncEngine.loadAllPackageTemplates()
+        var bestByIdentity: [String: PackageSyncEngine.PackageTemplateRecord] = [:]
+        for record in templates {
+            let id = record.identity.lowercased()
+            let matchesIdentity = candidateIdentities.contains(id)
+            let matchesLocation = record.location.map { candidateLocations.contains(Self.normalizeGitURL($0)) } ?? false
+            guard matchesIdentity || matchesLocation else { continue }
+            if let existing = bestByIdentity[id], existing.updatedAt >= record.updatedAt {
+                continue
+            }
+            bestByIdentity[id] = record
+        }
+
+        guard !bestByIdentity.isEmpty else {
+            return nil
+        }
+
+        let pins: [PackagePin] = bestByIdentity.values.sorted(by: { $0.identity < $1.identity }).map { record in
+            PackagePin(
+                identity: record.identity,
+                kind: .remoteSourceControl,
+                location: record.location ?? "",
+                revision: record.revision,
+                version: record.version,
+                branch: record.branch,
+                packageName: record.subpath
+            )
+        }
+
+        return try syncEngine.prehydrate(
+            pins: pins,
+            sourcePackagesURL: destinationURL,
+            options: HydrateOptions(registerProject: false)
+        )
+    }
+
     // MARK: - Private Helpers
 
     private func redetectProject(from project: DetectedProject) throws -> DetectedProject {
@@ -538,5 +631,70 @@ public struct FlutterSPMIntegrator: Sendable {
     private func normalizeString(_ value: String, projectRootPath: String) -> String {
         guard !projectRootPath.isEmpty else { return value }
         return value.replacingOccurrences(of: projectRootPath, with: "${PROJECT_ROOT}")
+    }
+
+    private func collectSwiftPackageDependencies(
+        inPluginAt pluginPath: String,
+        platform: FlutterPlatform,
+        identities: inout Set<String>,
+        locations: inout Set<String>
+    ) {
+        let fileManager = FileManager.default
+        let rootURL = URL(fileURLWithPath: pluginPath)
+        let candidateSubdirs = [
+            platform.rawValue,
+            "darwin",
+            "ios",
+            "macos",
+            ""
+        ]
+        for sub in candidateSubdirs {
+            let base = sub.isEmpty ? rootURL : rootURL.appendingPathComponent(sub)
+            guard fileManager.fileExists(atPath: base.path) else { continue }
+            let directManifest = base.appendingPathComponent("Package.swift")
+            if let content = try? String(contentsOf: directManifest, encoding: .utf8) {
+                extractPackageURLs(fromManifest: content, identities: &identities, locations: &locations)
+            }
+            if let children = try? fileManager.contentsOfDirectory(
+                at: base,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            ) {
+                for child in children {
+                    let manifest = child.appendingPathComponent("Package.swift")
+                    if let content = try? String(contentsOf: manifest, encoding: .utf8) {
+                        extractPackageURLs(fromManifest: content, identities: &identities, locations: &locations)
+                    }
+                }
+            }
+        }
+    }
+
+    private func extractPackageURLs(
+        fromManifest content: String,
+        identities: inout Set<String>,
+        locations: inout Set<String>
+    ) {
+        // Match url: "..." or .package(url: "..."
+        let pattern = #"url:\s*"([^"]+)""#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return }
+        let range = NSRange(content.startIndex..<content.endIndex, in: content)
+        for match in regex.matches(in: content, options: [], range: range) {
+            guard match.numberOfRanges > 1,
+                  let urlRange = Range(match.range(at: 1), in: content) else { continue }
+            let rawURL = String(content[urlRange])
+            let normalized = Self.normalizeGitURL(rawURL)
+            locations.insert(normalized)
+            if let last = normalized.split(separator: "/").last, !last.isEmpty {
+                identities.insert(String(last))
+            }
+        }
+    }
+
+    private static func normalizeGitURL(_ raw: String) -> String {
+        var s = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if s.hasSuffix("/") { s.removeLast() }
+        if s.hasSuffix(".git") { s.removeLast(4) }
+        return s
     }
 }

@@ -125,14 +125,14 @@ struct MigrationManagerTests {
         ))
 
         #expect(report.discoveredCount == 2)
-        #expect(report.totalHarvestedItemsCount >= 2)
+        #expect(report.totalHarvestedItemsCount >= 1)
         #expect(report.totalDeduplicatedItemsCount >= 1)
         #expect(report.totalEstimatedReclaimedBytes > 0)
         #expect(store.hasCheckout(identity: "clean-pkg", revision: "rev-clean"))
+        // US-003 (R3): Dirty checkout in proj-b must NOT be harvested into the global store
+        #expect(!store.hasCheckout(identity: "dirty-pkg", revision: "rev-dirty"))
 
         // Dirty checkout inside proj-b must preserve its local modification
-        let outcomeB = try #require(report.outcomes.first { URL(fileURLWithPath: $0.project.rootPath).lastPathComponent == "proj-b" })
-        #expect(outcomeB.skippedLocallyModifiedCount == 1)
         let dirtyFile = projectB.appendingPathComponent(".build/checkouts/dirty-pkg/LocalEdit.txt")
         #expect(FileManager.default.fileExists(atPath: dirtyFile.path))
     }

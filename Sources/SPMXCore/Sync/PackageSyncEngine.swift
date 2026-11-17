@@ -272,6 +272,43 @@ public struct PackageSyncEngine: Sendable {
             ))
         }
 
+        // 1b. Hydrate bare Git repositories (`SourcePackages/repositories/`)
+        var hydratedRepositories: [HydratedRepository] = []
+        let repositoriesDir = sourcePackagesURL.appendingPathComponent("repositories")
+        var ensuredRepositoriesDir = false
+
+        for pin in resolved.pins {
+            let identity = pin.identity.lowercased()
+            guard store.hasRepository(identity: identity) else { continue }
+
+            let repoFolderName = packageTemplatesByIdentity[identity]?.repositoryFolderName
+                ?? findRepositoryFolderName(forIdentity: identity)
+            guard let repoFolderName, !repoFolderName.isEmpty else { continue }
+
+            if !ensuredRepositoriesDir {
+                try ensureDirectory(repositoriesDir)
+                ensuredRepositoriesDir = true
+            }
+
+            let destinationURL = repositoriesDir.appendingPathComponent(repoFolderName)
+            if itemExists(at: destinationURL) && !isDirectoryEmpty(at: destinationURL) && !options.force && !options.deduplicateCleanEntries {
+                continue
+            }
+
+            let outcome = try store.cloneRepositoryToWorktree(
+                identity: identity,
+                destinationURL: destinationURL,
+                overwrite: true
+            )
+            options.verboseLogger?("Hydrated repository \(identity) (\(repoFolderName), \(outcome.method.rawValue))")
+            hydratedRepositories.append(HydratedRepository(
+                identity: identity,
+                folderName: repoFolderName,
+                destinationURL: outcome.destinationURL,
+                cloneMethod: outcome.method
+            ))
+        }
+
         // 2. Hydrate artifacts
         var hydratedArtifacts: [HydratedArtifact] = []
         var availableArtifactEntries: [ArtifactTemplateEntry] = []
@@ -411,6 +448,24 @@ public struct PackageSyncEngine: Sendable {
             )
         }
 
+        if options.registerProject {
+            let pinnedDeps = resolved.pins.map { pin in
+                StoreIndex.PinnedDependency(
+                    identity: pin.identity.lowercased(),
+                    version: pin.version,
+                    branch: pin.branch,
+                    revision: pin.revision,
+                    location: pin.location
+                )
+            }
+            _ = try? store.registerProject(
+                at: project.rootPath,
+                toolchain: toolchain,
+                packageIdentities: resolved.pins.map { $0.identity.lowercased() },
+                pinnedDependencies: pinnedDeps
+            )
+        }
+
         return HydrateResult(
             project: project,
             sourcePackagesURL: sourcePackagesURL,
@@ -418,10 +473,188 @@ public struct PackageSyncEngine: Sendable {
             toolchainHash: toolchain?.hash,
             hydratedCheckouts: hydratedCheckouts,
             skippedCheckouts: skippedCheckouts,
+            hydratedRepositories: hydratedRepositories,
             hydratedArtifacts: hydratedArtifacts,
             hydratedPrebuilts: hydratedPrebuilts,
             workspaceStateURL: fileManager.fileExists(atPath: workspaceStateFileURL.path) ? workspaceStateFileURL : nil,
             didUpdateWorkspaceState: didUpdateWorkspaceState
+        )
+    }
+
+    /// Pre-hydrates `checkouts`, `repositories`, `artifacts`, and `prebuilts` for known pins
+    /// even before a project has its own `Package.resolved` (e.g. cross-project Flutter pre-warming).
+    @discardableResult
+    public func prehydrate(
+        pins: [PackagePin],
+        sourcePackagesURL: URL,
+        options: HydrateOptions = HydrateOptions()
+    ) throws -> HydrateResult {
+        try store.ensureLayout()
+        let toolchain = resolveToolchain(verboseLogger: options.verboseLogger)
+        try ensureDirectory(sourcePackagesURL)
+        let checkoutsDir = sourcePackagesURL.appendingPathComponent("checkouts")
+        try ensureDirectory(checkoutsDir)
+
+        var packageTemplatesByIdentity: [String: PackageTemplateRecord] = [:]
+        for pin in pins {
+            let identity = pin.identity.lowercased()
+            if let revision = pin.revision, !revision.isEmpty,
+               let record = try loadPackageTemplate(identity: identity, revision: revision) {
+                packageTemplatesByIdentity[identity] = record
+            }
+        }
+
+        var hydratedCheckouts: [HydratedCheckout] = []
+        let skippedCheckouts: [SkippedCheckout] = []
+        for pin in pins {
+            let identity = pin.identity.lowercased()
+            guard let revision = pin.revision, !revision.isEmpty,
+                  store.hasCheckout(identity: identity, revision: revision) else {
+                continue
+            }
+            let folderName = packageTemplatesByIdentity[identity]?.subpath ?? identity
+            let destinationURL = checkoutsDir.appendingPathComponent(folderName)
+            if itemExists(at: destinationURL) && !isDirectoryEmpty(at: destinationURL) && !options.force {
+                continue
+            }
+            let outcome = try store.cloneCheckoutToWorktree(
+                identity: identity,
+                revision: revision,
+                destinationURL: destinationURL,
+                overwrite: true
+            )
+            hydratedCheckouts.append(HydratedCheckout(
+                identity: identity,
+                revision: revision,
+                destinationURL: outcome.destinationURL,
+                cloneMethod: outcome.method
+            ))
+        }
+
+        var hydratedRepositories: [HydratedRepository] = []
+        let repositoriesDir = sourcePackagesURL.appendingPathComponent("repositories")
+        var ensuredRepositoriesDir = false
+        for pin in pins {
+            let identity = pin.identity.lowercased()
+            guard store.hasRepository(identity: identity) else { continue }
+            let repoFolderName = packageTemplatesByIdentity[identity]?.repositoryFolderName
+                ?? findRepositoryFolderName(forIdentity: identity)
+            guard let repoFolderName, !repoFolderName.isEmpty else { continue }
+            if !ensuredRepositoriesDir {
+                try ensureDirectory(repositoriesDir)
+                ensuredRepositoriesDir = true
+            }
+            let destinationURL = repositoriesDir.appendingPathComponent(repoFolderName)
+            if itemExists(at: destinationURL) && !isDirectoryEmpty(at: destinationURL) && !options.force {
+                continue
+            }
+            let outcome = try store.cloneRepositoryToWorktree(
+                identity: identity,
+                destinationURL: destinationURL,
+                overwrite: true
+            )
+            hydratedRepositories.append(HydratedRepository(
+                identity: identity,
+                folderName: repoFolderName,
+                destinationURL: outcome.destinationURL,
+                cloneMethod: outcome.method
+            ))
+        }
+
+        var hydratedArtifacts: [HydratedArtifact] = []
+        if options.includeArtifacts {
+            let candidateArtifacts = collectArtifactTemplates(
+                pins: pins,
+                workspaceTemplate: nil,
+                packageTemplates: packageTemplatesByIdentity
+            )
+            for artifact in candidateArtifacts {
+                guard store.hasArtifact(
+                    identity: artifact.identity,
+                    targetName: artifact.targetName,
+                    checksum: artifact.checksum
+                ) else { continue }
+                let destinationURL = sourcePackagesURL
+                    .appendingPathComponent("artifacts")
+                    .appendingPathComponent(artifact.relativeSubpath)
+                    .standardizedFileURL
+                if itemExists(at: destinationURL) && !isDirectoryEmpty(at: destinationURL) && !options.force {
+                    continue
+                }
+                let outcome = try store.cloneArtifactToWorktree(
+                    identity: artifact.identity,
+                    targetName: artifact.targetName,
+                    checksum: artifact.checksum,
+                    destinationURL: destinationURL,
+                    overwrite: true
+                )
+                hydratedArtifacts.append(HydratedArtifact(
+                    identity: artifact.identity,
+                    targetName: artifact.targetName,
+                    checksum: artifact.checksum,
+                    destinationURL: outcome.destinationURL,
+                    cloneMethod: outcome.method
+                ))
+            }
+        }
+
+        var hydratedPrebuilts: [HydratedPrebuilt] = []
+        if options.includePrebuilts, let toolchain {
+            let candidatePrebuilts = try collectPrebuiltTemplates(
+                pins: pins,
+                toolchainHash: toolchain.hash,
+                workspaceTemplate: nil
+            )
+            for prebuilt in candidatePrebuilts {
+                guard store.hasPrebuilt(
+                    toolchainHash: toolchain.hash,
+                    packageIdentity: prebuilt.identity,
+                    versionOrChecksum: prebuilt.versionOrChecksum
+                ) else { continue }
+                let destinationURL = sourcePackagesURL
+                    .appendingPathComponent("prebuilts")
+                    .appendingPathComponent(prebuilt.relativeSubpath)
+                    .standardizedFileURL
+                if itemExists(at: destinationURL) && !isDirectoryEmpty(at: destinationURL) && !options.force {
+                    continue
+                }
+                let outcome = try store.clonePrebuiltToWorktree(
+                    toolchainHash: toolchain.hash,
+                    packageIdentity: prebuilt.identity,
+                    versionOrChecksum: prebuilt.versionOrChecksum,
+                    destinationURL: destinationURL,
+                    overwrite: true
+                )
+                hydratedPrebuilts.append(HydratedPrebuilt(
+                    identity: prebuilt.identity,
+                    versionOrChecksum: prebuilt.versionOrChecksum,
+                    toolchainHash: toolchain.hash,
+                    destinationURL: outcome.destinationURL,
+                    cloneMethod: outcome.method
+                ))
+            }
+        }
+
+        return HydrateResult(
+            project: DetectedProject(
+                type: .flutter,
+                rootPath: sourcePackagesURL.deletingLastPathComponent().path,
+                containerPath: nil,
+                packageManifestPath: nil,
+                packageResolvedPath: nil,
+                allPackageResolvedPaths: [],
+                flutterInfo: nil
+            ),
+            sourcePackagesURL: sourcePackagesURL,
+            packageResolvedPath: "",
+            toolchainHash: toolchain?.hash,
+            hydratedCheckouts: hydratedCheckouts,
+            skippedCheckouts: skippedCheckouts,
+            hydratedRepositories: hydratedRepositories,
+            hydratedArtifacts: hydratedArtifacts,
+            hydratedPrebuilts: hydratedPrebuilts,
+            workspaceStateURL: nil,
+            didUpdateWorkspaceState: false
         )
     }
 
@@ -472,13 +705,27 @@ public struct PackageSyncEngine: Sendable {
             rawWorkspaceRoot = nil
         }
 
-        // Build lookup tables for revisions and dependency subpaths.
+        // Build lookup tables for revisions, versions, branches, locations, and dependency subpaths.
         var revisionByIdentity: [String: String] = [:]
+        var versionByIdentity: [String: String] = [:]
+        var branchByIdentity: [String: String] = [:]
+        var locationByIdentity: [String: String] = [:]
         var identityBySubpath: [String: String] = [:]
+        var identityByLocation: [String: String] = [:]
         for pin in resolvedPins {
             let id = pin.identity.lowercased()
             if let rev = pin.revision, !rev.isEmpty {
                 revisionByIdentity[id] = rev
+            }
+            if let ver = pin.version, !ver.isEmpty {
+                versionByIdentity[id] = ver
+            }
+            if let br = pin.branch, !br.isEmpty {
+                branchByIdentity[id] = br
+            }
+            if !pin.location.isEmpty {
+                locationByIdentity[id] = pin.location
+                identityByLocation[Self.normalizeGitLocation(pin.location)] = id
             }
             identityBySubpath[id] = id
         }
@@ -488,6 +735,16 @@ public struct PackageSyncEngine: Sendable {
                 if let rev = dep.state.checkoutState?.revision, !rev.isEmpty {
                     revisionByIdentity[id] = rev
                 }
+                if let ver = dep.state.checkoutState?.version, !ver.isEmpty {
+                    versionByIdentity[id] = ver
+                }
+                if let br = dep.state.checkoutState?.branch, !br.isEmpty {
+                    branchByIdentity[id] = br
+                }
+                if !dep.packageRef.location.isEmpty {
+                    locationByIdentity[id] = dep.packageRef.location
+                    identityByLocation[Self.normalizeGitLocation(dep.packageRef.location)] = id
+                }
                 if let subpath = dep.subpath, !subpath.isEmpty {
                     identityBySubpath[subpath.lowercased()] = id
                 }
@@ -496,6 +753,7 @@ public struct PackageSyncEngine: Sendable {
         }
 
         var harvestedCheckouts: [HarvestedCheckout] = []
+        var harvestedRepositories: [HarvestedRepository] = []
         var harvestedArtifacts: [HarvestedArtifact] = []
         var harvestedPrebuilts: [HarvestedPrebuilt] = []
         var skippedItems: [SkippedHarvestItem] = []
@@ -559,6 +817,47 @@ public struct PackageSyncEngine: Sendable {
                     continue
                 }
 
+                let treeStatus = checkGitWorkingTree(
+                    at: entryURL,
+                    timeout: options.commandTimeout,
+                    verboseLogger: options.verboseLogger
+                )
+                if treeStatus == .dirty {
+                    options.verboseLogger?("Ignoring checkout '\(name)': locally modified working tree")
+                    skippedItems.append(SkippedHarvestItem(
+                        kind: "checkout",
+                        identifier: identity,
+                        path: entryURL.path,
+                        reason: "locally modified working tree"
+                    ))
+                    continue
+                } else if treeStatus == .timedOut {
+                    options.verboseLogger?("Ignoring checkout '\(name)': git status timed out")
+                    skippedItems.append(SkippedHarvestItem(
+                        kind: "checkout",
+                        identifier: identity,
+                        path: entryURL.path,
+                        reason: "git status timed out"
+                    ))
+                    continue
+                }
+
+                if !verifyGitHeadRevision(
+                    at: entryURL,
+                    expectedRevision: revision,
+                    timeout: options.commandTimeout,
+                    verboseLogger: options.verboseLogger
+                ) {
+                    options.verboseLogger?("Ignoring checkout '\(name)': HEAD revision mismatch")
+                    skippedItems.append(SkippedHarvestItem(
+                        kind: "checkout",
+                        identifier: identity,
+                        path: entryURL.path,
+                        reason: "HEAD revision mismatch"
+                    ))
+                    continue
+                }
+
                 let result = try store.storeCheckout(
                     from: entryURL,
                     identity: identity,
@@ -578,6 +877,75 @@ public struct PackageSyncEngine: Sendable {
                     storeURL: result.storeURL,
                     alreadyCached: result.alreadyCached,
                     cloneMethod: result.cloneMethod
+                ))
+            }
+        }
+
+        // 1b. Harvest bare Git repositories (`SourcePackages/repositories/`)
+        let repositoriesDir = sourcePackagesURL.appendingPathComponent("repositories")
+        var repositoryFolderNameByIdentity: [String: String] = [:]
+        if isDirectory(at: repositoriesDir) {
+            let repoEntries = (try? fileManager.contentsOfDirectory(
+                at: repositoriesDir,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )) ?? []
+
+            let sortedRepoEntries = repoEntries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent })
+            for entryURL in sortedRepoEntries {
+                let folderName = entryURL.lastPathComponent
+                if folderName.hasSuffix(".partial") {
+                    skippedItems.append(SkippedHarvestItem(
+                        kind: "repository",
+                        identifier: folderName,
+                        path: entryURL.path,
+                        reason: "partial marker suffix"
+                    ))
+                    continue
+                }
+                guard isDirectory(at: entryURL) else { continue }
+                if containsPartialMarker(at: entryURL) || isDirectoryEmpty(at: entryURL) {
+                    skippedItems.append(SkippedHarvestItem(
+                        kind: "repository",
+                        identifier: folderName,
+                        path: entryURL.path,
+                        reason: "incomplete or contains .partial marker"
+                    ))
+                    continue
+                }
+                guard GlobalStore.isValidBareGitRepository(at: entryURL, fileManager: fileManager) else {
+                    skippedItems.append(SkippedHarvestItem(
+                        kind: "repository",
+                        identifier: folderName,
+                        path: entryURL.path,
+                        reason: "corrupted or non-bare repository"
+                    ))
+                    continue
+                }
+
+                guard let identity = resolveRepositoryIdentity(
+                    folderName: folderName,
+                    repositoryURL: entryURL,
+                    identityBySubpath: identityBySubpath,
+                    identityByLocation: identityByLocation,
+                    timeout: options.commandTimeout
+                ) else {
+                    continue
+                }
+
+                let repoResult = try store.storeRepository(
+                    from: entryURL,
+                    identity: identity,
+                    overwrite: options.overwriteStore
+                )
+                repositoryFolderNameByIdentity[identity] = folderName
+                harvestedRepositories.append(HarvestedRepository(
+                    identity: identity,
+                    folderName: folderName,
+                    sourceURL: entryURL,
+                    storeURL: repoResult.storeURL,
+                    alreadyCached: repoResult.alreadyCached,
+                    cloneMethod: repoResult.cloneMethod
                 ))
             }
         }
@@ -761,6 +1129,7 @@ public struct PackageSyncEngine: Sendable {
         // 4. Save per-package templates and sanitized workspace-state template
         options.progressHandler?("saving workspace templates")
         var savedTemplateURL: URL?
+        let workspaceStateVersion = rawWorkspaceRoot?["version"] as? Int
 
         if let workspaceState, let rawWorkspaceRoot {
             let rawDeps = (rawWorkspaceRoot["object"] as? [String: Any])?["dependencies"] as? [[String: Any]] ?? []
@@ -776,7 +1145,12 @@ public struct PackageSyncEngine: Sendable {
                 let record = PackageTemplateRecord(
                     identity: identity,
                     revision: revision,
+                    version: dep.state.checkoutState?.version ?? versionByIdentity[identity],
+                    branch: dep.state.checkoutState?.branch ?? branchByIdentity[identity],
+                    location: dep.packageRef.location.isEmpty ? locationByIdentity[identity] : dep.packageRef.location,
                     subpath: dep.subpath,
+                    repositoryFolderName: repositoryFolderNameByIdentity[identity],
+                    workspaceStateVersion: workspaceStateVersion,
                     rawDependencyJSONBase64: rawDepData?.base64EncodedString(),
                     artifacts: validArtifactTemplatesByIdentity[identity] ?? [],
                     updatedAt: Date()
@@ -821,13 +1195,18 @@ public struct PackageSyncEngine: Sendable {
                 )
                 savedTemplateURL = try saveWorkspaceTemplate(templateRecord)
             }
-        } else if !resolvedPins.isEmpty {
+        } else if !resolvedPins.isEmpty || !harvestedCheckouts.isEmpty {
             // Save package templates for any harvested checkouts even if workspace-state.json wasn't present
             for checkout in harvestedCheckouts {
                 let record = PackageTemplateRecord(
                     identity: checkout.identity,
                     revision: checkout.revision,
+                    version: versionByIdentity[checkout.identity],
+                    branch: branchByIdentity[checkout.identity],
+                    location: locationByIdentity[checkout.identity],
                     subpath: checkout.sourceURL.lastPathComponent,
+                    repositoryFolderName: repositoryFolderNameByIdentity[checkout.identity],
+                    workspaceStateVersion: workspaceStateVersion,
                     rawDependencyJSONBase64: nil,
                     artifacts: [],
                     updatedAt: Date()
@@ -839,13 +1218,42 @@ public struct PackageSyncEngine: Sendable {
         // 5. Register project in store index
         if options.registerProject {
             var identities = Set(harvestedCheckouts.map(\.identity))
+            identities.formUnion(harvestedRepositories.map(\.identity))
             identities.formUnion(harvestedArtifacts.map(\.identity))
             identities.formUnion(harvestedPrebuilts.map(\.identity))
             identities.formUnion(resolvedPins.map { $0.identity.lowercased() })
+
+            var pinnedDepsByIdentity: [String: StoreIndex.PinnedDependency] = [:]
+            for pin in resolvedPins {
+                let id = pin.identity.lowercased()
+                pinnedDepsByIdentity[id] = StoreIndex.PinnedDependency(
+                    identity: id,
+                    version: pin.version,
+                    branch: pin.branch,
+                    revision: pin.revision,
+                    location: pin.location
+                )
+            }
+            if let workspaceState {
+                for dep in workspaceState.dependencies {
+                    let id = dep.packageRef.identity.lowercased()
+                    if pinnedDepsByIdentity[id] == nil {
+                        pinnedDepsByIdentity[id] = StoreIndex.PinnedDependency(
+                            identity: id,
+                            version: dep.state.checkoutState?.version,
+                            branch: dep.state.checkoutState?.branch,
+                            revision: dep.state.checkoutState?.revision,
+                            location: dep.packageRef.location
+                        )
+                    }
+                }
+            }
+
             try store.registerProject(
                 at: project.rootPath,
                 toolchain: toolchain,
-                packageIdentities: Array(identities)
+                packageIdentities: Array(identities),
+                pinnedDependencies: Array(pinnedDepsByIdentity.values)
             )
         }
 
@@ -854,6 +1262,7 @@ public struct PackageSyncEngine: Sendable {
             sourcePackagesURL: sourcePackagesURL,
             toolchainHash: toolchain?.hash,
             harvestedCheckouts: harvestedCheckouts,
+            harvestedRepositories: harvestedRepositories,
             harvestedArtifacts: harvestedArtifacts,
             harvestedPrebuilts: harvestedPrebuilts,
             skippedItems: skippedItems,
@@ -968,9 +1377,10 @@ public struct PackageSyncEngine: Sendable {
             availablePrebuilts: availablePrebuilts
         )
 
+        let resolvedVersion = packageTemplates.values.compactMap(\.workspaceStateVersion).max() ?? 7
         let root: [String: Any] = [
             "object": object,
-            "version": 7
+            "version": resolvedVersion
         ]
         let rawData = try JSONSerialization.data(withJSONObject: root, options: [])
         let rewritten = try rewriteWorkspaceStateToTarget(
@@ -1329,16 +1739,47 @@ public struct PackageSyncEngine: Sendable {
         let updatedAt: Date
     }
 
-    private struct PackageTemplateRecord: Codable, Sendable {
-        let identity: String
-        let revision: String
-        let subpath: String?
-        let rawDependencyJSONBase64: String?
-        let artifacts: [ArtifactTemplateEntry]
-        let updatedAt: Date
+    public struct PackageTemplateRecord: Codable, Sendable {
+        public let identity: String
+        public let revision: String
+        public let version: String?
+        public let branch: String?
+        public let location: String?
+        public let subpath: String?
+        public let repositoryFolderName: String?
+        public let workspaceStateVersion: Int?
+        public let rawDependencyJSONBase64: String?
+        public let artifacts: [ArtifactTemplateEntry]
+        public let updatedAt: Date
+
+        public init(
+            identity: String,
+            revision: String,
+            version: String? = nil,
+            branch: String? = nil,
+            location: String? = nil,
+            subpath: String? = nil,
+            repositoryFolderName: String? = nil,
+            workspaceStateVersion: Int? = nil,
+            rawDependencyJSONBase64: String? = nil,
+            artifacts: [ArtifactTemplateEntry] = [],
+            updatedAt: Date = Date()
+        ) {
+            self.identity = identity
+            self.revision = revision
+            self.version = version
+            self.branch = branch
+            self.location = location
+            self.subpath = subpath
+            self.repositoryFolderName = repositoryFolderName
+            self.workspaceStateVersion = workspaceStateVersion
+            self.rawDependencyJSONBase64 = rawDependencyJSONBase64
+            self.artifacts = artifacts
+            self.updatedAt = updatedAt
+        }
     }
 
-    private struct ArtifactTemplateEntry: Codable, Sendable {
+    public struct ArtifactTemplateEntry: Codable, Sendable {
         let identity: String
         let targetName: String
         let checksum: String
@@ -1638,6 +2079,151 @@ public struct PackageSyncEngine: Sendable {
         case clean
         case dirty
         case timedOut
+    }
+
+    /// Loads all saved `PackageTemplateRecord` files from `~/.spmx/store/templates/packages/`.
+    public func loadAllPackageTemplates() -> [PackageTemplateRecord] {
+        (try? FileLock.withLock(at: templatesLockURL, timeout: store.lockTimeout) {
+            let dir = templatesDirectory.appendingPathComponent("packages")
+            guard isDirectory(at: dir),
+                  let files = try? fileManager.contentsOfDirectory(
+                      at: dir,
+                      includingPropertiesForKeys: nil,
+                      options: [.skipsHiddenFiles]
+                  ) else {
+                return []
+            }
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return files.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }).compactMap { url in
+                guard url.pathExtension == "json",
+                      let data = try? Data(contentsOf: url) else {
+                    return nil
+                }
+                return try? decoder.decode(PackageTemplateRecord.self, from: data)
+            }
+        }) ?? []
+    }
+
+    private func findRepositoryFolderName(forIdentity identity: String) -> String? {
+        let normalized = identity.lowercased()
+        let prefix = "\(sanitizeFilename(normalized))-"
+        return (try? FileLock.withLock(at: templatesLockURL, timeout: store.lockTimeout) {
+            let dir = templatesDirectory.appendingPathComponent("packages")
+            guard isDirectory(at: dir),
+                  let files = try? fileManager.contentsOfDirectory(
+                      at: dir,
+                      includingPropertiesForKeys: nil,
+                      options: [.skipsHiddenFiles]
+                  ) else {
+                return nil
+            }
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            for url in files where url.pathExtension == "json" && url.lastPathComponent.hasPrefix(prefix) {
+                if let data = try? Data(contentsOf: url),
+                   let record = try? decoder.decode(PackageTemplateRecord.self, from: data),
+                   record.identity.lowercased() == normalized,
+                   let repoFolder = record.repositoryFolderName,
+                   !repoFolder.isEmpty {
+                    return repoFolder
+                }
+            }
+            return nil
+        }) ?? nil
+    }
+
+    private func resolveRepositoryIdentity(
+        folderName: String,
+        repositoryURL: URL,
+        identityBySubpath: [String: String],
+        identityByLocation: [String: String],
+        timeout: TimeInterval?
+    ) -> String? {
+        let lowered = folderName.lowercased()
+        if let exact = identityBySubpath[lowered] {
+            return exact
+        }
+        // SwiftPM names bare repo folders `<name>-<8-char-hash>`.
+        if let lastDash = lowered.lastIndex(of: "-") {
+            let suffix = lowered[lowered.index(after: lastDash)...]
+            if suffix.count >= 6, suffix.allSatisfy(\.isHexDigit) {
+                let prefix = String(lowered[..<lastDash])
+                if let matched = identityBySubpath[prefix] {
+                    return matched
+                }
+            }
+        }
+        // Fall back to `git config --get remote.origin.url`.
+        var env = ProcessInfo.processInfo.environment
+        if env["GIT_TERMINAL_PROMPT"] == nil {
+            env["GIT_TERMINAL_PROMPT"] = "0"
+        }
+        if let result = try? CommandExecutor.run(
+            executablePath: "/usr/bin/git",
+            arguments: ["-C", repositoryURL.path, "config", "--get", "remote.origin.url"],
+            environment: env,
+            timeout: timeout
+        ), result.exitCode == 0 {
+            let remoteURL = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !remoteURL.isEmpty {
+                let normalizedRemote = Self.normalizeGitLocation(remoteURL)
+                if let matched = identityByLocation[normalizedRemote] {
+                    return matched
+                }
+                let lastComponent = URL(fileURLWithPath: remoteURL)
+                    .deletingPathExtension()
+                    .lastPathComponent
+                    .lowercased()
+                if let matched = identityBySubpath[lastComponent] {
+                    return matched
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func normalizeGitLocation(_ raw: String) -> String {
+        var normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized.hasSuffix("/") {
+            normalized.removeLast()
+        }
+        if normalized.hasSuffix(".git") {
+            normalized.removeLast(4)
+        }
+        return normalized
+    }
+
+    private func verifyGitHeadRevision(
+        at directoryURL: URL,
+        expectedRevision: String,
+        timeout: TimeInterval?,
+        verboseLogger: (@Sendable (String) -> Void)?
+    ) -> Bool {
+        let gitPath = directoryURL.appendingPathComponent(".git").path
+        guard fileManager.fileExists(atPath: gitPath) else {
+            return true
+        }
+        var env = ProcessInfo.processInfo.environment
+        if env["GIT_TERMINAL_PROMPT"] == nil {
+            env["GIT_TERMINAL_PROMPT"] = "0"
+        }
+        do {
+            let result = try CommandExecutor.run(
+                executablePath: "/usr/bin/git",
+                arguments: ["-C", directoryURL.path, "rev-parse", "HEAD"],
+                environment: env,
+                timeout: timeout
+            )
+            guard result.exitCode == 0 else { return true }
+            let actual = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let expected = expectedRevision.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !actual.isEmpty, !expected.isEmpty else { return true }
+            return actual == expected || actual.hasPrefix(expected) || expected.hasPrefix(actual)
+        } catch {
+            verboseLogger?("Warning: failed to verify git HEAD at '\(directoryURL.path)': \(error.localizedDescription)")
+            return true
+        }
     }
 
     private func checkGitWorkingTree(
