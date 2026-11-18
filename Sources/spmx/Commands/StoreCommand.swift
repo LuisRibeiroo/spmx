@@ -176,7 +176,10 @@ struct StoreCommand: ParsableCommand {
     struct Prune: ParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "prune",
-            abstract: "Remove stale projects, unreferenced store entries, and old compilation cache files."
+            abstract: "Remove stale projects, unreferenced store entries, and old compilation cache files, or configure automatic prune reminders.",
+            subcommands: [
+                PruneAutoCommand.self
+            ]
         )
 
         @Flag(
@@ -191,45 +194,56 @@ struct StoreCommand: ParsableCommand {
         )
         var olderThan: Int = 30
 
+        @Option(
+            name: .long,
+            help: "Configure the automatic prune reminder interval in days (default: 30; 0 disables)."
+        )
+        var autoEvery: Int?
+
+        @Flag(
+            name: .long,
+            help: "Enable automatic prune reminders on explicit spmx commands."
+        )
+        var enableAuto: Bool = false
+
+        @Flag(
+            name: .long,
+            help: "Disable automatic prune reminders."
+        )
+        var disableAuto: Bool = false
+
+        @Flag(
+            name: .long,
+            help: "Show current automatic prune configuration and last prune timestamp without pruning."
+        )
+        var status: Bool = false
+
+        @Flag(
+            name: .long,
+            help: "Output machine-readable JSON."
+        )
+        var json: Bool = false
+
         func validate() throws {
-            if olderThan < 0 {
-                throw ValidationError("--older-than must be zero or greater.")
-            }
+            try PruneRunner.validate(
+                olderThan: olderThan,
+                autoEvery: autoEvery,
+                enableAuto: enableAuto,
+                disableAuto: disableAuto
+            )
         }
 
         func run() throws {
-            let startedAt = Date()
-            let style = TerminalStyle.stdout
-            let report = try StoreManager().prune(
-                options: PruneOptions(dryRun: dryRun, olderThanDays: olderThan)
+            try PruneRunner.execute(
+                commandName: "spmx store prune",
+                dryRun: dryRun,
+                olderThan: olderThan,
+                autoEvery: autoEvery,
+                enableAuto: enableAuto,
+                disableAuto: disableAuto,
+                statusOnly: status,
+                json: json
             )
-            let prefix = report.dryRun ? "\(style.dryRunBadge()) " : ""
-            print("\(prefix)\(style.heading("spmx store prune")) \(style.gray("(older than \(olderThan) day(s))"))")
-            print("")
-            print("  \(style.gray("Missing projects removed:"))   \(style.primaryBold("\(report.removedMissingProjects.count)"))")
-            for path in report.removedMissingProjects {
-                print("    \(style.removeIcon) \(style.gray(path))")
-            }
-            print("  \(style.gray("Unreferenced checkouts:"))     \(style.primaryBold("\(report.removedCheckouts.count)"))")
-            for path in report.removedCheckouts {
-                print("    \(style.removeIcon) \(style.gray(path))")
-            }
-            print("  \(style.gray("Unreferenced artifacts:"))     \(style.primaryBold("\(report.removedArtifacts.count)"))")
-            for path in report.removedArtifacts {
-                print("    \(style.removeIcon) \(style.gray(path))")
-            }
-            print("  \(style.gray("Unreferenced prebuilts:"))     \(style.primaryBold("\(report.removedPrebuilts.count)"))")
-            for path in report.removedPrebuilts {
-                print("    \(style.removeIcon) \(style.gray(path))")
-            }
-            print("  \(style.gray("Compilation cache entries:"))  \(style.primaryBold("\(report.removedCompilationCacheEntries.count)"))")
-            for path in report.removedCompilationCacheEntries {
-                print("    \(style.removeIcon) \(style.gray(path))")
-            }
-            print("")
-            let verb = report.dryRun ? "Would reclaim" : "Reclaimed"
-            print("  \(style.bold("\(verb):")) \(style.green(style.bold(formatBytes(report.reclaimedBytes))))")
-            print(style.doneIn(seconds: Date().timeIntervalSince(startedAt)))
         }
     }
 

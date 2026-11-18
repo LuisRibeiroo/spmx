@@ -139,11 +139,31 @@ public struct StoreIndex: Codable, Equatable, Sendable {
         }
     }
 
+    /// Configuration and state for periodic automatic store prune reminders.
+    public struct AutoPruneConfig: Codable, Equatable, Sendable {
+        public static let defaultIntervalDays = 30
+
+        public var enabled: Bool
+        public var intervalDays: Int
+        public var lastPrunedAt: Date?
+
+        public init(
+            enabled: Bool = false,
+            intervalDays: Int = AutoPruneConfig.defaultIntervalDays,
+            lastPrunedAt: Date? = nil
+        ) {
+            self.enabled = enabled
+            self.intervalDays = max(1, intervalDays)
+            self.lastPrunedAt = lastPrunedAt
+        }
+    }
+
     public var schemaVersion: Int
     public var projects: [String: RegisteredProject]
     public var toolchains: [String: ToolchainRecord]
     public var flutterResolvedCache: [String: FlutterResolvedCacheEntry]
     public var excludedProjects: [String: ExcludedProjectRecord]
+    public var autoPrune: AutoPruneConfig
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion
@@ -151,6 +171,7 @@ public struct StoreIndex: Codable, Equatable, Sendable {
         case toolchains
         case flutterResolvedCache
         case excludedProjects
+        case autoPrune
     }
 
     public init(
@@ -158,13 +179,15 @@ public struct StoreIndex: Codable, Equatable, Sendable {
         projects: [String: RegisteredProject] = [:],
         toolchains: [String: ToolchainRecord] = [:],
         flutterResolvedCache: [String: FlutterResolvedCacheEntry] = [:],
-        excludedProjects: [String: ExcludedProjectRecord] = [:]
+        excludedProjects: [String: ExcludedProjectRecord] = [:],
+        autoPrune: AutoPruneConfig = AutoPruneConfig()
     ) {
         self.schemaVersion = schemaVersion
         self.projects = projects
         self.toolchains = toolchains
         self.flutterResolvedCache = flutterResolvedCache
         self.excludedProjects = excludedProjects
+        self.autoPrune = autoPrune
     }
 
     public init(from decoder: Decoder) throws {
@@ -174,6 +197,7 @@ public struct StoreIndex: Codable, Equatable, Sendable {
         toolchains = try container.decodeIfPresent([String: ToolchainRecord].self, forKey: .toolchains) ?? [:]
         flutterResolvedCache = try container.decodeIfPresent([String: FlutterResolvedCacheEntry].self, forKey: .flutterResolvedCache) ?? [:]
         excludedProjects = try container.decodeIfPresent([String: ExcludedProjectRecord].self, forKey: .excludedProjects) ?? [:]
+        autoPrune = try container.decodeIfPresent(AutoPruneConfig.self, forKey: .autoPrune) ?? AutoPruneConfig()
     }
 }
 
@@ -632,6 +656,38 @@ public struct GlobalStore: Sendable {
             removed = index.excludedProjects.removeValue(forKey: canonical) != nil
         }
         return removed
+    }
+
+    /// Updates automatic prune reminder settings in `index.json`.
+    @discardableResult
+    public func configureAutoPrune(
+        enabled: Bool? = nil,
+        intervalDays: Int? = nil,
+        lastPrunedAt: Date? = nil
+    ) throws -> StoreIndex.AutoPruneConfig {
+        let updated = try updateIndex { index in
+            if let enabled {
+                index.autoPrune.enabled = enabled
+            }
+            if let intervalDays {
+                if intervalDays <= 0 {
+                    index.autoPrune.enabled = false
+                } else {
+                    index.autoPrune.intervalDays = intervalDays
+                }
+            }
+            if let lastPrunedAt {
+                index.autoPrune.lastPrunedAt = lastPrunedAt
+            }
+        }
+        return updated.autoPrune
+    }
+
+    /// Records the timestamp of a completed prune run in `index.json`.
+    public func recordPruneRun(at timestamp: Date = Date()) throws {
+        try updateIndex { index in
+            index.autoPrune.lastPrunedAt = timestamp
+        }
     }
 
     /// Returns `true` when the project at `path` is excluded via `excludedProjects` or a `.spmxignore` marker file.

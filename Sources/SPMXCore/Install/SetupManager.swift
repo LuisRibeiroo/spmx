@@ -161,6 +161,8 @@ public struct SetupResult: Sendable, Equatable {
         lines.append("  \(style.tip("›")) \(style.tip("Git Hooks (disabled by default): spmx never modifies your Git hooks without consent."))")
         lines.append("    \(style.formatInlineCode("Pre-warm SourcePackages on `git worktree add` (even before opening Xcode GUI):", baseCodes: ["90", "3"], codeCodes: ["90", "1"]))")
         lines.append("      \(style.tipCommand("`spmx hooks enable --global`"))")
+        lines.append("  \(style.tip("›")) \(style.tip("Auto-Prune (disabled by default): remind to clean unused packages every 30 days:"))")
+        lines.append("      \(style.tipCommand("`spmx prune auto enable`"))")
         lines.append("  \(style.tip("›")) \(style.tip("Verify your environment anytime with:")) \(style.tipCommand("`spmx doctor`"))")
 
         return lines.joined(separator: "\n")

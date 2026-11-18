@@ -1,4 +1,5 @@
 import ArgumentParser
+import Darwin
 import Foundation
 import SPMXCore
 
@@ -9,8 +10,17 @@ enum SPMXEntrypoint {
         let role = ShimRole.detect(argv0: argv0)
 
         if role == .spmx {
-            SPMXCommand.main()
-            return
+            let args = Array(CommandLine.arguments.dropFirst())
+            do {
+                var command = try SPMXCommand.parseAsRoot(args)
+                try command.run()
+                if shouldOfferInteractiveAutoPrune(arguments: args) {
+                    _ = try? StoreManager().runInteractiveAutoPruneIfDue()
+                }
+                Foundation.exit(0)
+            } catch {
+                SPMXCommand.exit(withError: error)
+            }
         }
 
         let env = ProcessInfo.processInfo.environment
@@ -47,7 +57,7 @@ struct SPMXCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "spmx",
         abstract: "Performant Swift Package Manager — global APFS CoW store and transparent shims for Swift & Flutter.",
-        version: "0.2.2",
+        version: "0.2.3",
         subcommands: [
             DerivedDataPathCommand.self,
             HydrateCommand.self,
@@ -57,6 +67,7 @@ struct SPMXCommand: ParsableCommand {
             UnlinkCommand.self,
             MigrateCommand.self,
             StoreCommand.self,
+            PruneCommand.self,
             StatusCommand.self,
             DoctorCommand.self,
             HooksCommand.self,
@@ -65,4 +76,31 @@ struct SPMXCommand: ParsableCommand {
             UninstallCommand.self
         ]
     )
+}
+
+func shouldOfferInteractiveAutoPrune(
+    arguments: [String],
+    isInteractiveTTY: Bool = (isatty(STDIN_FILENO) != 0 && isatty(STDOUT_FILENO) != 0)
+) -> Bool {
+    guard isInteractiveTTY else { return false }
+    let nonFlagArgs = arguments.filter { !$0.hasPrefix("-") }
+    guard let firstCommand = nonFlagArgs.first?.lowercased() else { return false }
+
+    // Skip when running prune itself, uninstall, or raw path-output commands
+    if firstCommand == "prune" || firstCommand == "uninstall" || firstCommand == "derived-data-path" {
+        return false
+    }
+    if firstCommand == "store" {
+        let sub = nonFlagArgs.dropFirst().first?.lowercased()
+        if sub == "prune" || sub == "path" {
+            return false
+        }
+    }
+
+    let suppressedFlags: Set<String> = ["--json", "-q", "--quiet", "-h", "--help", "--version"]
+    if arguments.contains(where: { suppressedFlags.contains($0.lowercased()) }) {
+        return false
+    }
+
+    return true
 }

@@ -255,6 +255,98 @@ struct StoreAndDoctorTests {
         let updatedIndex = try store.readIndex()
         #expect(updatedIndex.projects.count == 1)
         #expect(updatedIndex.projects[activeProject.standardizedFileURL.path] != nil)
+        let recordedPrunedAt = try #require(updatedIndex.autoPrune.lastPrunedAt)
+        #expect(abs(recordedPrunedAt.timeIntervalSince(now)) < 1.0)
+    }
+
+    @Test("Auto-prune configuration, due evaluation, and interactive prompt (direct default, dry-run preview, and skip)")
+    func autoPruneEvaluationAndInteractiveFlow() throws {
+        let tmp = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let storeRoot = tmp.appendingPathComponent(".spmx/store")
+        let cacheRoot = tmp.appendingPathComponent(".spmx/compilation-cache")
+        let store = GlobalStore(rootURL: storeRoot)
+        try store.ensureLayout()
+        try FileManager.default.createDirectory(at: cacheRoot, withIntermediateDirectories: true)
+
+        let now = Date()
+        let thirtyFiveDaysAgo = now.addingTimeInterval(-35 * 86_400)
+
+        // Seed an unreferenced checkout older than 30 days
+        try store.storeCheckout(
+            from: try makePayloadDir(in: tmp, name: "stale-pkg-src", bytes: 2048),
+            identity: "stale-pkg",
+            revision: "rev-stale"
+        )
+        let staleCheckoutURL = try store.checkoutURL(identity: "stale-pkg", revision: "rev-stale")
+        try FileManager.default.setAttributes([.modificationDate: thirtyFiveDaysAgo], ofItemAtPath: staleCheckoutURL.path)
+
+        // 0. Disabled by default (opt-in)
+        let freshStore = GlobalStore(rootURL: tmp.appendingPathComponent(".spmx/fresh-store"))
+        try freshStore.ensureLayout()
+        _ = try freshStore.registerProject(at: tmp.path, timestamp: thirtyFiveDaysAgo)
+        let freshManager = StoreManager(store: freshStore, compilationCacheURL: cacheRoot, homeDirectory: tmp)
+        let defaultEval = try freshManager.evaluateAutoPrune(now: now, environment: [:])
+        #expect(defaultEval.enabled == false)
+        #expect(defaultEval.intervalDays == 30)
+        #expect(defaultEval.isDue == false)
+
+        // Configure auto-prune with lastPrunedAt = 35 days ago, interval = 30 days
+        _ = try store.configureAutoPrune(enabled: true, intervalDays: 30, lastPrunedAt: thirtyFiveDaysAgo)
+
+        let manager = StoreManager(store: store, compilationCacheURL: cacheRoot, homeDirectory: tmp)
+
+        // 1. Evaluation is due (35 >= 30)
+        let evalDue = try manager.evaluateAutoPrune(now: now, environment: [:])
+        #expect(evalDue.enabled == true)
+        #expect(evalDue.intervalDays == 30)
+        #expect(evalDue.daysSinceLastPrune == 35)
+        #expect(evalDue.isDue == true)
+
+        // 2. SPMX_AUTO_PRUNE_DAYS=0 disables reminder
+        let evalDisabledEnv = try manager.evaluateAutoPrune(now: now, environment: ["SPMX_AUTO_PRUNE_DAYS": "0"])
+        #expect(evalDisabledEnv.enabled == false)
+        #expect(evalDisabledEnv.isDue == false)
+
+        // 3. Interactive prompt: "d" (dry-run preview) -> "n" (skip applying)
+        var inputs = ["d", "n"]
+        var capturedOutput = ""
+        let previewSkipped = try manager.runInteractiveAutoPruneIfDue(
+            now: now,
+            environment: [:],
+            style: .plain,
+            inputReader: { inputs.isEmpty ? nil : inputs.removeFirst() },
+            outputWriter: { capturedOutput += $0 }
+        )
+        if case .previewedAndSkipped(let preview) = previewSkipped {
+            #expect(preview.reclaimedBytes == 2048)
+        } else {
+            Issue.record("Expected .previewedAndSkipped, got \(previewSkipped)")
+        }
+        #expect(capturedOutput.contains("35 day(s) ago"))
+        #expect(capturedOutput.contains("not in use by any current project"))
+        #expect(FileManager.default.fileExists(atPath: staleCheckoutURL.path))
+
+        // 4. Interactive prompt: "" (Enter -> default direct run)
+        let directOutcome = try manager.runInteractiveAutoPruneIfDue(
+            now: now,
+            environment: [:],
+            style: .plain,
+            inputReader: { "" },
+            outputWriter: { _ in }
+        )
+        if case .prunedDirectly(let report) = directOutcome {
+            #expect(report.reclaimedBytes == 2048)
+        } else {
+            Issue.record("Expected .prunedDirectly, got \(directOutcome)")
+        }
+        #expect(!FileManager.default.fileExists(atPath: staleCheckoutURL.path))
+
+        // 5. After pruning, lastPrunedAt is updated to `now` so evaluation is no longer due
+        let evalAfter = try manager.evaluateAutoPrune(now: now, environment: [:])
+        #expect(evalAfter.isDue == false)
+        #expect(evalAfter.daysSinceLastPrune == 0)
     }
 
     // MARK: - ProjectStatusInspector

@@ -174,6 +174,7 @@ struct SetupManagerTests {
         #expect(banner.contains("disabled by default"))
         #expect(banner.contains("spmx hooks enable --global"))
         #expect(banner.contains("git worktree add"))
+        #expect(banner.contains("spmx prune auto enable"))
         #expect(banner.contains(result.activationCommand))
 
         let ansiBanner = result.summaryBanner(style: .ansi)

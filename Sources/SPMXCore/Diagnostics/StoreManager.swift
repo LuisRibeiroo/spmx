@@ -180,7 +180,7 @@ public struct PruneOptions: Sendable, Equatable {
 }
 
 /// Summary of entries removed (or slated for removal in `--dry-run`) by `StoreManager.prune(options:)`.
-public struct PruneReport: Sendable, Equatable {
+public struct PruneReport: Sendable, Equatable, Codable {
     public let dryRun: Bool
     public let removedMissingProjects: [String]
     public let removedCheckouts: [String]
@@ -188,6 +188,14 @@ public struct PruneReport: Sendable, Equatable {
     public let removedPrebuilts: [String]
     public let removedCompilationCacheEntries: [String]
     public let reclaimedBytes: UInt64
+
+    public var totalRemovedCount: Int {
+        removedMissingProjects.count
+            + removedCheckouts.count
+            + removedArtifacts.count
+            + removedPrebuilts.count
+            + removedCompilationCacheEntries.count
+    }
 
     public init(
         dryRun: Bool,
@@ -206,6 +214,41 @@ public struct PruneReport: Sendable, Equatable {
         self.removedCompilationCacheEntries = removedCompilationCacheEntries
         self.reclaimedBytes = reclaimedBytes
     }
+}
+
+/// Result of evaluating whether a periodic automatic prune reminder is due.
+public struct AutoPruneEvaluation: Sendable, Equatable, Codable {
+    public let enabled: Bool
+    public let intervalDays: Int
+    public let lastPrunedAt: Date?
+    public let referenceDate: Date?
+    public let daysSinceLastPrune: Int?
+    public let isDue: Bool
+
+    public init(
+        enabled: Bool,
+        intervalDays: Int,
+        lastPrunedAt: Date?,
+        referenceDate: Date?,
+        daysSinceLastPrune: Int?,
+        isDue: Bool
+    ) {
+        self.enabled = enabled
+        self.intervalDays = intervalDays
+        self.lastPrunedAt = lastPrunedAt
+        self.referenceDate = referenceDate
+        self.daysSinceLastPrune = daysSinceLastPrune
+        self.isDue = isDue
+    }
+}
+
+/// Outcome of an interactive periodic prune reminder prompt.
+public enum AutoPrunePromptOutcome: Sendable, Equatable {
+    case notDue
+    case skipped
+    case prunedDirectly(PruneReport)
+    case previewedAndPruned(preview: PruneReport, applied: PruneReport)
+    case previewedAndSkipped(preview: PruneReport)
 }
 
 /// Manages inspection and garbage collection for the global `spmx` store and compilation cache.
@@ -439,11 +482,12 @@ public struct StoreManager: Sendable {
             }
         }
 
-        if !options.dryRun && !missingProjectKeys.isEmpty && storeExists {
+        if !options.dryRun && storeExists {
             try store.updateIndex { mutableIndex in
                 for key in missingProjectKeys {
                     mutableIndex.projects.removeValue(forKey: key)
                 }
+                mutableIndex.autoPrune.lastPrunedAt = options.now
             }
         }
 
@@ -534,6 +578,133 @@ public struct StoreManager: Sendable {
             removedCompilationCacheEntries: removedCacheEntries.sorted(),
             reclaimedBytes: reclaimedBytes
         )
+    }
+
+    // MARK: - Periodic Auto-Prune Reminder
+
+    public static let autoPruneDaysEnvironmentKey = "SPMX_AUTO_PRUNE_DAYS"
+
+    /// Evaluates whether the periodic store prune reminder is due based on `index.json` (`autoPrune`)
+    /// and optional `SPMX_AUTO_PRUNE_DAYS` override.
+    public func evaluateAutoPrune(
+        now: Date = Date(),
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) throws -> AutoPruneEvaluation {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: store.indexURL.path) else {
+            var enabled = false
+            var intervalDays = StoreIndex.AutoPruneConfig.defaultIntervalDays
+            if let rawEnv = environment[Self.autoPruneDaysEnvironmentKey]?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               let parsedDays = Int(rawEnv),
+               parsedDays > 0 {
+                enabled = true
+                intervalDays = parsedDays
+            }
+            return AutoPruneEvaluation(
+                enabled: enabled,
+                intervalDays: intervalDays,
+                lastPrunedAt: nil,
+                referenceDate: nil,
+                daysSinceLastPrune: nil,
+                isDue: false
+            )
+        }
+
+        let index = try store.readIndex()
+        var enabled = index.autoPrune.enabled
+        var intervalDays = max(1, index.autoPrune.intervalDays)
+
+        if let rawEnv = environment[Self.autoPruneDaysEnvironmentKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           let parsedDays = Int(rawEnv) {
+            if parsedDays <= 0 {
+                enabled = false
+            } else {
+                enabled = true
+                intervalDays = parsedDays
+            }
+        }
+
+        let referenceDate = index.autoPrune.lastPrunedAt
+            ?? index.projects.values.map(\.registeredAt).min()
+
+        guard let referenceDate else {
+            return AutoPruneEvaluation(
+                enabled: enabled,
+                intervalDays: intervalDays,
+                lastPrunedAt: index.autoPrune.lastPrunedAt,
+                referenceDate: nil,
+                daysSinceLastPrune: nil,
+                isDue: false
+            )
+        }
+
+        let elapsedSeconds = max(0, now.timeIntervalSince(referenceDate))
+        let daysElapsed = Int(floor(elapsedSeconds / 86_400.0))
+        let isDue = enabled && (daysElapsed >= intervalDays)
+
+        return AutoPruneEvaluation(
+            enabled: enabled,
+            intervalDays: intervalDays,
+            lastPrunedAt: index.autoPrune.lastPrunedAt,
+            referenceDate: referenceDate,
+            daysSinceLastPrune: daysElapsed,
+            isDue: isDue
+        )
+    }
+
+    /// Checks if periodic prune is due and prompts the user to run prune directly (default),
+    /// preview reclaimable space first (`--dry-run`), or skip.
+    @discardableResult
+    public func runInteractiveAutoPruneIfDue(
+        now: Date = Date(),
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        style: TerminalStyle = .stdout,
+        inputReader: () -> String? = { readLine() },
+        outputWriter: (String) -> Void = { fputs($0, Darwin.stdout); fflush(Darwin.stdout) }
+    ) throws -> AutoPrunePromptOutcome {
+        let evaluation = try evaluateAutoPrune(now: now, environment: environment)
+        guard evaluation.isDue else {
+            return .notDue
+        }
+
+        let days = evaluation.daysSinceLastPrune ?? evaluation.intervalDays
+        outputWriter("\n")
+        outputWriter("  \(style.warningIcon) \(style.yellow(style.bold("Store prune reminder:"))) last prune was \(style.bold("\(days) day(s) ago")) \(style.gray("(configured every \(evaluation.intervalDays) day(s))")).\n")
+        outputWriter("  \(style.tip("›")) \(style.tip("Pruning removes cached package versions and compilation cache entries not in use by any current project."))\n")
+        outputWriter("  Run prune now, preview reclaimable space first, or skip? [Y/d/n] \(style.gray("(Y = run now, d = dry-run preview, n = skip)")): ")
+
+        let rawChoice = (inputReader() ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        if rawChoice.isEmpty || rawChoice == "y" || rawChoice == "yes" || rawChoice == "1" {
+            let report = try prune(options: PruneOptions(dryRun: false, olderThanDays: evaluation.intervalDays, now: now))
+            let sizeText = DiagnosticsSupport.formatBytes(report.reclaimedBytes)
+            outputWriter("  \(style.successIcon) \(style.bold("Prune complete:")) reclaimed \(style.green(style.bold(sizeText))) \(style.gray("(\(report.totalRemovedCount) item(s) removed)")).\n")
+            return .prunedDirectly(report)
+        }
+
+        if rawChoice == "d" || rawChoice == "dry" || rawChoice == "dry-run" || rawChoice == "preview" || rawChoice == "v" || rawChoice == "2" {
+            let preview = try prune(options: PruneOptions(dryRun: true, olderThanDays: evaluation.intervalDays, now: now))
+            let previewSize = DiagnosticsSupport.formatBytes(preview.reclaimedBytes)
+            outputWriter("  \(style.dryRunBadge()) Would remove \(preview.removedCheckouts.count) checkout(s), \(preview.removedArtifacts.count) artifact(s), \(preview.removedPrebuilts.count) prebuilt(s), \(preview.removedCompilationCacheEntries.count) compilation-cache file(s), and \(preview.removedMissingProjects.count) missing project(s).\n")
+            outputWriter("  \(style.bold("Would reclaim:")) \(style.green(style.bold(previewSize)))\n")
+            outputWriter("  Execute prune now and reclaim \(previewSize)? [Y/n]: ")
+
+            let confirmChoice = (inputReader() ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if confirmChoice.isEmpty || confirmChoice == "y" || confirmChoice == "yes" {
+                let applied = try prune(options: PruneOptions(dryRun: false, olderThanDays: evaluation.intervalDays, now: now))
+                let appliedSize = DiagnosticsSupport.formatBytes(applied.reclaimedBytes)
+                outputWriter("  \(style.successIcon) \(style.bold("Prune complete:")) reclaimed \(style.green(style.bold(appliedSize))).\n")
+                return .previewedAndPruned(preview: preview, applied: applied)
+            } else {
+                outputWriter("  \(style.gray("◦")) \(style.gray("Skipped prune."))\n")
+                return .previewedAndSkipped(preview: preview)
+            }
+        }
+
+        outputWriter("  \(style.gray("◦")) \(style.gray("Skipped prune (run `spmx prune` anytime)."))\n")
+        return .skipped
     }
 
     // MARK: - Store Scanning
