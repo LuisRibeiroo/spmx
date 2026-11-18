@@ -1,6 +1,6 @@
 ---
 title: spmx doctor
-description: Diagnose APFS, the Xcode and Swift toolchain, PATH shims, store integrity and Git hooks.
+description: Diagnose spmx version, APFS, the Xcode and Swift toolchain, PATH shims, store integrity and Git hooks.
 ---
 
 ```bash
@@ -9,6 +9,7 @@ spmx doctor
 
 Runs a series of checks and prints PASS, WARN or FAIL for each:
 
+- `spmx` version is up to date with the latest release and matches `~/.spmx/bin/spmx`
 - the store volume is APFS, so clones are zero-copy
 - Xcode and `xcodebuild` are present
 - the active Swift supports the LLVM CAS compilation cache
@@ -20,11 +21,12 @@ Runs a series of checks and prints PASS, WARN or FAIL for each:
 ```text
 $ spmx doctor
 spmx doctor
+  [✓ PASS] spmx Version: spmx v0.2.2 is up to date (latest: v0.2.2).
   [✓ PASS] APFS Filesystem: Store volume uses APFS; zero-copy clonefile() CoW is enabled.
   [✓ PASS] Xcode / xcodebuild: Detected Xcode 27.2 / Build version 27B52.
   [✓ PASS] PATH Shims Ordering: ~/.spmx/shims precedes flutter, xcodebuild, and swift in PATH.
   ...
-Summary: 7 passed, 0 warning(s), 0 failure(s).
+Summary: 8 passed, 0 warning(s), 0 failure(s).
 ```
 
 If a check fails, see [Troubleshooting](/docs/troubleshooting).

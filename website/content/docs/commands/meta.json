@@ -10,6 +10,7 @@
     "store",
     "status",
     "doctor",
+    "upgrade",
     "hooks",
     "derived-data-path",
     "uninstall"

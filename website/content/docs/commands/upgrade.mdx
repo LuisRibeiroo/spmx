@@ -1,0 +1,35 @@
+---
+title: spmx upgrade
+description: Check for a newer spmx release and update your local installation in place.
+---
+
+Checks GitHub Releases for a newer version of `spmx`, verifies the release archive SHA-256 checksum, and updates `~/.spmx/bin/spmx` and the PATH shims in place.
+
+## Usage
+
+```bash
+spmx upgrade [flags]
+```
+
+## Flags
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--check` | `false` | Check whether a newer version is available without downloading or modifying disk. |
+| `-f`, `--force` | `false` | Reinstall even if already on the latest version. |
+| `--version <tag>` | `latest` | Install a specific semantic version or release tag (for example, `0.2.2` or `v0.2.2`). |
+| `--no-modify-path` | `false` | Do not modify shell profile files (`~/.zshrc`, `~/.bashrc`, `~/.config/fish/config.fish`). |
+| `--json` | `false` | Output machine-readable JSON. |
+
+## Examples
+
+```bash
+# Check for updates and upgrade to the latest release
+spmx upgrade
+
+# Only check whether an update is available
+spmx upgrade --check
+
+# Reinstall or pin a specific version
+spmx upgrade --version v0.2.2 --force
+```
