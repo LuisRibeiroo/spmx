@@ -5,7 +5,7 @@ import SPMXCore
 struct DoctorCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "doctor",
-        abstract: "Diagnose APFS support, Xcode/Swift toolchain, PATH shims, store integrity, and Git hooks."
+        abstract: "Diagnose spmx version, APFS support, Xcode/Swift toolchain, PATH shims, store integrity, and Git hooks."
     )
 
     func run() throws {

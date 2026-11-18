@@ -381,8 +381,124 @@ struct StoreAndDoctorTests {
         let report = doctor.run()
         #expect(!report.hasFailures)
         #expect(!report.hasWarnings)
-        #expect(report.checks.count == 7)
+        #expect(report.checks.count == 8)
         #expect(report.checks.allSatisfy { $0.severity == .pass })
+    }
+
+    @Test("DoctorDiagnostics validates spmx version against latest release and installed ~/.spmx/bin/spmx")
+    func doctorDiagnosticsVersionValidation() throws {
+        let tmp = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let storeRoot = tmp.appendingPathComponent(".spmx/store")
+        let cacheRoot = tmp.appendingPathComponent(".spmx/compilation-cache")
+        let shimsDir = tmp.appendingPathComponent(".spmx/shims")
+        let installedBin = tmp.appendingPathComponent(".spmx/bin/spmx")
+        let store = GlobalStore(rootURL: storeRoot)
+        try store.ensureLayout()
+        try FileManager.default.createDirectory(at: cacheRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: shimsDir, withIntermediateDirectories: true)
+
+        var executablePaths: Set<String> = [installedBin.path]
+        for tool in SetupManager.shimNames {
+            executablePaths.insert(shimsDir.appendingPathComponent(tool).path)
+        }
+        let allowedExecs = executablePaths
+
+        // 1. Outdated version relative to upstream latest release
+        let outdatedDoctor = DoctorDiagnostics(
+            store: store,
+            compilationCacheURL: cacheRoot,
+            homeDirectory: tmp,
+            workingDirectory: tmp.path,
+            environment: ["PATH": "\(shimsDir.path):/usr/bin"],
+            commandRunner: { executable, _ in
+                switch executable {
+                case "xcodebuild":
+                    return CommandResult(exitCode: 0, stdout: "Xcode 16.2\n")
+                case "swift":
+                    return CommandResult(exitCode: 0, stdout: "Apple Swift version 6.0.3\n")
+                case installedBin.path:
+                    return CommandResult(exitCode: 0, stdout: "0.2.1\n")
+                default:
+                    return CommandResult(exitCode: 1, stdout: "")
+                }
+            },
+            gitHooksManager: GitHooksManager(gitRunner: StubGitRunner(), homeDirectory: tmp),
+            fileSystemTypeProvider: { _ in "apfs" },
+            executableChecker: { allowedExecs.contains($0) },
+            currentVersion: "0.2.1",
+            latestVersionProvider: { "0.2.2" }
+        )
+
+        let outdatedReport = outdatedDoctor.run()
+        let outdatedCheck = try #require(outdatedReport.checks.first { $0.name == "spmx Version" })
+        #expect(outdatedCheck.severity == .warn)
+        #expect(outdatedCheck.summary.contains("0.2.1"))
+        #expect(outdatedCheck.summary.contains("0.2.2"))
+        #expect(outdatedCheck.remediation?.contains("spmx upgrade") == true)
+
+        // 2. Installed binary ~/.spmx/bin/spmx is out of sync with running binary
+        let mismatchedDoctor = DoctorDiagnostics(
+            store: store,
+            compilationCacheURL: cacheRoot,
+            homeDirectory: tmp,
+            workingDirectory: tmp.path,
+            environment: ["PATH": "\(shimsDir.path):/usr/bin"],
+            commandRunner: { executable, _ in
+                switch executable {
+                case "xcodebuild":
+                    return CommandResult(exitCode: 0, stdout: "Xcode 16.2\n")
+                case "swift":
+                    return CommandResult(exitCode: 0, stdout: "Apple Swift version 6.0.3\n")
+                case installedBin.path:
+                    return CommandResult(exitCode: 0, stdout: "0.2.0\n")
+                default:
+                    return CommandResult(exitCode: 1, stdout: "")
+                }
+            },
+            gitHooksManager: GitHooksManager(gitRunner: StubGitRunner(), homeDirectory: tmp),
+            fileSystemTypeProvider: { _ in "apfs" },
+            executableChecker: { allowedExecs.contains($0) },
+            currentVersion: "0.2.2",
+            latestVersionProvider: { "0.2.2" }
+        )
+
+        let mismatchedReport = mismatchedDoctor.run()
+        let mismatchedCheck = try #require(mismatchedReport.checks.first { $0.name == "spmx Version" })
+        #expect(mismatchedCheck.severity == .warn)
+        #expect(mismatchedCheck.summary.contains("0.2.0"))
+
+        // 3. Up to date and synced
+        let currentDoctor = DoctorDiagnostics(
+            store: store,
+            compilationCacheURL: cacheRoot,
+            homeDirectory: tmp,
+            workingDirectory: tmp.path,
+            environment: ["PATH": "\(shimsDir.path):/usr/bin"],
+            commandRunner: { executable, _ in
+                switch executable {
+                case "xcodebuild":
+                    return CommandResult(exitCode: 0, stdout: "Xcode 16.2\n")
+                case "swift":
+                    return CommandResult(exitCode: 0, stdout: "Apple Swift version 6.0.3\n")
+                case installedBin.path:
+                    return CommandResult(exitCode: 0, stdout: "0.2.2\n")
+                default:
+                    return CommandResult(exitCode: 1, stdout: "")
+                }
+            },
+            gitHooksManager: GitHooksManager(gitRunner: StubGitRunner(), homeDirectory: tmp),
+            fileSystemTypeProvider: { _ in "apfs" },
+            executableChecker: { allowedExecs.contains($0) },
+            currentVersion: "0.2.2",
+            latestVersionProvider: { "0.2.2" }
+        )
+
+        let currentReport = currentDoctor.run()
+        let currentCheck = try #require(currentReport.checks.first { $0.name == "spmx Version" })
+        #expect(currentCheck.severity == .pass)
+        #expect(currentCheck.summary.contains("up to date"))
     }
 
     @Test("DoctorDiagnostics detects shadowed PATH order, non-APFS volume, old Swift CAS gap, puro/fvm, and corrupted store")

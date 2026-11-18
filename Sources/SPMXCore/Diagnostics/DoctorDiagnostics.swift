@@ -56,11 +56,12 @@ public struct DoctorReport: Sendable, Equatable {
     }
 }
 
-/// Runs environment, filesystem, toolchain, PATH shim, store integrity, and Git hooks diagnostics.
+/// Runs version, environment, filesystem, toolchain, PATH shim, store integrity, and Git hooks diagnostics.
 public struct DoctorDiagnostics: Sendable {
     public typealias CommandRunner = ToolchainFingerprint.CommandRunner
     public typealias FileSystemTypeProvider = @Sendable (URL) -> String?
     public typealias ExecutableChecker = @Sendable (String) -> Bool
+    public typealias LatestVersionProvider = @Sendable () -> String?
 
     private let store: GlobalStore
     private let compilationCacheURL: URL
@@ -71,6 +72,8 @@ public struct DoctorDiagnostics: Sendable {
     private let gitHooksManager: GitHooksManager
     private let fileSystemTypeProvider: FileSystemTypeProvider
     private let executableChecker: ExecutableChecker
+    private let currentVersion: String
+    private let latestVersionProvider: LatestVersionProvider
 
     public init(
         store: GlobalStore = GlobalStore(),
@@ -81,10 +84,13 @@ public struct DoctorDiagnostics: Sendable {
         commandRunner: @escaping CommandRunner = ToolchainFingerprint.defaultCommandRunner,
         gitHooksManager: GitHooksManager? = nil,
         fileSystemTypeProvider: @escaping FileSystemTypeProvider = APFSCloner.fileSystemTypeName(at:),
-        executableChecker: @escaping ExecutableChecker = { FileManager.default.isExecutableFile(atPath: $0) }
+        executableChecker: @escaping ExecutableChecker = { FileManager.default.isExecutableFile(atPath: $0) },
+        currentVersion: String = SPMXVersion.current,
+        latestVersionProvider: LatestVersionProvider? = nil
     ) {
         self.store = store
-        self.homeDirectory = homeDirectory.standardizedFileURL
+        let standardizedHome = homeDirectory.standardizedFileURL
+        self.homeDirectory = standardizedHome
         self.compilationCacheURL = (
             compilationCacheURL
                 ?? StoreManager.defaultCompilationCacheURL(environment: environment, homeDirectory: homeDirectory)
@@ -95,6 +101,15 @@ public struct DoctorDiagnostics: Sendable {
         self.gitHooksManager = gitHooksManager ?? GitHooksManager(homeDirectory: homeDirectory)
         self.fileSystemTypeProvider = fileSystemTypeProvider
         self.executableChecker = executableChecker
+        self.currentVersion = currentVersion
+        self.latestVersionProvider = latestVersionProvider ?? {
+            let upgrader = UpgradeManager(
+                homeDirectory: standardizedHome,
+                environment: environment,
+                commandRunner: commandRunner
+            )
+            return try? upgrader.checkLatestVersion(currentVersion: currentVersion)
+        }
     }
 
     /// Executes all diagnostic checks and returns a structured ``DoctorReport``.
@@ -103,6 +118,7 @@ public struct DoctorDiagnostics: Sendable {
         let swiftResult = try? commandRunner("swift", ["--version"])
 
         let checks: [DoctorCheck] = [
+            checkSPMXVersion(),
             checkAPFSSupport(),
             checkXcodebuild(result: xcodeResult),
             checkSwiftAndCompilationCache(swiftResult: swiftResult, xcodeResult: xcodeResult),
@@ -115,6 +131,57 @@ public struct DoctorDiagnostics: Sendable {
     }
 
     // MARK: - Individual Checks
+
+    private func checkSPMXVersion() -> DoctorCheck {
+        let currentSemver = SemanticVersion.parse(currentVersion)
+            ?? SemanticVersion(major: 0, minor: 0, patch: 0)
+        let installedBinaryURL = homeDirectory
+            .appendingPathComponent(".spmx")
+            .appendingPathComponent("bin")
+            .appendingPathComponent("spmx")
+            .standardizedFileURL
+
+        var installedSemver: SemanticVersion?
+        if executableChecker(installedBinaryURL.path),
+           let binResult = try? commandRunner(installedBinaryURL.path, ["--version"]),
+           binResult.exitCode == 0 {
+            installedSemver = SemanticVersion.parse(binResult.stdout)
+        }
+
+        let latestSemver = latestVersionProvider().flatMap(SemanticVersion.parse)
+
+        if let latestSemver, currentSemver < latestSemver {
+            return DoctorCheck(
+                name: "spmx Version",
+                severity: .warn,
+                summary: "spmx v\(currentSemver) is outdated (latest release: v\(latestSemver)).",
+                remediation: "Run `spmx upgrade` to update to v\(latestSemver)."
+            )
+        }
+
+        if let installedSemver, installedSemver != currentSemver {
+            return DoctorCheck(
+                name: "spmx Version",
+                severity: .warn,
+                summary: "Running spmx v\(currentSemver), but '\(installedBinaryURL.path)' is at v\(installedSemver).",
+                remediation: "Run `spmx upgrade --force` or `spmx setup` to sync '\(installedBinaryURL.path)'."
+            )
+        }
+
+        if let latestSemver {
+            return DoctorCheck(
+                name: "spmx Version",
+                severity: .pass,
+                summary: "spmx v\(currentSemver) is up to date (latest: v\(latestSemver))."
+            )
+        }
+
+        return DoctorCheck(
+            name: "spmx Version",
+            severity: .pass,
+            summary: "spmx v\(currentSemver) is installed."
+        )
+    }
 
     private func checkAPFSSupport() -> DoctorCheck {
         let fsName = fileSystemTypeProvider(store.rootURL)

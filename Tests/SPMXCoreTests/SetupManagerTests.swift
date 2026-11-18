@@ -311,6 +311,128 @@ struct SetupManagerTests {
         #expect(!fm.fileExists(atPath: home.appendingPathComponent(".spmx/compilation-cache").path))
     }
 
+    @Test("UpgradeManager checks latest version, verifies SHA-256 checksum, extracts archive, and updates ~/.spmx/bin/spmx")
+    func upgradeManagerCheckAndInstall() throws {
+        let home = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        let fm = FileManager.default
+        let stagingDir = home.appendingPathComponent("staging")
+        try fm.createDirectory(at: stagingDir, withIntermediateDirectories: true)
+
+        // Build a real tar.gz archive containing a mock spmx binary
+        let mockBinary = stagingDir.appendingPathComponent("spmx")
+        try Data("#!/bin/sh\necho \"0.2.2\"\n".utf8).write(to: mockBinary)
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: mockBinary.path)
+
+        let mockArchive = stagingDir.appendingPathComponent(UpgradeManager.archiveName)
+        let tarCreate = try CommandExecutor.run(
+            executablePath: "/usr/bin/tar",
+            arguments: ["-czf", mockArchive.path, "-C", stagingDir.path, "spmx"]
+        )
+        #expect(tarCreate.exitCode == 0)
+
+        let shaResult = try CommandExecutor.run(
+            executablePath: "/usr/bin/shasum",
+            arguments: ["-a", "256", mockArchive.path]
+        )
+        #expect(shaResult.exitCode == 0)
+        let mockChecksumContent = shaResult.stdout
+        let expectedHash = mockChecksumContent.split(separator: " ").first.map(String.init) ?? ""
+
+        let manager = UpgradeManager(
+            homeDirectory: home,
+            shell: "/bin/zsh",
+            environment: ["PATH": "/usr/bin:/bin"]
+        ) { executable, arguments in
+            if executable == "/usr/bin/curl" {
+                if arguments.contains(where: { $0.contains("/releases/latest") && $0.contains("api.github.com") }) {
+                    return CommandResult(exitCode: 0, stdout: #"{"tag_name": "v0.2.2"}"#)
+                }
+                if let outIndex = arguments.firstIndex(of: "-o"), outIndex + 1 < arguments.count {
+                    let destPath = arguments[outIndex + 1]
+                    let urlArg = arguments.first(where: { $0.hasPrefix("https://") }) ?? ""
+                    if urlArg.hasSuffix(UpgradeManager.archiveName) {
+                        try? FileManager.default.copyItem(atPath: mockArchive.path, toPath: destPath)
+                        return CommandResult(exitCode: 0, stdout: "")
+                    }
+                    if urlArg.hasSuffix(UpgradeManager.checksumName) {
+                        try? Data(mockChecksumContent.utf8).write(to: URL(fileURLWithPath: destPath))
+                        return CommandResult(exitCode: 0, stdout: "")
+                    }
+                }
+            }
+            return try ToolchainFingerprint.defaultCommandRunner(executable, arguments)
+        }
+
+        // 1. Check-only when outdated (0.2.1 -> 0.2.2)
+        let checkResult = try manager.upgrade(options: UpgradeOptions(
+            checkOnly: true,
+            currentVersion: "0.2.1"
+        ))
+        #expect(checkResult.checkOnly == true)
+        #expect(checkResult.upToDate == false)
+        #expect(checkResult.upgraded == false)
+        #expect(checkResult.targetVersion == "0.2.2")
+        #expect(checkResult.tag == "v0.2.2")
+
+        // 2. Full upgrade from 0.2.1 -> 0.2.2
+        let upgradeResult = try manager.upgrade(options: UpgradeOptions(
+            checkOnly: false,
+            noModifyPath: true,
+            currentVersion: "0.2.1"
+        ))
+        #expect(upgradeResult.upgraded == true)
+        #expect(upgradeResult.upToDate == false)
+        #expect(upgradeResult.checksum == expectedHash)
+
+        let installedBinary = home.appendingPathComponent(".spmx/bin/spmx")
+        #expect(fm.isExecutableFile(atPath: installedBinary.path))
+        #expect(fm.fileExists(atPath: home.appendingPathComponent(".spmx/shims/swift").path))
+
+        // 3. Running upgrade again when already on 0.2.2 skips download
+        let upToDateResult = try manager.upgrade(options: UpgradeOptions(
+            checkOnly: false,
+            noModifyPath: true,
+            currentVersion: "0.2.2"
+        ))
+        #expect(upToDateResult.upToDate == true)
+        #expect(upToDateResult.upgraded == false)
+
+        // 4. Checksum mismatch throws UpgradeError.checksumMismatch
+        let badChecksumManager = UpgradeManager(
+            homeDirectory: home,
+            shell: "/bin/zsh"
+        ) { executable, arguments in
+            if executable == "/usr/bin/curl" {
+                if arguments.contains(where: { $0.contains("api.github.com") }) {
+                    return CommandResult(exitCode: 0, stdout: #"{"tag_name": "v0.2.3"}"#)
+                }
+                if let outIndex = arguments.firstIndex(of: "-o"), outIndex + 1 < arguments.count {
+                    let destPath = arguments[outIndex + 1]
+                    let urlArg = arguments.first(where: { $0.hasPrefix("https://") }) ?? ""
+                    if urlArg.hasSuffix(UpgradeManager.archiveName) {
+                        try? FileManager.default.copyItem(atPath: mockArchive.path, toPath: destPath)
+                        return CommandResult(exitCode: 0, stdout: "")
+                    }
+                    if urlArg.hasSuffix(UpgradeManager.checksumName) {
+                        try? Data("0000000000000000000000000000000000000000000000000000000000000000  spmx-macos-universal.tar.gz\n".utf8)
+                            .write(to: URL(fileURLWithPath: destPath))
+                        return CommandResult(exitCode: 0, stdout: "")
+                    }
+                }
+            }
+            return try ToolchainFingerprint.defaultCommandRunner(executable, arguments)
+        }
+
+        #expect(throws: UpgradeError.self) {
+            _ = try badChecksumManager.upgrade(options: UpgradeOptions(
+                noModifyPath: true,
+                currentVersion: "0.2.2"
+            ))
+        }
+    }
+
     private func makeTempDir() throws -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("spmx-setup-tests-\(UUID().uuidString)")
