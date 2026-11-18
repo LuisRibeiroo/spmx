@@ -216,6 +216,7 @@ enum LinkRunner {
 
         let applyOptions = MigrationOptions(
             searchRoots: searchRoots,
+            prediscoveredProjects: previewReport.outcomes.map(\.project),
             dryRun: false,
             deduplicate: deduplicate,
             maxDepth: maxDepth,
@@ -311,7 +312,11 @@ enum LinkRunner {
         var parts: [String] = []
         if outcome.hasExistingCache {
             if dryRun {
-                parts.append("\(style.primary(sizeText)) \(style.gray("(est. saved: \(formatBytes(outcome.estimatedReclaimedBytes)))"))")
+                if deduplicate {
+                    parts.append("\(style.primary(sizeText)) \(style.gray("(est. saved: \(formatBytes(outcome.estimatedReclaimedBytes)))"))")
+                } else {
+                    parts.append(style.primary(sizeText))
+                }
             } else {
                 parts.append("\(style.primary(sizeText)) \(style.gray("(harvested \(outcome.totalHarvestedItemsCount)"))")
             }

@@ -4,6 +4,7 @@ import Foundation
 /// Configuration options for scanning and migrating existing projects/worktrees into ``GlobalStore``.
 public struct MigrationOptions: Sendable {
     public var searchRoots: [String]
+    public var prediscoveredProjects: [DetectedProject]?
     public var dryRun: Bool
     public var deduplicate: Bool
     public var maxDepth: Int
@@ -16,6 +17,7 @@ public struct MigrationOptions: Sendable {
 
     public init(
         searchRoots: [String] = [FileManager.default.currentDirectoryPath],
+        prediscoveredProjects: [DetectedProject]? = nil,
         dryRun: Bool = true,
         deduplicate: Bool = true,
         maxDepth: Int = 6,
@@ -27,6 +29,7 @@ public struct MigrationOptions: Sendable {
         verboseLogger: (@Sendable (String) -> Void)? = nil
     ) {
         self.searchRoots = searchRoots
+        self.prediscoveredProjects = prediscoveredProjects
         self.dryRun = dryRun
         self.deduplicate = deduplicate
         self.maxDepth = maxDepth
@@ -216,7 +219,7 @@ public struct MigrationManager: Sendable {
             DerivedDataPathCalculator.canonicalizePath($0, currentDirectory: fileManager.currentDirectoryPath)
         }
 
-        let discoveredProjects = discoverProjects(
+        let discoveredProjects = options.prediscoveredProjects ?? discoverProjects(
             in: canonicalRoots,
             maxDepth: max(0, options.maxDepth),
             excludePatterns: options.excludePatterns,
@@ -424,9 +427,10 @@ public struct MigrationManager: Sendable {
         let resolvedSourcePackagesURLs = targetAndSPPairs.map(\.spURL)
 
         progressObserver?(.stage(projectRoot: project.rootPath, type: project.type, detail: "measuring cache size"))
-        let existingCacheBytes = resolvedSourcePackagesURLs.reduce(UInt64(0)) { total, url in
-            total + cacheSubdirectoriesSizeBytes(at: url)
+        let sizedTargetAndSPPairs: [(target: DetectedProject, spURL: URL, cacheBytes: UInt64)] = targetAndSPPairs.map { pair in
+            (pair.target, pair.spURL, cacheSubdirectoriesSizeBytes(at: pair.spURL))
         }
+        let existingCacheBytes = sizedTargetAndSPPairs.reduce(UInt64(0)) { $0 + $1.cacheBytes }
         let hasExistingCache = existingCacheBytes > 0
 
         if isProjectActivelyBuilding(project, sourcePackagesURLs: resolvedSourcePackagesURLs, activeCommands: activeCommands) {
@@ -449,8 +453,30 @@ public struct MigrationManager: Sendable {
             )
         }
 
+        let stageReporter: (@Sendable (String) -> Void)? = progressObserver.map { observer in
+            let rootPath = project.rootPath
+            let projectType = project.type
+            return { detail in
+                observer(.stage(projectRoot: rootPath, type: projectType, detail: detail))
+            }
+        }
+
         if options.dryRun {
-            let estimatedReclaimed = options.deduplicate ? existingCacheBytes : 0
+            var estimatedReclaimed: UInt64 = 0
+            var skippedModified = 0
+            if options.deduplicate && hasExistingCache {
+                for (target, spURL, spCacheBytes) in sizedTargetAndSPPairs where spCacheBytes > 0 {
+                    let estimate = syncEngine.estimateReclaimableCache(
+                        project: target,
+                        sourcePackagesURL: spURL,
+                        commandTimeout: options.commandTimeout,
+                        progressHandler: stageReporter,
+                        verboseLogger: options.verboseLogger
+                    )
+                    estimatedReclaimed += estimate.reclaimableBytes
+                    skippedModified += estimate.skippedLocallyModifiedCount
+                }
+            }
             return MigratedProjectOutcome(
                 project: project,
                 sourcePackagesPaths: resolvedSourcePackagesURLs.map(\.path),
@@ -462,7 +488,7 @@ public struct MigrationManager: Sendable {
                 deduplicatedCheckoutsCount: 0,
                 deduplicatedArtifactsCount: 0,
                 deduplicatedPrebuiltsCount: 0,
-                skippedLocallyModifiedCount: 0,
+                skippedLocallyModifiedCount: skippedModified,
                 estimatedReclaimedBytes: estimatedReclaimed,
                 recordedFlutterResolved: false,
                 installedRepoHook: false
@@ -479,22 +505,11 @@ public struct MigrationManager: Sendable {
         var estimatedReclaimed: UInt64 = 0
         var warningNotes: [String] = []
 
-        let stageReporter: (@Sendable (String) -> Void)? = progressObserver.map { observer in
-            let rootPath = project.rootPath
-            let projectType = project.type
-            return { detail in
-                observer(.stage(projectRoot: rootPath, type: projectType, detail: detail))
-            }
-        }
-
         if !options.dryRun && options.includeExcluded {
             _ = try? store.includeProject(at: project.rootPath)
         }
 
-        for (target, spURL) in targetAndSPPairs {
-            guard cacheSubdirectoriesSizeBytes(at: spURL) > 0 else {
-                continue
-            }
+        for (target, spURL, spCacheBytes) in sizedTargetAndSPPairs where spCacheBytes > 0 {
 
             do {
                 stageReporter?("harvesting cache")
@@ -510,6 +525,11 @@ public struct MigrationManager: Sendable {
                 harvestedCheckouts += harvestResult.harvestedCheckouts.count
                 harvestedArtifacts += harvestResult.harvestedArtifacts.count
                 harvestedPrebuilts += harvestResult.harvestedPrebuilts.count
+                var dirtyIdentities = Set(
+                    harvestResult.skippedItems
+                        .filter { $0.reason == "locally modified working tree" }
+                        .map { $0.identifier.lowercased() }
+                )
 
                 if options.deduplicate,
                    (target.packageResolvedPath ?? target.allPackageResolvedPaths.first) != nil {
@@ -530,7 +550,11 @@ public struct MigrationManager: Sendable {
                     deduplicatedCheckouts += dedupResult.hydratedCheckouts.count
                     deduplicatedArtifacts += dedupResult.hydratedArtifacts.count
                     deduplicatedPrebuilts += dedupResult.hydratedPrebuilts.count
-                    skippedModified += dedupResult.skippedCheckouts.filter { $0.reason == .locallyModified }.count
+                    dirtyIdentities.formUnion(
+                        dedupResult.skippedCheckouts
+                            .filter { $0.reason == .locallyModified }
+                            .map { $0.identity.lowercased() }
+                    )
                     let timedOutCheckouts = dedupResult.skippedCheckouts.filter { $0.reason == .timedOut }
                     if !timedOutCheckouts.isEmpty {
                         warningNotes.append("git status timed out for \(timedOutCheckouts.count) checkout(s)")
@@ -547,6 +571,7 @@ public struct MigrationManager: Sendable {
                         estimatedReclaimed += DiagnosticsSupport.directorySizeBytes(at: item.destinationURL, fileManager: fileManager)
                     }
                 }
+                skippedModified += dirtyIdentities.count
             } catch {
                 warningNotes.append(error.localizedDescription)
                 options.verboseLogger?("Migration warning for \(project.rootPath): \(error.localizedDescription)")

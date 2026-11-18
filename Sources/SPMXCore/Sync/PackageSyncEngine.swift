@@ -658,6 +658,243 @@ public struct PackageSyncEngine: Sendable {
         )
     }
 
+    // MARK: - Reclaim Estimation
+
+    /// Estimated deduplicable cache metrics for a single `SourcePackages` (or `.build`) directory.
+    public struct ReclaimEstimate: Sendable, Equatable {
+        public let reclaimableBytes: UInt64
+        public let eligibleCheckoutsCount: Int
+        public let eligibleArtifactsCount: Int
+        public let eligiblePrebuiltsCount: Int
+        public let skippedLocallyModifiedCount: Int
+
+        public static let zero = ReclaimEstimate(
+            reclaimableBytes: 0,
+            eligibleCheckoutsCount: 0,
+            eligibleArtifactsCount: 0,
+            eligiblePrebuiltsCount: 0,
+            skippedLocallyModifiedCount: 0
+        )
+
+        public init(
+            reclaimableBytes: UInt64,
+            eligibleCheckoutsCount: Int,
+            eligibleArtifactsCount: Int,
+            eligiblePrebuiltsCount: Int,
+            skippedLocallyModifiedCount: Int
+        ) {
+            self.reclaimableBytes = reclaimableBytes
+            self.eligibleCheckoutsCount = eligibleCheckoutsCount
+            self.eligibleArtifactsCount = eligibleArtifactsCount
+            self.eligiblePrebuiltsCount = eligiblePrebuiltsCount
+            self.skippedLocallyModifiedCount = skippedLocallyModifiedCount
+        }
+    }
+
+    /// Estimates the bytes inside `sourcePackagesURL` that are eligible for APFS Copy-on-Write deduplication
+    /// (`checkouts`, `artifacts` with checksums, and toolchain-compatible `prebuilts`), excluding bare Git
+    /// `repositories/`, orphan entries not in `Package.resolved`, local-only artifacts, and dirty checkouts.
+    public func estimateReclaimableCache(
+        project: DetectedProject,
+        sourcePackagesURL: URL,
+        commandTimeout: TimeInterval? = CommandExecutor.resolveDefaultTimeout(),
+        progressHandler: (@Sendable (String) -> Void)? = nil,
+        verboseLogger: (@Sendable (String) -> Void)? = nil
+    ) -> ReclaimEstimate {
+        guard let resolvedPath = project.packageResolvedPath ?? project.allPackageResolvedPaths.first,
+              fileManager.fileExists(atPath: resolvedPath),
+              let resolved = try? PackageResolvedParser.parse(fileAt: resolvedPath, fileManager: fileManager) else {
+            return .zero
+        }
+
+        let workspaceStateFileURL = sourcePackagesURL.appendingPathComponent("workspace-state.json")
+        let workspaceState: WorkspaceState?
+        if fileManager.fileExists(atPath: workspaceStateFileURL.path) {
+            guard let data = try? Data(contentsOf: workspaceStateFileURL),
+                  let parsed = try? WorkspaceStateParser.parse(data: data) else {
+                return .zero
+            }
+            workspaceState = parsed
+        } else {
+            workspaceState = nil
+        }
+
+        var pinRevisionByIdentity: [String: String] = [:]
+        var pinVersionByIdentity: [String: String] = [:]
+        var harvestRevisionByIdentity: [String: String] = [:]
+        var identityBySubpath: [String: String] = [:]
+        var subpathByIdentity: [String: String] = [:]
+
+        for pin in resolved.pins {
+            let id = pin.identity.lowercased()
+            if let rev = pin.revision, !rev.isEmpty {
+                pinRevisionByIdentity[id] = rev
+                harvestRevisionByIdentity[id] = rev
+            }
+            if let ver = pin.version, !ver.isEmpty {
+                pinVersionByIdentity[id] = ver
+            }
+            identityBySubpath[id] = id
+        }
+
+        if let workspaceState {
+            for dep in workspaceState.dependencies {
+                let id = dep.packageRef.identity.lowercased()
+                if let rev = dep.state.checkoutState?.revision, !rev.isEmpty {
+                    harvestRevisionByIdentity[id] = rev
+                }
+                if let subpath = dep.subpath, !subpath.isEmpty {
+                    identityBySubpath[subpath.lowercased()] = id
+                    subpathByIdentity[id] = subpath
+                }
+                identityBySubpath[id] = id
+            }
+        }
+
+        for pin in resolved.pins {
+            let id = pin.identity.lowercased()
+            if subpathByIdentity[id] == nil,
+               let rev = pin.revision, !rev.isEmpty,
+               let record = try? loadPackageTemplate(identity: id, revision: rev),
+               let subpath = record.subpath, !subpath.isEmpty {
+                subpathByIdentity[id] = subpath
+                identityBySubpath[subpath.lowercased()] = id
+            }
+        }
+
+        var reclaimableBytes: UInt64 = 0
+        var eligibleCheckoutsCount = 0
+        var eligibleArtifactsCount = 0
+        var eligiblePrebuiltsCount = 0
+        var skippedLocallyModifiedCount = 0
+
+        // 1. Checkouts
+        let checkoutsDir = sourcePackagesURL.appendingPathComponent("checkouts")
+        if isDirectory(at: checkoutsDir) {
+            let entries = (try? fileManager.contentsOfDirectory(
+                at: checkoutsDir,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )) ?? []
+
+            let sortedEntries = entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent })
+            for (entryIndex, entryURL) in sortedEntries.enumerated() {
+                let name = entryURL.lastPathComponent
+                progressHandler?("measuring checkout \(entryIndex + 1)/\(sortedEntries.count) (\(name))")
+                if name.hasSuffix(".partial") { continue }
+                guard isDirectory(at: entryURL) else { continue }
+                if containsPartialMarker(at: entryURL) || isDirectoryEmpty(at: entryURL) { continue }
+
+                let identity = identityBySubpath[name.lowercased()] ?? name.lowercased()
+                guard let pinRevision = pinRevisionByIdentity[identity], !pinRevision.isEmpty else {
+                    continue
+                }
+
+                let treeStatus = checkGitWorkingTree(
+                    at: entryURL,
+                    timeout: commandTimeout,
+                    verboseLogger: verboseLogger
+                )
+                if treeStatus == .dirty {
+                    skippedLocallyModifiedCount += 1
+                    continue
+                } else if treeStatus == .timedOut {
+                    continue
+                }
+
+                let alreadyInStore = store.hasCheckout(identity: identity, revision: pinRevision)
+                let canHarvestForPin: Bool
+                if let harvestRevision = harvestRevisionByIdentity[identity],
+                   !harvestRevision.isEmpty,
+                   harvestRevision.lowercased() == pinRevision.lowercased() {
+                    canHarvestForPin = verifyGitHeadRevision(
+                        at: entryURL,
+                        expectedRevision: harvestRevision,
+                        timeout: commandTimeout,
+                        verboseLogger: verboseLogger
+                    )
+                } else {
+                    canHarvestForPin = false
+                }
+
+                guard alreadyInStore || canHarvestForPin else { continue }
+
+                reclaimableBytes += DiagnosticsSupport.directorySizeBytes(at: entryURL, fileManager: fileManager)
+                eligibleCheckoutsCount += 1
+            }
+        }
+
+        // 2. Artifacts (only checksum-verified artifacts inside artifacts/ matching resolved pins / workspace)
+        let checkoutsStandardizedPrefix = checkoutsDir.standardizedFileURL.path + "/"
+        var seenArtifactKeys: Set<String> = []
+
+        if let workspaceState {
+            for (index, artifact) in workspaceState.artifacts.enumerated() {
+                let identity = artifact.packageRef.identity.lowercased()
+                progressHandler?("measuring artifact \(index + 1)/\(workspaceState.artifacts.count) (\(artifact.targetName))")
+                guard let checksum = artifact.checksum, !checksum.isEmpty else { continue }
+                guard let resolvedSource = resolveArtifactSource(
+                    artifact: artifact,
+                    sourcePackagesURL: sourcePackagesURL
+                ) else { continue }
+                if containsPartialMarker(at: resolvedSource.sourceURL) || isEmptyItem(at: resolvedSource.sourceURL) {
+                    continue
+                }
+                let sourcePath = resolvedSource.sourceURL.standardizedFileURL.path
+                if sourcePath.hasPrefix(checkoutsStandardizedPrefix) {
+                    continue
+                }
+                let key = artifactKey(identity: identity, targetName: artifact.targetName, checksum: checksum)
+                if seenArtifactKeys.insert(key).inserted {
+                    reclaimableBytes += DiagnosticsSupport.directorySizeBytes(
+                        at: resolvedSource.sourceURL,
+                        fileManager: fileManager
+                    )
+                    eligibleArtifactsCount += 1
+                }
+            }
+        }
+
+        // 3. Prebuilts (toolchain-compatible prebuilts)
+        if let workspaceState, resolveToolchain(verboseLogger: nil) != nil {
+            var seenPrebuiltKeys: Set<String> = []
+            for (index, prebuilt) in workspaceState.prebuilts.enumerated() {
+                let identity = prebuilt.identity.lowercased()
+                progressHandler?("measuring prebuilt \(index + 1)/\(workspaceState.prebuilts.count) (\(identity))")
+                let hasRevision = prebuilt.checkoutState?.revision?.isEmpty == false
+                let hasChecksum = prebuilt.checksum?.isEmpty == false
+                guard hasRevision || hasChecksum,
+                      let versionOrChecksum = prebuilt.checksum ?? prebuilt.version,
+                      !versionOrChecksum.isEmpty else {
+                    continue
+                }
+                guard let resolvedPrebuilt = resolvePrebuiltSource(
+                    prebuilt: prebuilt,
+                    sourcePackagesURL: sourcePackagesURL
+                ) else { continue }
+                if containsPartialMarker(at: resolvedPrebuilt.sourceURL) || isEmptyItem(at: resolvedPrebuilt.sourceURL) {
+                    continue
+                }
+                let key = prebuiltKey(identity: identity, versionOrChecksum: versionOrChecksum)
+                if seenPrebuiltKeys.insert(key).inserted {
+                    reclaimableBytes += DiagnosticsSupport.directorySizeBytes(
+                        at: resolvedPrebuilt.sourceURL,
+                        fileManager: fileManager
+                    )
+                    eligiblePrebuiltsCount += 1
+                }
+            }
+        }
+
+        return ReclaimEstimate(
+            reclaimableBytes: reclaimableBytes,
+            eligibleCheckoutsCount: eligibleCheckoutsCount,
+            eligibleArtifactsCount: eligibleArtifactsCount,
+            eligiblePrebuiltsCount: eligiblePrebuiltsCount,
+            skippedLocallyModifiedCount: skippedLocallyModifiedCount
+        )
+    }
+
     // MARK: - Harvest
 
     /// Inspects `<SourcePackages>` (or `.build`) and stores valid `checkouts`, `artifacts`,
@@ -2067,6 +2304,10 @@ public struct PackageSyncEngine: Sendable {
         ) {
             for case let itemURL as URL in enumerator {
                 let name = itemURL.lastPathComponent
+                if name == ".git" {
+                    enumerator.skipDescendants()
+                    continue
+                }
                 if name == ".partial" || name.hasSuffix(".partial") {
                     return true
                 }
@@ -2200,10 +2441,22 @@ public struct PackageSyncEngine: Sendable {
         timeout: TimeInterval?,
         verboseLogger: (@Sendable (String) -> Void)?
     ) -> Bool {
-        let gitPath = directoryURL.appendingPathComponent(".git").path
-        guard fileManager.fileExists(atPath: gitPath) else {
+        let gitURL = directoryURL.appendingPathComponent(".git")
+        guard fileManager.fileExists(atPath: gitURL.path) else {
             return true
         }
+        let expected = expectedRevision.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !expected.isEmpty else { return true }
+
+        // Fast path: detached HEAD in .git/HEAD contains the 40-char commit SHA directly.
+        let headFileURL = gitURL.appendingPathComponent("HEAD")
+        if let rawHead = try? String(contentsOf: headFileURL, encoding: .utf8) {
+            let trimmedHead = rawHead.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if !trimmedHead.isEmpty, !trimmedHead.hasPrefix("ref:") {
+                return trimmedHead == expected || trimmedHead.hasPrefix(expected) || expected.hasPrefix(trimmedHead)
+            }
+        }
+
         var env = ProcessInfo.processInfo.environment
         if env["GIT_TERMINAL_PROMPT"] == nil {
             env["GIT_TERMINAL_PROMPT"] = "0"
@@ -2217,8 +2470,7 @@ public struct PackageSyncEngine: Sendable {
             )
             guard result.exitCode == 0 else { return true }
             let actual = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            let expected = expectedRevision.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            guard !actual.isEmpty, !expected.isEmpty else { return true }
+            guard !actual.isEmpty else { return true }
             return actual == expected || actual.hasPrefix(expected) || expected.hasPrefix(actual)
         } catch {
             verboseLogger?("Warning: failed to verify git HEAD at '\(directoryURL.path)': \(error.localizedDescription)")
@@ -2247,8 +2499,20 @@ public struct PackageSyncEngine: Sendable {
                 timeout: timeout
             )
             guard result.exitCode == 0 else { return .clean }
-            let output = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            return output.isEmpty ? .clean : .dirty
+            let meaningfulLines = result.stdout
+                .split(whereSeparator: \.isNewline)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { line in
+                    guard !line.isEmpty else { return false }
+                    if line.hasPrefix("?? ") {
+                        let pathPart = line.dropFirst(3).trimmingCharacters(in: CharacterSet(charactersIn: "\" "))
+                        if pathPart == ".DS_Store" || pathPart.hasSuffix("/.DS_Store") {
+                            return false
+                        }
+                    }
+                    return true
+                }
+            return meaningfulLines.isEmpty ? .clean : .dirty
         } catch let error as CommandExecutionError {
             if case .timedOut(_, _, let seconds) = error {
                 verboseLogger?("Warning: git status timed out after \(Int(seconds))s at '\(directoryURL.path)' — preserving checkout")

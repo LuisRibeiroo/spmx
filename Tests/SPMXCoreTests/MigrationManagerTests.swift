@@ -244,6 +244,176 @@ struct MigrationManagerTests {
         #expect(recordedStages.containsSubstring("deduplicating checkout 1/1"))
     }
 
+    @Test("dryRun estimates only eligible checkouts, checksummed artifacts, and prebuilts (excluding repositories, orphans, local artifacts, and dirty checkouts)")
+    func dryRunEstimatesOnlyEligibleCacheEntries() throws {
+        let root = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let fm = FileManager.default
+        let project = root.appendingPathComponent("mixed-pkg")
+        try createSwiftPMProject(at: project, identity: "clean-dep", revision: "rev-clean-1", cleanCheckout: true)
+
+        // Add a second pin in Package.resolved that is locally modified (dirty)
+        let resolvedJSON = """
+        {
+          "pins" : [
+            {
+              "identity" : "clean-dep",
+              "kind" : "remoteSourceControl",
+              "location" : "https://example.com/clean-dep.git",
+              "state" : {
+                "revision" : "rev-clean-1",
+                "version" : "1.0.0"
+              }
+            },
+            {
+              "identity" : "dirty-dep",
+              "kind" : "remoteSourceControl",
+              "location" : "https://example.com/dirty-dep.git",
+              "state" : {
+                "revision" : "rev-dirty-1",
+                "version" : "1.0.0"
+              }
+            }
+          ],
+          "version" : 2
+        }
+        """
+        try Data(resolvedJSON.utf8).write(to: project.appendingPathComponent("Package.resolved"))
+
+        // 1. Dirty checkout (should NOT be counted in estimatedReclaimedBytes, and should increment skippedLocallyModifiedCount)
+        let dirtyDir = project.appendingPathComponent(".build/checkouts/dirty-dep")
+        try fm.createDirectory(at: dirtyDir, withIntermediateDirectories: true)
+        try runGit(["init"], in: dirtyDir)
+        try Data(repeating: 0x42, count: 2048).write(to: dirtyDir.appendingPathComponent("Dirty.swift"))
+
+        // 2. Orphan checkout not in Package.resolved (should NOT be counted in estimatedReclaimedBytes)
+        let orphanDir = project.appendingPathComponent(".build/checkouts/orphan-dep")
+        try fm.createDirectory(at: orphanDir, withIntermediateDirectories: true)
+        try Data(repeating: 0x43, count: 8192).write(to: orphanDir.appendingPathComponent("Orphan.swift"))
+
+        // 3. Bare git repository in .build/repositories/ (included in existingCacheBytes, excluded from estimatedReclaimedBytes)
+        let bareRepoDir = project.appendingPathComponent(".build/repositories/clean-dep-12345678")
+        try fm.createDirectory(at: bareRepoDir, withIntermediateDirectories: true)
+        try Data(repeating: 0x44, count: 16384).write(to: bareRepoDir.appendingPathComponent("pack-data.pack"))
+
+        // 4. Checksummed remote artifact (1024 B -> eligible) + local artifact without checksum (4096 B -> ineligible)
+        let remoteArtifactDir = project.appendingPathComponent(".build/artifacts/clean-dep/RemoteSDK/RemoteSDK.xcframework")
+        try fm.createDirectory(at: remoteArtifactDir, withIntermediateDirectories: true)
+        try Data(repeating: 0x45, count: 1024).write(to: remoteArtifactDir.appendingPathComponent("Binary"))
+
+        let localArtifactDir = project.appendingPathComponent(".build/artifacts/clean-dep/LocalSDK/LocalSDK.xcframework")
+        try fm.createDirectory(at: localArtifactDir, withIntermediateDirectories: true)
+        try Data(repeating: 0x46, count: 4096).write(to: localArtifactDir.appendingPathComponent("LocalBinary"))
+
+        let wsJSON = """
+        {
+          "object" : {
+            "artifacts" : [
+              {
+                "kind" : { "xcframework" : {} },
+                "packageRef" : {
+                  "identity" : "clean-dep",
+                  "kind" : "remoteSourceControl",
+                  "location" : "https://example.com/clean-dep.git",
+                  "name" : "clean-dep"
+                },
+                "path" : "\(remoteArtifactDir.deletingLastPathComponent().path)",
+                "source" : {
+                  "checksum" : "abc123checksum",
+                  "type" : "remote",
+                  "url" : "https://example.com/RemoteSDK.zip"
+                },
+                "targetName" : "RemoteSDK"
+              },
+              {
+                "kind" : { "xcframework" : {} },
+                "packageRef" : {
+                  "identity" : "clean-dep",
+                  "kind" : "remoteSourceControl",
+                  "location" : "https://example.com/clean-dep.git",
+                  "name" : "clean-dep"
+                },
+                "path" : "\(localArtifactDir.path)",
+                "source" : {
+                  "type" : "local"
+                },
+                "targetName" : "LocalSDK"
+              }
+            ],
+            "dependencies" : [
+              {
+                "basedOn" : null,
+                "packageRef" : {
+                  "identity" : "clean-dep",
+                  "kind" : "remoteSourceControl",
+                  "location" : "https://example.com/clean-dep.git",
+                  "name" : "clean-dep"
+                },
+                "state" : {
+                  "checkoutState" : {
+                    "revision" : "rev-clean-1",
+                    "version" : "1.0.0"
+                  },
+                  "name" : "sourceControlCheckout"
+                },
+                "subpath" : "clean-dep"
+              },
+              {
+                "basedOn" : null,
+                "packageRef" : {
+                  "identity" : "dirty-dep",
+                  "kind" : "remoteSourceControl",
+                  "location" : "https://example.com/dirty-dep.git",
+                  "name" : "dirty-dep"
+                },
+                "state" : {
+                  "checkoutState" : {
+                    "revision" : "rev-dirty-1",
+                    "version" : "1.0.0"
+                  },
+                  "name" : "sourceControlCheckout"
+                },
+                "subpath" : "dirty-dep"
+              }
+            ],
+            "prebuilts" : []
+          },
+          "version" : 7
+        }
+        """
+        try Data(wsJSON.utf8).write(to: project.appendingPathComponent(".build/workspace-state.json"))
+
+        let store = GlobalStore(rootURL: root.appendingPathComponent("store"))
+        let manager = MigrationManager(
+            store: store,
+            toolchainProvider: { Self.fixedToolchain },
+            homeDirectory: root
+        )
+
+        let dryReport = try manager.migrate(options: MigrationOptions(
+            searchRoots: [root.path],
+            dryRun: true,
+            deduplicate: true
+        ))
+        let dryOutcome = try #require(dryReport.outcomes.first)
+
+        // Eligible: 4096 B (clean-dep checkout) + 1024 B (RemoteSDK checksummed artifact) = 5120 B
+        #expect(dryOutcome.existingCacheBytes > 30_000)
+        #expect(dryOutcome.estimatedReclaimedBytes == 5120)
+        #expect(dryOutcome.skippedLocallyModifiedCount == 1)
+
+        let applyReport = try manager.migrate(options: MigrationOptions(
+            searchRoots: [root.path],
+            prediscoveredProjects: dryReport.outcomes.map(\.project),
+            dryRun: false,
+            deduplicate: true
+        ))
+        let applyOutcome = try #require(applyReport.outcomes.first)
+        #expect(applyOutcome.estimatedReclaimedBytes == dryOutcome.estimatedReclaimedBytes)
+        #expect(applyOutcome.skippedLocallyModifiedCount == 1)
+    }
+
     // MARK: - Helpers
 
     private func makeTempDir() throws -> URL {
