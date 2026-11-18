@@ -1,7 +1,7 @@
 {
   "_comment": "Multi-project store status sample reflecting `spmx store status` CLI output format.",
   "command": "spmx store status",
-  "cliVersion": "0.2.2",
+  "cliVersion": "0.2.3",
   "lines": [
     [{ "t": "spmx store", "c": "accent", "b": true }],
     [{ "t": "Scope:", "c": "muted" }, { "t": " ~/.spmx/store" }],
