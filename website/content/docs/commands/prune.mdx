@@ -1,0 +1,65 @@
+---
+title: spmx prune
+description: Remove stale projects, unreferenced store entries, and old compilation cache files, or configure automatic prune reminders.
+---
+
+Cleans up missing project registrations, cached package versions (`checkouts`, `artifacts`, `prebuilts`) that are not referenced by any active project, and old LLVM CAS compilation cache files. `spmx prune` is a top-level alias for `spmx store prune`.
+
+## Usage
+
+```bash
+spmx prune [flags]
+spmx prune auto <enable|disable|status> [flags]
+```
+
+## Flags
+
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| `--dry-run` | `false` | Preview removals and reclaimable disk space without deleting anything. |
+| `--older-than <days>` | `30` | Only prune unreferenced entries and cache files older than this many days (`0` prunes all unreferenced). |
+| `--auto-every <days>` | `30` | Configure the automatic prune reminder interval in days (`0` disables). |
+| `--enable-auto` | `false` | Enable automatic prune reminders on explicit `spmx` commands (defaults to every `30` days). |
+| `--disable-auto` | `false` | Disable automatic prune reminders. |
+| `--status` | `false` | Show the current automatic prune configuration and last prune timestamp without pruning. |
+| `--json` | `false` | Output machine-readable JSON. |
+
+## Automatic Prune Reminders (`spmx prune auto`)
+
+Auto-prune reminders are **disabled by default** (opt-in) and persisted in `~/.spmx/store/index.json` (with an optional `SPMX_AUTO_PRUNE_DAYS` override).
+
+- **Enable (defaults to every `30` days):** `spmx prune auto enable`
+- **Customize interval:** `spmx prune auto enable --days 15` (or `--every 15`)
+- **Check status:** `spmx prune auto status`
+- **Disable:** `spmx prune auto disable`
+
+When enabled and more than the configured number of days have elapsed since the last prune, running any explicit `spmx` command in an interactive terminal reminds you that `prune` is due, notes that only package versions not used by any current project will be removed, and prompts:
+
+- **`Y` / Enter (default):** Run `spmx prune` immediately.
+- **`d` (dry-run preview):** Calculate and display how much disk space would be reclaimed first, then ask whether to proceed.
+- **`n` (skip):** Skip pruning for now.
+
+## Examples
+
+```bash
+# Run prune now (removes unreferenced entries older than 30 days)
+spmx prune
+
+# Preview what would be removed without deleting files
+spmx prune --dry-run
+
+# Prune all currently unreferenced entries regardless of age
+spmx prune --older-than 0
+
+# Enable automatic prune reminders (every 30 days by default)
+spmx prune auto enable
+
+# Configure automatic prune reminder every 15 days
+spmx prune auto enable --days 15
+
+# Inspect auto-prune status and last prune date
+spmx prune auto status
+
+# Disable automatic prune reminders
+spmx prune auto disable
+```

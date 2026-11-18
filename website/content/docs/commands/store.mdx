@@ -29,11 +29,16 @@ spmx store status
 spmx store status --json
 ```
 
-### `spmx store prune`
+### `spmx store prune` (`spmx prune`)
 
-Removes missing project registrations, unreferenced store entries, and old compilation cache files.
+Removes missing project registrations, unreferenced store entries, and old compilation cache files, or configures opt-in automatic prune reminders via `spmx prune auto <enable|disable|status>`. Also available directly as [`spmx prune`](/docs/commands/prune).
 
 | Flag | Default | Description |
 | :--- | :--- | :--- |
 | `--dry-run` | `false` | Preview removals and reclaimable bytes without deleting anything. |
 | `--older-than <days>` | `30` | Only prune unreferenced entries and cache files older than this many days (`0` prunes all unreferenced). |
+| `--auto-every <days>` | `30` | Configure the automatic prune reminder interval in days (`0` disables). |
+| `--enable-auto` | `false` | Enable automatic prune reminders on explicit `spmx` commands. |
+| `--disable-auto` | `false` | Disable automatic prune reminders. |
+| `--status` | `false` | Show the current automatic prune configuration and last prune timestamp. |
+| `--json` | `false` | Output machine-readable JSON. |

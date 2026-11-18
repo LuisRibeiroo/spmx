@@ -136,7 +136,7 @@ All projects invoked through `swift`, `xcodebuild`, or `flutter` use the global 
 | `spmx status` | Show project link state, package semantic versions, and estimated disk saved in this project. |
 | `spmx store list` | List every `(package, version)` in `~/.spmx/store` and its linked projects. |
 | `spmx store status` | Show store entries, per-project breakdown, and total disk saved across the machine. |
-| `spmx store prune` | Remove missing projects, unreferenced store entries, and old compilation cache files. |
+| `spmx prune` (`spmx store prune`) | Remove missing projects, unreferenced store entries, and old compilation cache files, or configure automatic prune reminders. |
 | `spmx doctor` | Check `spmx` version, macOS/APFS support, shims, `PATH` precedence, toolchain, and CAS cache. |
 | `spmx upgrade` | Check for a newer `spmx` release and update the local installation in place. |
 | `spmx hydrate` (`spmx install`) | Pre-hydrate `SourcePackages` from `~/.spmx/store` using APFS `clonefile()`. |
