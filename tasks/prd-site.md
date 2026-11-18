@@ -87,7 +87,7 @@ Princípio: **uma tela para entender, uma linha para instalar, um diagrama para 
 - [ ] Dark e light com contraste AA verificado (texto ≥ 4,5:1, foco ≥ 3:1).
 - [ ] `next/font` self-hosting de Inter e JetBrains Mono.
 - [ ] Fumadocs configurado (`source.config.ts`, layout de docs, busca local Orama).
-- [ ] Ícone copiado de `assets/icon.svg` para `website/public/` por script de pré-build (não versionado em duplicata, conforme regra de Brand Assets).
+- [ ] Ícone (`assets/icon.svg`, `assets/icon.png`) e favicons (`assets/favicons/`) copiados para `website/public/` por script de pré-build (não versionado em duplicata, conforme regra de Brand Assets).
 - [ ] `pnpm run build` e `pnpm run lint` passam sem erros.
 
 ---

@@ -164,7 +164,7 @@ export default function HomePage() {
                 src="/icon.svg"
                 alt="spmx icon: an open orange pixel-art box"
                 width={144}
-                height={165}
+                height={169}
                 priority
                 unoptimized
                 className="h-auto w-28 [image-rendering:pixelated] md:w-36"

@@ -12,13 +12,14 @@ O **ícone principal** do `spmx` é a caixa laranja *pixel-art* (isométrica, ab
 
 | Arquivo | Formato | Dimensões | Uso recomendado |
 | :--- | :--- | :--- | :--- |
-| [`assets/icon.svg`](../assets/icon.svg) | SVG vetorial (`crispEdges`, `viewBox` 41×47, gradiente laranja) | escalável (base 410×470) | **Fonte primária.** README, site, documentação, Homebrew tap, qualquer contexto que aceite vetor. |
-| [`assets/icon.png`](../assets/icon.png) | PNG RGBA com transparência | 820×940 | Raster derivado do SVG. Social preview do GitHub, avatar, release notes, contextos que não aceitam SVG. |
+| [`assets/icon.svg`](../assets/icon.svg) | SVG vetorial (`crispEdges`, `viewBox` 41×48, gradiente laranja, contorno branco de 1px) | escalável (base 410×480) | **Fonte primária.** README, site, documentação, Homebrew tap, qualquer contexto que aceite vetor. |
+| [`assets/icon.png`](../assets/icon.png) | PNG RGBA com transparência | 410×480 | Raster derivado do SVG. Social preview do GitHub, avatar, release notes, OG image do site, contextos que não aceitam SVG. |
+| [`assets/favicons/`](../assets/favicons/) | `favicon.ico` (16/32/48), PNG 16×16 e 32×32, `apple-touch-icon.png` 180×180, `android-chrome-*.png` 192×192 e 512×512 | quadrados | Favicons e ícones do web manifest do site. Copiados para `website/public/` pelo pré-build; o favicon SVG é o próprio `icon.svg`. |
 
 Regras:
-- Sempre referenciar `assets/icon.svg` / `assets/icon.png` por caminho relativo; **não duplicar** nem recolorir o ícone em outros diretórios.
-- Em escala, manter proporção (41:47) e renderizar com `image-rendering: pixelated` (PNG) para preservar as bordas da pixel-art.
-- Ao alterar o ícone, atualizar **os dois arquivos juntos** (PNG é exportado do SVG).
+- Sempre referenciar `assets/icon.svg` / `assets/icon.png` / `assets/favicons/` por caminho relativo; **não duplicar** nem recolorir o ícone em outros diretórios.
+- Em escala, manter proporção (41:48) e renderizar com `image-rendering: pixelated` (PNG) para preservar as bordas da pixel-art.
+- Ao alterar o ícone, atualizar **o SVG, o PNG e os favicons juntos** (PNG e favicons são exportados do SVG).
 
 ---
 

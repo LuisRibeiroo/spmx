@@ -8,7 +8,7 @@ export function Logo({ size = 28 }: { size?: number }) {
         src="/icon.svg"
         alt=""
         width={size}
-        height={Math.round((size * 47) / 41)}
+        height={Math.round((size * 48) / 41)}
         unoptimized
         className="[image-rendering:pixelated]"
       />

@@ -100,9 +100,9 @@ export async function renderOg(title: string, subtitle: string, eyebrow = "macOS
             flexShrink: 0,
           }}
         >
-          {/* 246x282 is an exact 6x integer multiple of the 41x47 pixel-art icon */}
+          {/* 246x288 is an exact 6x integer multiple of the 41x48 pixel-art icon */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} width={246} height={282} alt="" style={{ imageRendering: "pixelated" }} />
+          <img src={src} width={246} height={288} alt="" style={{ imageRendering: "pixelated" }} />
         </div>
       </div>
     ),

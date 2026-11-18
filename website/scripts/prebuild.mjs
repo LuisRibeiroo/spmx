@@ -1,5 +1,6 @@
 // Pre-build: copies shared assets and validates generated content.
 //  - assets/icon.{svg,png}          -> public/   (single source of truth, never versioned twice)
+//  - assets/favicons/*              -> public/   (favicon.ico, PNG favicons, apple-touch and Android icons)
 //  - bench/results/latest.json      -> content/benchmarks/latest.json (validated with Zod; fails the build)
 //  - GitHub release + CLI version   -> content/generated/meta.json, releases.json
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -23,6 +24,20 @@ mkdirSync(join(site, "content", "benchmarks"), { recursive: true });
 // 1. Icon + Install script ---------------------------------------------------
 for (const file of ["icon.svg", "icon.png"]) {
   const src = join(root, "assets", file);
+  if (!existsSync(src)) fail(`missing ${src}`);
+  cpSync(src, join(site, "public", file));
+}
+
+const FAVICONS = [
+  "favicon.ico",
+  "favicon-16x16.png",
+  "favicon-32x32.png",
+  "apple-touch-icon.png",
+  "android-chrome-192x192.png",
+  "android-chrome-512x512.png",
+];
+for (const file of FAVICONS) {
+  const src = join(root, "assets", "favicons", file);
   if (!existsSync(src)) fail(`missing ${src}`);
   cpSync(src, join(site, "public", file));
 }
