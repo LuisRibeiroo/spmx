@@ -34,3 +34,7 @@ No. The first resolution still belongs to `xcodebuild` or `swift package resolve
 ## Does it help projects that use CocoaPods?
 
 No. Only Swift Package Manager dependencies are managed.
+
+## Why do `du` and Finder still show full disk usage?
+
+APFS `clonefile()` creates independent files with separate inodes that share the same physical blocks on disk. Because `du` and Finder sum sizes per inode, each clone is counted at its full logical size. Use `spmx store status` or compare free volume space with `df -h /` (or `diskutil apfs list`) to see real physical usage. See [APFS clonefile](/docs/concepts/apfs-clonefile#measuring-the-cost).

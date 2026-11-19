@@ -50,6 +50,8 @@ Every Xcode and SwiftPM project on your Mac creates its own isolated `DerivedDat
 
 When you open `prime`, `xyz 4.0.0` is cloned locally in milliseconds and SwiftPM resolves only `abc 1.0.0`. When `c-131` moves from `firebase 1.0.0` to `1.0.1`, the shared bare repository lets SwiftPM fetch only the delta commits.
 
+> **Note on `du` and Finder:** APFS `clonefile()` creates independent files that share the same physical blocks on disk (copy-on-write), each with its own inode. Because `du` and Finder sum sizes per inode, they report each clone at its full logical size—making `DerivedData` and `~/.spmx/store` look larger than the actual disk space used. To check real savings and physical disk usage, run `spmx store status` or check available volume space with `df -h /` (or `diskutil apfs list`).
+
 ## Quick Start (< 2 minutes)
 
 ### 1. Install

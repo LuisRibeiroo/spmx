@@ -19,8 +19,9 @@ If `clonefile()` fails because the volume is not APFS (`ENOTSUP`) or the store a
 
 ## Measuring the cost
 
-`du` reports the logical size of a clone, so it overstates the real cost. To see physical usage, compare free space on the volume before and after, which is how the [benchmarks](/benchmarks) measure disk.
+Because `clonefile()` gives each clone its own inode while sharing the underlying physical blocks, `du` and Finder count every clone at its full logical size—making `DerivedData` and `~/.spmx/store` look larger than the actual disk space used. To see real physical usage, compare free space on the volume with `df -h /` (or `diskutil apfs list`), which is how the [benchmarks](/benchmarks) measure disk, or inspect estimated savings directly with `spmx`:
 
 ```bash
 spmx store status   # includes an estimate of copy-on-write savings
+df -h /             # real physical space available on your APFS volume
 ```
