@@ -3,7 +3,7 @@ import Foundation
 
 /// Single source of truth for the active `spmx` CLI version inside `SPMXCore`.
 public enum SPMXVersion {
-    public static let current = "0.2.3"
+    public static let current = "0.2.4"
 }
 
 /// Three-component semantic version (`major.minor.patch`).

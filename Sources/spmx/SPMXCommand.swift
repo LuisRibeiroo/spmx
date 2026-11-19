@@ -57,7 +57,7 @@ struct SPMXCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "spmx",
         abstract: "Performant Swift Package Manager — global APFS CoW store and transparent shims for Swift & Flutter.",
-        version: "0.2.3",
+        version: "0.2.4",
         subcommands: [
             DerivedDataPathCommand.self,
             HydrateCommand.self,
