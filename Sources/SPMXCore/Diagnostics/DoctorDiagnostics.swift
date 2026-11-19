@@ -266,33 +266,85 @@ public struct DoctorDiagnostics: Sendable {
 
         let xcodeOutput = (xcodeResult?.exitCode == 0 ? xcodeResult?.stdout : nil)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let supportsCAS = DiagnosticsSupport.supportsCompilationCache(
-            swiftVersion: swiftOutput,
-            xcodeVersion: xcodeOutput
-        )
-
-        if !supportsCAS {
-            return DoctorCheck(
-                name: "Swift & Compilation Cache",
-                severity: .warn,
-                summary: "\(firstLine) does not support Xcode 16+ / Swift 6+ LLVM CAS compilation caching.",
-                remediation: "Upgrade to Xcode 16+ / Swift 6+ to enable shared compilation caching at '\(compilationCacheURL.path)'."
-            )
+        let xcodeSupported = xcodeOutput.map(CompilationCacheConfig.isXcodeSupported(versionOutput:)) ?? false
+        let xcodeDetail: String
+        if xcodeSupported {
+            xcodeDetail = "xcodebuild: supported (Xcode 16+)"
+        } else if let xcodeOutput, !xcodeOutput.isEmpty {
+            xcodeDetail = "xcodebuild: unsupported (requires Xcode 16+)"
+        } else {
+            xcodeDetail = "xcodebuild: unavailable"
         }
 
-        if environment["SPMX_NO_COMPILE_CACHE"] == "1" {
+        let swiftCapability: SwiftBuildCacheCapability
+        if CompilationCacheConfig.isSwiftSupported(versionOutput: swiftOutput),
+           let helpResult = try? commandRunner("swift", ["build", "--help"]),
+           helpResult.exitCode == 0 {
+            let helpOutput = helpResult.stdout + "\n" + helpResult.stderr
+            swiftCapability = SwiftBuildCacheCLI.detectCapability(fromBuildHelpOutput: helpOutput)
+        } else {
+            swiftCapability = .unsupported
+        }
+
+        let swiftDetail: String
+        switch swiftCapability {
+        case .se0547:
+            swiftDetail = "swift: SE-0547 supported (--enable-build-caching)"
+        case .legacyBuildCache:
+            swiftDetail = "swift: legacy --enable-build-cache supported"
+        case .unsupported:
+            swiftDetail = "swift: SE-0547 unsupported (requires Swift 6.5+)"
+        }
+
+        var divergentConfigPath: String?
+        var alignedGlobalConfig = false
+        if swiftCapability == .se0547,
+           let configResult = try? commandRunner("swift", ["package", "build-cache", "get-configuration"]),
+           configResult.exitCode == 0 {
+            let primary = configResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            let configOutput = primary.isEmpty ? configResult.stderr : configResult.stdout
+            if let globalConfig = SwiftBuildCacheCLI.parseConfiguration(output: configOutput),
+               let configuredPath = globalConfig.path {
+                if SwiftBuildCacheCLI.pathsMatch(configuredPath, compilationCacheURL.path) {
+                    alignedGlobalConfig = true
+                } else {
+                    divergentConfigPath = configuredPath
+                }
+            }
+        }
+
+        if CompilationCacheConfig.isTruthy(environment[CompilationCacheConfig.disableEnvironmentKey]) {
             return DoctorCheck(
                 name: "Swift & Compilation Cache",
                 severity: .warn,
-                summary: "\(firstLine) supports LLVM CAS compilation caching, but SPMX_NO_COMPILE_CACHE=1 disables it.",
+                summary: "\(firstLine) — \(xcodeDetail); \(swiftDetail), but SPMX_NO_COMPILE_CACHE=1 disables caching.",
                 remediation: "Unset SPMX_NO_COMPILE_CACHE to re-enable shared compilation caching."
             )
         }
 
+        if !xcodeSupported && swiftCapability == .unsupported {
+            return DoctorCheck(
+                name: "Swift & Compilation Cache",
+                severity: .warn,
+                summary: "\(firstLine) — \(xcodeDetail); \(swiftDetail).",
+                remediation: "Upgrade to Xcode 16+ or Swift 6.5+ (SE-0547) to enable shared compilation caching at '\(compilationCacheURL.path)'."
+            )
+        }
+
+        if let divergentConfigPath {
+            return DoctorCheck(
+                name: "Swift & Compilation Cache",
+                severity: .warn,
+                summary: "\(firstLine) — \(xcodeDetail); \(swiftDetail). SwiftPM global build-cache path '\(divergentConfigPath)' diverges from spmx cache '\(compilationCacheURL.path)'.",
+                remediation: "Run `swift package build-cache configure --global --enable-caching --path \"\(compilationCacheURL.path)\"` or `spmx setup` to unify the CAS directory."
+            )
+        }
+
+        let alignmentSuffix = alignedGlobalConfig ? "; SwiftPM global config aligned" : ""
         return DoctorCheck(
             name: "Swift & Compilation Cache",
             severity: .pass,
-            summary: "\(firstLine) supports LLVM CAS compilation caching (cache dir: '\(compilationCacheURL.path)')."
+            summary: "\(firstLine) — \(xcodeDetail); \(swiftDetail)\(alignmentSuffix) (cache dir: '\(compilationCacheURL.path)')."
         )
     }
 

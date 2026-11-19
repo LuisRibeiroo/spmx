@@ -166,15 +166,18 @@ public struct StoreStatusReport: Sendable, Equatable {
 public struct PruneOptions: Sendable, Equatable {
     public var dryRun: Bool
     public var olderThanDays: Int
+    public var cleanCompilationCache: Bool
     public var now: Date
 
     public init(
         dryRun: Bool = false,
         olderThanDays: Int = 30,
+        cleanCompilationCache: Bool = false,
         now: Date = Date()
     ) {
         self.dryRun = dryRun
         self.olderThanDays = olderThanDays
+        self.cleanCompilationCache = cleanCompilationCache
         self.now = now
     }
 }
@@ -257,14 +260,24 @@ public struct StoreManager: Sendable {
 
     public let store: GlobalStore
     public let compilationCacheURL: URL
+    private let homeDirectory: URL
+    private let environment: [String: String]
+    private let swiftExecutablePath: String?
+    private let swiftCommandRunner: SwiftBuildCacheCLI.CommandRunner?
 
     public init(
         store: GlobalStore = GlobalStore(),
         compilationCacheURL: URL? = nil,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        swiftExecutablePath: String? = nil,
+        swiftCommandRunner: SwiftBuildCacheCLI.CommandRunner? = nil
     ) {
         self.store = store
+        self.homeDirectory = homeDirectory.standardizedFileURL
+        self.environment = environment
+        self.swiftExecutablePath = swiftExecutablePath
+        self.swiftCommandRunner = swiftCommandRunner
         self.compilationCacheURL = (
             compilationCacheURL
                 ?? Self.defaultCompilationCacheURL(environment: environment, homeDirectory: homeDirectory)
@@ -557,11 +570,12 @@ public struct StoreManager: Sendable {
             }
         }
 
-        // 4. Prune old compilation-cache entries
+        // 4. Prune compilation-cache atomically as a whole unit (never delete partial LLVM CAS files)
         if DiagnosticsSupport.isDirectory(atPath: compilationCacheURL.path, fileManager: fileManager) {
             let cacheResult = try pruneCompilationCache(
                 at: compilationCacheURL,
                 cutoffDate: cutoffDate,
+                explicitClean: options.cleanCompilationCache,
                 dryRun: options.dryRun,
                 fileManager: fileManager
             )
@@ -1162,72 +1176,109 @@ public struct StoreManager: Sendable {
     private func pruneCompilationCache(
         at rootURL: URL,
         cutoffDate: Date?,
+        explicitClean: Bool,
         dryRun: Bool,
         fileManager: FileManager
     ) throws -> (removedPaths: [String], reclaimedBytes: UInt64) {
-        var removedPaths: [String] = []
-        var reclaimedBytes: UInt64 = 0
-
-        for entryURL in nonHiddenContents(of: rootURL, fileManager: fileManager) {
-            if DiagnosticsSupport.isDirectory(atPath: entryURL.path, fileManager: fileManager) {
-                let dirSize = DiagnosticsSupport.itemSizeBytes(at: entryURL, fileManager: fileManager)
-                if isDirectoryTreeEligibleForPrune(entryURL, cutoffDate: cutoffDate, fileManager: fileManager) {
-                    removedPaths.append(entryURL.path)
-                    reclaimedBytes += dirSize
-                    if !dryRun {
-                        try fileManager.removeItem(at: entryURL)
-                    }
-                } else {
-                    let nested = try pruneCompilationCache(
-                        at: entryURL,
-                        cutoffDate: cutoffDate,
-                        dryRun: dryRun,
-                        fileManager: fileManager
-                    )
-                    removedPaths.append(contentsOf: nested.removedPaths)
-                    reclaimedBytes += nested.reclaimedBytes
-                    if !dryRun {
-                        removeDirectoryIfEmpty(entryURL, fileManager: fileManager)
-                    }
-                }
-            } else {
-                guard isEligibleForPrune(url: entryURL, cutoffDate: cutoffDate, fileManager: fileManager) else {
-                    continue
-                }
-                let size = DiagnosticsSupport.itemSizeBytes(at: entryURL, fileManager: fileManager)
-                removedPaths.append(entryURL.path)
-                reclaimedBytes += size
-                if !dryRun {
-                    try fileManager.removeItem(at: entryURL)
-                }
-            }
+        let contents = (try? fileManager.contentsOfDirectory(atPath: rootURL.path)) ?? []
+        guard !contents.isEmpty else {
+            return ([], 0)
         }
 
-        return (removedPaths, reclaimedBytes)
+        let isEligible = explicitClean
+            || isCompilationCacheEligibleForPrune(rootURL, cutoffDate: cutoffDate, fileManager: fileManager)
+        guard isEligible else {
+            return ([], 0)
+        }
+
+        let totalBytes = DiagnosticsSupport.directorySizeBytes(at: rootURL, fileManager: fileManager)
+        guard !dryRun else {
+            return ([rootURL.path], totalBytes)
+        }
+
+        if tryCleanViaSwiftPMIfConfigured(cacheURL: rootURL, fileManager: fileManager) {
+            return ([rootURL.path], totalBytes)
+        }
+
+        try removeDirectoryAtomicallyAndRecreate(at: rootURL, fileManager: fileManager)
+        return ([rootURL.path], totalBytes)
     }
 
-    private func isDirectoryTreeEligibleForPrune(
+    private func tryCleanViaSwiftPMIfConfigured(cacheURL: URL, fileManager: FileManager) -> Bool {
+        let shouldProbeLiveSwift = (swiftCommandRunner != nil)
+            || (swiftExecutablePath != nil)
+            || (homeDirectory.path == FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path)
+        guard shouldProbeLiveSwift else {
+            return false
+        }
+
+        let locator = ExecutableLocator(homeDirectory: homeDirectory)
+        guard let swiftPath = swiftExecutablePath ?? (try? locator.resolveSwift(environment: environment)) else {
+            return false
+        }
+        let sanitizedEnv = locator.sanitizedEnvironment(from: environment)
+        let runner = swiftCommandRunner ?? SwiftBuildCacheCLI.defaultRunner
+
+        guard SwiftBuildCacheCLI.isSubcommandSupported(
+            swiftPath: swiftPath,
+            environment: sanitizedEnv,
+            runner: runner
+        ),
+              let config = SwiftBuildCacheCLI.getGlobalConfiguration(
+                  swiftPath: swiftPath,
+                  environment: sanitizedEnv,
+                  runner: runner
+              ),
+              let configuredPath = config.path,
+              SwiftBuildCacheCLI.pathsMatch(configuredPath, cacheURL.path)
+        else {
+            return false
+        }
+
+        guard SwiftBuildCacheCLI.clean(swiftPath: swiftPath, environment: sanitizedEnv, runner: runner) else {
+            return false
+        }
+
+        if !DiagnosticsSupport.isDirectory(atPath: cacheURL.path, fileManager: fileManager) {
+            try? fileManager.createDirectory(at: cacheURL, withIntermediateDirectories: true)
+            return true
+        }
+        let remaining = (try? fileManager.contentsOfDirectory(atPath: cacheURL.path)) ?? []
+        return remaining.isEmpty
+    }
+
+    private func removeDirectoryAtomicallyAndRecreate(at rootURL: URL, fileManager: FileManager) throws {
+        let parentDir = rootURL.deletingLastPathComponent()
+        let stagingURL = parentDir.appendingPathComponent(".\(rootURL.lastPathComponent).pruning.\(UUID().uuidString)")
+        do {
+            try fileManager.moveItem(at: rootURL, to: stagingURL)
+            try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
+            try? fileManager.removeItem(at: stagingURL)
+        } catch {
+            try fileManager.removeItem(at: rootURL)
+            try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        }
+    }
+
+    private func isCompilationCacheEligibleForPrune(
         _ directoryURL: URL,
         cutoffDate: Date?,
         fileManager: FileManager
     ) -> Bool {
         guard let cutoffDate else { return true }
-        guard isEligibleForPrune(url: directoryURL, cutoffDate: cutoffDate, fileManager: fileManager) else {
-            return false
-        }
-        guard let enumerator = fileManager.enumerator(
+        // Check descendants first, then directory itself; any recent entry marks the entire CAS active.
+        if let enumerator = fileManager.enumerator(
             at: directoryURL,
             includingPropertiesForKeys: [.contentModificationDateKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return true
-        }
-        for case let childURL as URL in enumerator {
-            if !isEligibleForPrune(url: childURL, cutoffDate: cutoffDate, fileManager: fileManager) {
-                return false
+            options: []
+        ) {
+            for case let childURL as URL in enumerator {
+                if !isEligibleForPrune(url: childURL, cutoffDate: cutoffDate, fileManager: fileManager) {
+                    return false
+                }
             }
         }
-        return true
+        return isEligibleForPrune(url: directoryURL, cutoffDate: cutoffDate, fileManager: fileManager)
     }
 
     private func isEligibleForPrune(

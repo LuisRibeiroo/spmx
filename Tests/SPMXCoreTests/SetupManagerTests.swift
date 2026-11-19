@@ -434,6 +434,141 @@ struct SetupManagerTests {
         }
     }
 
+    @Test("setup configures SwiftPM global build cache when SE-0547 is supported and skips silently when unsupported")
+    func setupAndUninstallSwiftPMBuildCache() throws {
+        let home = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        let binary = home.appendingPathComponent(".spmx/bin/spmx")
+        try FileManager.default.createDirectory(at: binary.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("binary".utf8).write(to: binary)
+
+        final class Recorder: @unchecked Sendable {
+            private let lock = NSLock()
+            var invocations: [[String]] = []
+            func append(_ args: [String]) {
+                lock.lock()
+                invocations.append(args)
+                lock.unlock()
+            }
+        }
+
+        // 1. Swift 6.5+ (SE-0547 supported): runs `swift package build-cache configure --global ...`
+        let recorder = Recorder()
+        let customCacheDir = home.appendingPathComponent("custom-cas")
+        let se0547Result = try SetupManager.setup(
+            noModifyPath: true,
+            binaryPath: binary,
+            homeDirectory: home,
+            shell: "/bin/zsh",
+            environment: [
+                CompilationCacheConfig.directoryEnvironmentKey: customCacheDir.path,
+                CompilationCacheConfig.sizeLimitEnvironmentKey: "32G"
+            ],
+            swiftExecutablePath: "/usr/bin/swift",
+            swiftCommandRunner: { _, args, _ in
+                recorder.append(args)
+                if args == ["package", "build-cache", "--help"] {
+                    return CommandResult(exitCode: 0, stdout: "SUBCOMMANDS: configure, get-configuration, reset-configuration")
+                }
+                if args.prefix(3) == ["package", "build-cache", "configure"] {
+                    return CommandResult(exitCode: 0, stdout: "")
+                }
+                return CommandResult(exitCode: 1, stdout: "")
+            }
+        )
+
+        #expect(se0547Result.swiftBuildCacheConfigured == true)
+        #expect(se0547Result.swiftBuildCachePath?.path == customCacheDir.standardizedFileURL.path)
+        #expect(se0547Result.summaryBanner().contains("SwiftPM global build cache configured"))
+        #expect(recorder.invocations.contains([
+            "package", "build-cache", "configure",
+            "--global",
+            "--enable-caching",
+            "--path", customCacheDir.standardizedFileURL.path,
+            "--size-limit", "32G"
+        ]))
+
+        // 2. SPMX_NO_COMPILE_CACHE=1 prevents enabling global build cache
+        let disabledRecorder = Recorder()
+        let disabledResult = try SetupManager.setup(
+            noModifyPath: true,
+            binaryPath: binary,
+            homeDirectory: home,
+            shell: "/bin/zsh",
+            environment: [CompilationCacheConfig.disableEnvironmentKey: "1"],
+            swiftExecutablePath: "/usr/bin/swift",
+            swiftCommandRunner: { _, args, _ in
+                disabledRecorder.append(args)
+                if args == ["package", "build-cache", "--help"] {
+                    return CommandResult(exitCode: 0, stdout: "SUBCOMMANDS: configure, get-configuration")
+                }
+                return CommandResult(exitCode: 0, stdout: "")
+            }
+        )
+        #expect(disabledResult.swiftBuildCacheConfigured == false)
+        #expect(!disabledRecorder.invocations.contains(where: { $0.contains("configure") }))
+
+        // 3. Swift < 6.5 (unsupported): skips silently without error
+        let unsupportedResult = try SetupManager.setup(
+            noModifyPath: true,
+            binaryPath: binary,
+            homeDirectory: home,
+            shell: "/bin/zsh",
+            swiftExecutablePath: "/usr/bin/swift",
+            swiftCommandRunner: { _, _, _ in
+                CommandResult(exitCode: 1, stdout: "", stderr: "error: unknown command build-cache")
+            }
+        )
+        #expect(unsupportedResult.swiftBuildCacheConfigured == false)
+
+        // 4. Uninstall resets global config only when pointing to spmx's compilation-cache
+        let uninstallRecorder = Recorder()
+        let defaultCachePath = home.appendingPathComponent(".spmx/compilation-cache").standardizedFileURL.path
+        let uninstallMatching = try SetupManager.uninstall(
+            purge: false,
+            homeDirectory: home,
+            environment: [:],
+            swiftExecutablePath: "/usr/bin/swift",
+            swiftCommandRunner: { _, args, _ in
+                uninstallRecorder.append(args)
+                if args == ["package", "build-cache", "--help"] {
+                    return CommandResult(exitCode: 0, stdout: "SUBCOMMANDS: configure, get-configuration, reset-configuration")
+                }
+                if args == ["package", "build-cache", "get-configuration"] {
+                    return CommandResult(exitCode: 0, stdout: "Enabled: true\nPath: \(defaultCachePath)\n")
+                }
+                if args == ["package", "build-cache", "reset-configuration", "--global"] {
+                    return CommandResult(exitCode: 0, stdout: "")
+                }
+                return CommandResult(exitCode: 1, stdout: "")
+            }
+        )
+        #expect(uninstallMatching.resetSwiftBuildCache == true)
+        #expect(uninstallRecorder.invocations.contains(["package", "build-cache", "reset-configuration", "--global"]))
+
+        let divergentRecorder = Recorder()
+        let uninstallDivergent = try SetupManager.uninstall(
+            purge: false,
+            homeDirectory: home,
+            environment: [:],
+            swiftExecutablePath: "/usr/bin/swift",
+            swiftCommandRunner: { _, args, _ in
+                divergentRecorder.append(args)
+                if args == ["package", "build-cache", "--help"] {
+                    return CommandResult(exitCode: 0, stdout: "SUBCOMMANDS: configure, get-configuration, reset-configuration")
+                }
+                if args == ["package", "build-cache", "get-configuration"] {
+                    return CommandResult(exitCode: 0, stdout: "Enabled: true\nPath: /tmp/somewhere-else\n")
+                }
+                return CommandResult(exitCode: 0, stdout: "")
+            }
+        )
+        #expect(uninstallDivergent.resetSwiftBuildCache == false)
+        #expect(uninstallDivergent.swiftBuildCacheSupported == true)
+        #expect(!divergentRecorder.invocations.contains(["package", "build-cache", "reset-configuration", "--global"]))
+    }
+
     private func makeTempDir() throws -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("spmx-setup-tests-\(UUID().uuidString)")

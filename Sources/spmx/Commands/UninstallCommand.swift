@@ -66,6 +66,10 @@ struct UninstallCommand: ParsableCommand {
             print(style.stepSuccess("Shell RCs cleaned", detail: style.gray(paths)))
         }
 
+        if result.resetSwiftBuildCache {
+            print(style.stepSuccess("SwiftPM build cache", detail: style.gray("global configuration reset")))
+        }
+
         if purge {
             print(result.purgedStore
                 ? style.stepSuccess("Store purged", detail: style.gray("~/.spmx/store"))
@@ -77,6 +81,10 @@ struct UninstallCommand: ParsableCommand {
             let storePath = homeDirectory.appendingPathComponent(".spmx/store").path
             print("")
             print("  \(style.tip("›")) \(style.tip("Store preserved at")) \(style.tipItalic(storePath)) \(style.tip("(pass --purge to delete)"))")
+        }
+
+        if !result.resetSwiftBuildCache && result.swiftBuildCacheSupported {
+            print("  \(style.tip("›")) \(style.tip("To reset SwiftPM's global build cache configuration, run:")) \(style.tipCommand("`swift package build-cache reset-configuration --global`"))")
         }
     }
 }

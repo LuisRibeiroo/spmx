@@ -38,7 +38,8 @@ struct StatusCommand: ParsableCommand {
     }
 
     func run() throws {
-        let report = try ProjectStatusInspector().inspect(
+        let inspector = ProjectStatusInspector(cacheProbe: DefaultCompilationCacheProbe())
+        let report = try inspector.inspect(
             in: path,
             projectPath: project,
             workspacePath: workspace
@@ -65,7 +66,11 @@ struct StatusCommand: ParsableCommand {
                     path: report.compilationCache.path,
                     enabled: report.compilationCache.enabled,
                     sizeBytes: report.compilationCache.sizeBytes,
-                    reason: report.compilationCache.reason
+                    reason: report.compilationCache.reason,
+                    xcodeSupported: report.compilationCache.xcodeSupported,
+                    swiftCapability: report.compilationCache.swiftCapability?.rawValue,
+                    swiftGlobalCachePath: report.compilationCache.swiftGlobalCachePath,
+                    isAlignedWithSwiftPM: report.compilationCache.isAlignedWithSwiftPM
                 )
             )
             let encoder = JSONEncoder()
@@ -157,6 +162,10 @@ struct StatusCommand: ParsableCommand {
         if let reason = report.compilationCache.reason {
             print("  \(style.tip("›")) \(style.tip(reason))")
         }
+        if report.compilationCache.isAlignedWithSwiftPM == false,
+           let swiftPath = report.compilationCache.swiftGlobalCachePath {
+            print("  \(style.warningIcon) \(style.yellow("SwiftPM global build-cache path (\(swiftPath)) diverges from \(report.compilationCache.path)."))")
+        }
     }
 
     private func formatBytes(_ bytes: UInt64) -> String {
@@ -191,4 +200,8 @@ private struct CompilationCacheJSONOutput: Encodable {
     let enabled: Bool
     let sizeBytes: UInt64
     let reason: String?
+    let xcodeSupported: Bool?
+    let swiftCapability: String?
+    let swiftGlobalCachePath: String?
+    let isAlignedWithSwiftPM: Bool?
 }

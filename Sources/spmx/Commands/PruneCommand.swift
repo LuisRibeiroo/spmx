@@ -23,6 +23,12 @@ struct PruneCommand: ParsableCommand {
     )
     var olderThan: Int = 30
 
+    @Flag(
+        name: .long,
+        help: "Explicitly clear the entire compilation cache directory."
+    )
+    var cleanCompilationCache: Bool = false
+
     @Option(
         name: .long,
         help: "Configure the automatic prune reminder interval in days (default: 30; 0 disables)."
@@ -67,6 +73,7 @@ struct PruneCommand: ParsableCommand {
             commandName: "spmx prune",
             dryRun: dryRun,
             olderThan: olderThan,
+            cleanCompilationCache: cleanCompilationCache,
             autoEvery: autoEvery,
             enableAuto: enableAuto,
             disableAuto: disableAuto,
@@ -201,6 +208,7 @@ enum PruneRunner {
         commandName: String,
         dryRun: Bool,
         olderThan: Int,
+        cleanCompilationCache: Bool = false,
         autoEvery: Int?,
         enableAuto: Bool,
         disableAuto: Bool,
@@ -247,7 +255,11 @@ enum PruneRunner {
 
         let startedAt = Date()
         let report = try manager.prune(
-            options: PruneOptions(dryRun: dryRun, olderThanDays: olderThan)
+            options: PruneOptions(
+                dryRun: dryRun,
+                olderThanDays: olderThan,
+                cleanCompilationCache: cleanCompilationCache
+            )
         )
 
         if json {

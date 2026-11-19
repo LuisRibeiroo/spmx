@@ -67,6 +67,10 @@ struct SetupCommand: ParsableCommand {
         }
         print("  \(style.gray("Store:"))             \(result.storeDirectory.path)")
         print("  \(style.gray("Compilation cache:")) \(result.compilationCacheDirectory.path)")
+        if result.swiftBuildCacheConfigured {
+            let cachePath = (result.swiftBuildCachePath ?? result.compilationCacheDirectory).path
+            print("  \(style.gray("SwiftPM cache:"))     \(style.green("configured")) \(style.gray("(\(cachePath))"))")
+        }
         print("  \(style.gray("Shims:"))             \(result.shimsDirectory.path)")
         print("")
         print("\(style.doneIn(seconds: Date().timeIntervalSince(startedAt))) \(style.gray("·")) \(style.primaryBold("spmx is ready!"))")

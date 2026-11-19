@@ -63,11 +63,19 @@ struct ShimDispatcherTests {
 
     private struct MockCacheProbe: CompilationCacheProbing, Sendable {
         let xcodeSupported: Bool
-        let swiftSupported: Bool
+        let swiftCapability: SwiftBuildCacheCapability
 
-        init(xcodeSupported: Bool = true, swiftSupported: Bool = true) {
+        init(
+            xcodeSupported: Bool = true,
+            swiftCapability: SwiftBuildCacheCapability = .se0547
+        ) {
             self.xcodeSupported = xcodeSupported
-            self.swiftSupported = swiftSupported
+            self.swiftCapability = swiftCapability
+        }
+
+        init(xcodeSupported: Bool = true, swiftSupported: Bool) {
+            self.xcodeSupported = xcodeSupported
+            self.swiftCapability = swiftSupported ? .se0547 : .unsupported
         }
 
         func isXcodeCompilationCacheSupported(
@@ -77,11 +85,11 @@ struct ShimDispatcherTests {
             xcodeSupported
         }
 
-        func isSwiftBuildCacheSupported(
+        func swiftBuildCacheCapability(
             swiftPath: String,
             environment: [String: String]
-        ) -> Bool {
-            swiftSupported
+        ) -> SwiftBuildCacheCapability {
+            swiftCapability
         }
     }
 
@@ -938,7 +946,7 @@ struct ShimDispatcherTests {
         #expect(executor.requests.last?.canReplaceProcess == true)
     }
 
-    @Test("Swift shim intercepts swift build/run/package resolve, hydrates .build/, injects --enable-build-cache, and harvests")
+    @Test("Swift shim intercepts swift build/run/package resolve, injects SE-0547 flags, and harvests")
     func swiftShimInterceptsAndInjectsBuildCache() throws {
         let tempDir = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: tempDir) }
@@ -953,6 +961,7 @@ struct ShimDispatcherTests {
         let pkgDir = tempDir.appendingPathComponent("swift-pkg")
         try createSwiftPackage(at: pkgDir)
         let dotBuildDir = pkgDir.appendingPathComponent(".build")
+        let expectedCachePath = fakeHome.appendingPathComponent(".spmx/compilation-cache").path
 
         let executor = MockProcessExecutor { _ in
             let hydratedFile = dotBuildDir.appendingPathComponent("checkouts/swift-log/Package.swift")
@@ -970,13 +979,13 @@ struct ShimDispatcherTests {
             store: store,
             executableLocator: ExecutableLocator(homeDirectory: fakeHome),
             processExecutor: executor,
-            cacheProbe: MockCacheProbe(xcodeSupported: true, swiftSupported: true),
+            cacheProbe: MockCacheProbe(xcodeSupported: true, swiftCapability: .se0547),
             toolchainProvider: { sampleToolchain() },
             flutterCommandRunner: MockFlutterCommandRunner(),
             homeDirectory: fakeHome
         )
 
-        // 1. `swift build` injects `--enable-build-cache`, hydrates, and harvests
+        // 1. `swift build` injects `--enable-build-caching --build-cache-path <cas>`, hydrates, and harvests
         let buildOutcome = try dispatcher.dispatch(
             argv0: "swift",
             arguments: ["build", "-c", "release"],
@@ -986,9 +995,28 @@ struct ShimDispatcherTests {
         #expect(buildOutcome.didHydrate == true)
         #expect(buildOutcome.didHarvest == true)
         #expect(buildOutcome.injectedCompilationCache == true)
-        #expect(buildOutcome.forwardedArguments == ["build", "--enable-build-cache", "-c", "release"])
+        #expect(buildOutcome.forwardedArguments == [
+            "build",
+            "--enable-build-caching",
+            "--build-cache-path", expectedCachePath,
+            "-c", "release"
+        ])
 
-        // 2. `swift run MyApp --help` inserts `--enable-build-cache` before target name & doesn't mistake `--help` for swift help
+        // 2. `swift test` injects `--enable-build-caching --build-cache-path <cas>`
+        let testOutcome = try dispatcher.dispatch(
+            argv0: "swift",
+            arguments: ["test"],
+            workingDirectory: pkgDir.path,
+            environment: ["PATH": binDir.path]
+        )
+        #expect(testOutcome.injectedCompilationCache == true)
+        #expect(testOutcome.forwardedArguments == [
+            "test",
+            "--enable-build-caching",
+            "--build-cache-path", expectedCachePath
+        ])
+
+        // 3. `swift run SampleApp --help` inserts SE-0547 flags before target name & doesn't mistake `--help` for swift help
         let runOutcome = try dispatcher.dispatch(
             argv0: "swift",
             arguments: ["run", "SampleApp", "--help"],
@@ -997,9 +1025,14 @@ struct ShimDispatcherTests {
         )
         #expect(runOutcome.didHydrate == true)
         #expect(runOutcome.injectedCompilationCache == true)
-        #expect(runOutcome.forwardedArguments == ["run", "--enable-build-cache", "SampleApp", "--help"])
+        #expect(runOutcome.forwardedArguments == [
+            "run",
+            "--enable-build-caching",
+            "--build-cache-path", expectedCachePath,
+            "SampleApp", "--help"
+        ])
 
-        // 3. `swift package resolve` hydrates/harvests without injecting `--enable-build-cache`
+        // 4. `swift package resolve` hydrates/harvests without injecting build-cache flags
         let resolveOutcome = try dispatcher.dispatch(
             argv0: "swift",
             arguments: ["package", "resolve"],
@@ -1011,7 +1044,38 @@ struct ShimDispatcherTests {
         #expect(resolveOutcome.injectedCompilationCache == false)
         #expect(resolveOutcome.forwardedArguments == ["package", "resolve"])
 
-        // 4. `SPMX_NO_COMPILE_CACHE=1` and explicit `--disable-build-cache` bypass flag injection
+        // 5. Explicit `--build-cache-path` suppresses duplicate path injection while keeping `--enable-build-caching`
+        let customCAS = tempDir.appendingPathComponent("custom-cas").path
+        let explicitPathOutcome = try dispatcher.dispatch(
+            argv0: "swift",
+            arguments: ["build", "--build-cache-path", customCAS],
+            workingDirectory: pkgDir.path,
+            environment: ["PATH": binDir.path]
+        )
+        #expect(explicitPathOutcome.injectedCompilationCache == true)
+        #expect(explicitPathOutcome.forwardedArguments == [
+            "build", "--enable-build-caching", "--build-cache-path", customCAS
+        ])
+
+        // 6. `SPMX_COMPILATION_CACHE_SIZE_LIMIT` forwards `--build-cache-size-limit`
+        let sizedOutcome = try dispatcher.dispatch(
+            argv0: "swift",
+            arguments: ["build"],
+            workingDirectory: pkgDir.path,
+            environment: [
+                "PATH": binDir.path,
+                CompilationCacheConfig.sizeLimitEnvironmentKey: "15G"
+            ]
+        )
+        #expect(sizedOutcome.injectedCompilationCache == true)
+        #expect(sizedOutcome.forwardedArguments == [
+            "build",
+            "--enable-build-caching",
+            "--build-cache-path", expectedCachePath,
+            "--build-cache-size-limit", "15G"
+        ])
+
+        // 7. `SPMX_NO_COMPILE_CACHE=1` passes `--disable-build-caching` on SE-0547
         let noCacheOutcome = try dispatcher.dispatch(
             argv0: "swift",
             arguments: ["test"],
@@ -1022,15 +1086,189 @@ struct ShimDispatcherTests {
             ]
         )
         #expect(noCacheOutcome.injectedCompilationCache == false)
-        #expect(noCacheOutcome.forwardedArguments == ["test"])
+        #expect(noCacheOutcome.forwardedArguments == ["test", "--disable-build-caching"])
 
+        // 8. Explicit `--disable-build-caching` passes through untouched
         let explicitDisableOutcome = try dispatcher.dispatch(
             argv0: "swift",
-            arguments: ["build", "--disable-build-cache"],
+            arguments: ["build", "--disable-build-caching"],
             workingDirectory: pkgDir.path,
             environment: ["PATH": binDir.path]
         )
         #expect(explicitDisableOutcome.injectedCompilationCache == false)
-        #expect(explicitDisableOutcome.forwardedArguments == ["build", "--disable-build-cache"])
+        #expect(explicitDisableOutcome.forwardedArguments == ["build", "--disable-build-caching"])
+
+        // 9. Unlinked project bypasses hydration/harvest and injects `--disable-build-caching` on SE-0547
+        _ = try store.excludeProject(at: pkgDir.path)
+        let unlinkedOutcome = try dispatcher.dispatch(
+            argv0: "swift",
+            arguments: ["build"],
+            workingDirectory: pkgDir.path,
+            environment: ["PATH": binDir.path]
+        )
+        #expect(unlinkedOutcome.bypassed == true)
+        #expect(unlinkedOutcome.didHydrate == false)
+        #expect(unlinkedOutcome.didHarvest == false)
+        #expect(unlinkedOutcome.injectedCompilationCache == false)
+        #expect(unlinkedOutcome.forwardedArguments == ["build", "--disable-build-caching"])
+    }
+
+    @Test("SwiftShimParser handles SE-0547 flags without confusing positional arguments")
+    func swiftShimParserSE0547Flags() {
+        let withPathValue = SwiftShimParser.parse(arguments: [
+            "--build-cache-path", "/tmp/my-cas",
+            "build",
+            "--enable-build-caching"
+        ])
+        #expect(withPathValue.subcommand == .build)
+        #expect(withPathValue.subcommandArgumentIndex == 2)
+        #expect(withPathValue.hasExplicitBuildCachePath == true)
+        #expect(withPathValue.hasExplicitBuildCacheFlag == true)
+        #expect(withPathValue.hasExplicitBuildCacheDisableFlag == false)
+
+        let withEqualsAndSize = SwiftShimParser.parse(arguments: [
+            "run",
+            "--build-cache-path=/tmp/eq-cas",
+            "--build-cache-size-limit", "10G",
+            "--disable-build-caching",
+            "MyTarget",
+            "--help"
+        ])
+        #expect(withEqualsAndSize.subcommand == .run)
+        #expect(withEqualsAndSize.subcommandArgumentIndex == 0)
+        #expect(withEqualsAndSize.hasExplicitBuildCachePath == true)
+        #expect(withEqualsAndSize.hasExplicitBuildCacheSizeLimit == true)
+        #expect(withEqualsAndSize.hasExplicitBuildCacheFlag == true)
+        #expect(withEqualsAndSize.hasExplicitBuildCacheDisableFlag == true)
+        #expect(withEqualsAndSize.hasHelpOrVersionFlag == false)
+    }
+
+    @Test("Swift shim on Swift < 6.5 (unsupported) injects no build-cache flags")
+    func swiftShimUnsupportedPreSE0547() throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let fakeHome = tempDir.appendingPathComponent("home")
+        let binDir = tempDir.appendingPathComponent("bin")
+        try makeExecutableFile(at: binDir.appendingPathComponent("swift"))
+
+        let store = GlobalStore(rootURL: tempDir.appendingPathComponent("store"))
+        let pkgDir = tempDir.appendingPathComponent("swift-pkg")
+        try createSwiftPackage(at: pkgDir)
+
+        let executor = MockProcessExecutor { _ in 0 }
+        let dispatcher = ShimDispatcher(
+            store: store,
+            executableLocator: ExecutableLocator(homeDirectory: fakeHome),
+            processExecutor: executor,
+            cacheProbe: MockCacheProbe(xcodeSupported: true, swiftCapability: .unsupported),
+            toolchainProvider: { sampleToolchain() },
+            flutterCommandRunner: MockFlutterCommandRunner(),
+            homeDirectory: fakeHome
+        )
+
+        let outcome = try dispatcher.dispatch(
+            argv0: "swift",
+            arguments: ["build", "-c", "debug"],
+            workingDirectory: pkgDir.path,
+            environment: ["PATH": binDir.path]
+        )
+        #expect(outcome.injectedCompilationCache == false)
+        #expect(outcome.forwardedArguments == ["build", "-c", "debug"])
+
+        let disabledEnvOutcome = try dispatcher.dispatch(
+            argv0: "swift",
+            arguments: ["build"],
+            workingDirectory: pkgDir.path,
+            environment: [
+                "PATH": binDir.path,
+                CompilationCacheConfig.disableEnvironmentKey: "1"
+            ]
+        )
+        #expect(disabledEnvOutcome.injectedCompilationCache == false)
+        #expect(disabledEnvOutcome.forwardedArguments == ["build"])
+    }
+
+    @Test("DefaultCompilationCacheProbe caches probe results on disk, invalidates on binary change, and falls back silently")
+    func compilationCacheProbeDiskCachingAndInvalidation() throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let swiftBin = tempDir.appendingPathComponent("bin/swift")
+        let xcodeBin = tempDir.appendingPathComponent("bin/xcodebuild")
+        try makeExecutableFile(at: swiftBin, contents: "#!/bin/sh\necho swift-6.5\n")
+        try makeExecutableFile(at: xcodeBin, contents: "#!/bin/sh\necho xcode-16\n")
+
+        let cacheFile = tempDir.appendingPathComponent(".spmx/probe-cache.json")
+
+        final class Counter: @unchecked Sendable {
+            private let lock = NSLock()
+            private var value = 0
+            private var se0547 = true
+
+            func nextCount() -> Int {
+                lock.lock()
+                defer { lock.unlock() }
+                value += 1
+                return value
+            }
+
+            func setSE0547(_ enabled: Bool) {
+                lock.lock()
+                se0547 = enabled
+                lock.unlock()
+            }
+
+            var isSE0547: Bool {
+                lock.lock()
+                defer { lock.unlock() }
+                return se0547
+            }
+
+            var count: Int {
+                lock.lock()
+                defer { lock.unlock() }
+                return value
+            }
+        }
+
+        let counter = Counter()
+        let probe = DefaultCompilationCacheProbe(cacheFileURL: cacheFile) { executable, args, _ in
+            _ = counter.nextCount()
+            if executable == xcodeBin.path && args == ["-version"] {
+                return CommandResult(exitCode: 0, stdout: "Xcode 16.2\nBuild version 16C5032a\n")
+            }
+            if executable == swiftBin.path && args == ["--version"] {
+                return CommandResult(exitCode: 0, stdout: "Apple Swift version 6.5 (swiftlang-6.5.0)\n")
+            }
+            if executable == swiftBin.path && args == ["build", "--help"] {
+                let flag = counter.isSE0547 ? "--enable-build-caching" : "--package-path"
+                return CommandResult(exitCode: 0, stdout: "OPTIONS:\n  \(flag)\n")
+            }
+            return CommandResult(exitCode: 1, stdout: "")
+        }
+
+        // 1. Cold probes invoke runner (2 calls for swift, 1 for xcodebuild)
+        #expect(probe.swiftBuildCacheCapability(swiftPath: swiftBin.path, environment: [:]) == .se0547)
+        #expect(probe.isXcodeCompilationCacheSupported(xcodebuildPath: xcodeBin.path, environment: [:]) == true)
+        #expect(counter.count == 3)
+        #expect(FileManager.default.fileExists(atPath: cacheFile.path))
+
+        // 2. Warm probes hit disk cache without invoking runner
+        #expect(probe.swiftBuildCacheCapability(swiftPath: swiftBin.path, environment: [:]) == .se0547)
+        #expect(probe.isXcodeCompilationCacheSupported(xcodebuildPath: xcodeBin.path, environment: [:]) == true)
+        #expect(counter.count == 3)
+
+        // 3. Modifying the executable invalidates the probe cache
+        counter.setSE0547(false)
+        try makeExecutableFile(at: swiftBin, contents: "#!/bin/sh\necho upgraded-swift-6.4-without-cache\n")
+        #expect(probe.swiftBuildCacheCapability(swiftPath: swiftBin.path, environment: [:]) == .unsupported)
+        #expect(counter.count == 5)
+
+        // 4. Corrupted probe cache falls back silently to live probe
+        try Data("not-valid-json".utf8).write(to: cacheFile)
+        counter.setSE0547(true)
+        #expect(probe.swiftBuildCacheCapability(swiftPath: swiftBin.path, environment: [:]) == .se0547)
+        #expect(counter.count == 7)
     }
 }

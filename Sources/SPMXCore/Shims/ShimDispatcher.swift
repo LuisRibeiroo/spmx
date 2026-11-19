@@ -48,19 +48,20 @@ public struct ShimDispatcher: Sendable {
         store: GlobalStore = GlobalStore(),
         executableLocator: any ExecutableLocating = ExecutableLocator(),
         processExecutor: any ShimProcessExecuting = SystemShimProcessExecutor(),
-        cacheProbe: any CompilationCacheProbing = DefaultCompilationCacheProbe(),
+        cacheProbe: (any CompilationCacheProbing)? = nil,
         toolchainProvider: @escaping PackageSyncEngine.ToolchainProvider = { try ToolchainFingerprint.current() },
         flutterCommandRunner: any FlutterCommandRunning = ProcessFlutterCommandRunner(),
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         verboseLogger: (@Sendable (String) -> Void)? = nil
     ) {
+        let standardizedHome = homeDirectory.standardizedFileURL
         self.store = store
         self.executableLocator = executableLocator
         self.processExecutor = processExecutor
-        self.cacheProbe = cacheProbe
+        self.cacheProbe = cacheProbe ?? DefaultCompilationCacheProbe(homeDirectory: standardizedHome)
         self.toolchainProvider = toolchainProvider
         self.flutterCommandRunner = flutterCommandRunner
-        self.homeDirectory = homeDirectory.standardizedFileURL
+        self.homeDirectory = standardizedHome
         self.verboseLogger = verboseLogger
     }
 
@@ -682,10 +683,18 @@ public struct ShimDispatcher: Sendable {
         }
 
         if store.isProjectExcluded(at: packageRoot) {
+            let (finalArguments, _) = applySwiftBuildCacheFlags(
+                analysis: analysis,
+                arguments: arguments,
+                swiftPath: realSwift,
+                environment: environment,
+                sanitizedEnv: sanitizedEnv,
+                isUnlinked: true
+            )
             let exitCode = try processExecutor.execute(
                 ShimExecutionRequest(
                     executablePath: realSwift,
-                    arguments: arguments,
+                    arguments: finalArguments,
                     workingDirectory: workingDirectory,
                     environment: sanitizedEnv,
                     canReplaceProcess: true
@@ -699,7 +708,7 @@ public struct ShimDispatcher: Sendable {
                 didHarvest: false,
                 injectedCompilationCache: false,
                 executedExecutablePath: realSwift,
-                forwardedArguments: arguments
+                forwardedArguments: finalArguments
             )
         }
 
@@ -728,23 +737,14 @@ public struct ShimDispatcher: Sendable {
             }
         }
 
-        var finalArguments = arguments
-        var injectedCompilationCache = false
-        if analysis.supportsBuildCacheFlag && !analysis.hasExplicitBuildCacheFlag {
-            let cacheConfig = CompilationCacheConfig.resolve(
-                environment: environment,
-                homeDirectory: homeDirectory
-            )
-            if cacheConfig.isEnabled
-                && cacheProbe.isSwiftBuildCacheSupported(
-                    swiftPath: realSwift,
-                    environment: sanitizedEnv
-                ) {
-                try? cacheConfig.ensureCacheDirectoryExists()
-                finalArguments = analysis.argumentsWithBuildCacheEnabled(from: arguments)
-                injectedCompilationCache = true
-            }
-        }
+        let (finalArguments, injectedCompilationCache) = applySwiftBuildCacheFlags(
+            analysis: analysis,
+            arguments: arguments,
+            swiftPath: realSwift,
+            environment: environment,
+            sanitizedEnv: sanitizedEnv,
+            isUnlinked: false
+        )
 
         let exitCode = try processExecutor.execute(
             ShimExecutionRequest(
@@ -794,6 +794,68 @@ public struct ShimDispatcher: Sendable {
     }
 
     // MARK: - Helpers
+
+    private func applySwiftBuildCacheFlags(
+        analysis: SwiftCommandAnalysis,
+        arguments: [String],
+        swiftPath: String,
+        environment: [String: String],
+        sanitizedEnv: [String: String],
+        isUnlinked: Bool
+    ) -> (arguments: [String], injected: Bool) {
+        guard analysis.supportsBuildCacheFlag, !analysis.hasExplicitBuildCacheDisableFlag else {
+            return (arguments, false)
+        }
+
+        let cacheConfig = CompilationCacheConfig.resolve(
+            environment: environment,
+            homeDirectory: homeDirectory
+        )
+        let shouldEnable = cacheConfig.isEnabled && !isUnlinked
+        let capability = cacheProbe.swiftBuildCacheCapability(
+            swiftPath: swiftPath,
+            environment: sanitizedEnv
+        )
+
+        switch capability {
+        case .se0547:
+            if shouldEnable {
+                var flags: [String] = []
+                if !analysis.hasExplicitBuildCacheFlag {
+                    flags.append("--enable-build-caching")
+                }
+                if !analysis.hasExplicitBuildCachePath {
+                    try? cacheConfig.ensureCacheDirectoryExists()
+                    flags.append(contentsOf: ["--build-cache-path", cacheConfig.cacheDirectory.path])
+                }
+                if let limit = cacheConfig.sizeLimit, !analysis.hasExplicitBuildCacheSizeLimit {
+                    flags.append(contentsOf: ["--build-cache-size-limit", limit])
+                }
+                guard !flags.isEmpty else {
+                    return (arguments, false)
+                }
+                return (analysis.argumentsWithBuildCacheFlags(flags, from: arguments), true)
+            } else {
+                guard !analysis.hasExplicitBuildCacheFlag else {
+                    return (arguments, false)
+                }
+                return (
+                    analysis.argumentsWithBuildCacheFlags(["--disable-build-caching"], from: arguments),
+                    false
+                )
+            }
+
+        case .legacyBuildCache:
+            guard shouldEnable, !analysis.hasExplicitBuildCacheFlag else {
+                return (arguments, false)
+            }
+            try? cacheConfig.ensureCacheDirectoryExists()
+            return (analysis.argumentsWithBuildCacheFlags(["--enable-build-cache"], from: arguments), true)
+
+        case .unsupported:
+            return (arguments, false)
+        }
+    }
 
     private func makeFlutterIntegrator() -> FlutterSPMIntegrator {
         FlutterSPMIntegrator(

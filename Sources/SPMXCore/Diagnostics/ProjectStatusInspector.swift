@@ -6,17 +6,29 @@ public struct CompilationCacheStatus: Sendable, Equatable {
     public let enabled: Bool
     public let sizeBytes: UInt64
     public let reason: String?
+    public let xcodeSupported: Bool?
+    public let swiftCapability: SwiftBuildCacheCapability?
+    public let swiftGlobalCachePath: String?
+    public let isAlignedWithSwiftPM: Bool?
 
     public init(
         path: String,
         enabled: Bool,
         sizeBytes: UInt64,
-        reason: String? = nil
+        reason: String? = nil,
+        xcodeSupported: Bool? = nil,
+        swiftCapability: SwiftBuildCacheCapability? = nil,
+        swiftGlobalCachePath: String? = nil,
+        isAlignedWithSwiftPM: Bool? = nil
     ) {
         self.path = path
         self.enabled = enabled
         self.sizeBytes = sizeBytes
         self.reason = reason
+        self.xcodeSupported = xcodeSupported
+        self.swiftCapability = swiftCapability
+        self.swiftGlobalCachePath = swiftGlobalCachePath
+        self.isAlignedWithSwiftPM = isAlignedWithSwiftPM
     }
 }
 
@@ -117,17 +129,23 @@ public struct ProjectStatusInspector: Sendable {
     private let explicitCompilationCacheURL: URL?
     private let homeDirectory: URL
     private let toolchainProvider: ToolchainProvider
+    private let cacheProbe: (any CompilationCacheProbing)?
+    private let swiftCommandRunner: SwiftBuildCacheCLI.CommandRunner?
 
     public init(
         store: GlobalStore = GlobalStore(),
         compilationCacheURL: URL? = nil,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
-        toolchainProvider: @escaping ToolchainProvider = { try ToolchainFingerprint.current() }
+        toolchainProvider: @escaping ToolchainProvider = { try ToolchainFingerprint.current() },
+        cacheProbe: (any CompilationCacheProbing)? = nil,
+        swiftCommandRunner: SwiftBuildCacheCLI.CommandRunner? = nil
     ) {
         self.store = store
         self.explicitCompilationCacheURL = compilationCacheURL?.standardizedFileURL
         self.homeDirectory = homeDirectory
         self.toolchainProvider = toolchainProvider
+        self.cacheProbe = cacheProbe
+        self.swiftCommandRunner = swiftCommandRunner
     }
 
     /// Detects the project at `directoryPath` (or explicit `projectPath` / `workspacePath`)
@@ -225,7 +243,11 @@ public struct ProjectStatusInspector: Sendable {
         let cacheURL = explicitCompilationCacheURL
             ?? StoreManager.defaultCompilationCacheURL(environment: environment, homeDirectory: homeDirectory)
         let cacheSize = DiagnosticsSupport.directorySizeBytes(at: cacheURL, fileManager: fileManager)
-        let (cacheEnabled, cacheReason) = evaluateCompilationCacheStatus(
+        let compilationCache = evaluateCompilationCacheStatus(
+            projectType: detected.type,
+            isLinked: isLinked,
+            cacheURL: cacheURL,
+            cacheSize: cacheSize,
             toolchain: toolchain,
             environment: environment
         )
@@ -247,12 +269,7 @@ public struct ProjectStatusInspector: Sendable {
             pinStatuses: pinStatuses,
             cachedPrebuiltsCount: cachedPrebuiltsCount,
             projectSavedBytes: projectSavedBytes,
-            compilationCache: CompilationCacheStatus(
-                path: cacheURL.path,
-                enabled: cacheEnabled,
-                sizeBytes: cacheSize,
-                reason: cacheReason
-            )
+            compilationCache: compilationCache
         )
     }
 
@@ -330,25 +347,95 @@ public struct ProjectStatusInspector: Sendable {
     }
 
     private func evaluateCompilationCacheStatus(
+        projectType: ProjectType,
+        isLinked: Bool,
+        cacheURL: URL,
+        cacheSize: UInt64,
         toolchain: ToolchainFingerprint?,
         environment: [String: String]
-    ) -> (enabled: Bool, reason: String?) {
-        if environment["SPMX_DISABLE"] == "1" {
-            return (false, "Disabled by SPMX_DISABLE=1")
+    ) -> CompilationCacheStatus {
+        let locator = ExecutableLocator(homeDirectory: homeDirectory)
+        let sanitizedEnv = locator.sanitizedEnvironment(from: environment)
+        let resolvedSwiftPath = try? locator.resolveSwift(environment: environment)
+
+        let xcodeSupported = toolchain?.xcodeVersion.map(CompilationCacheConfig.isXcodeSupported(versionOutput:))
+        let swiftCapability: SwiftBuildCacheCapability?
+        if let cacheProbe, let swiftPath = resolvedSwiftPath {
+            swiftCapability = cacheProbe.swiftBuildCacheCapability(
+                swiftPath: swiftPath,
+                environment: sanitizedEnv
+            )
+        } else if let swiftVersion = toolchain?.swiftVersion,
+                  let swiftVer = CompilationCacheConfig.parseSwiftVersion(from: swiftVersion) {
+            if swiftVer.major > 6 || (swiftVer.major == 6 && swiftVer.minor >= 5) {
+                swiftCapability = .se0547
+            } else {
+                swiftCapability = .unsupported
+            }
+        } else {
+            swiftCapability = nil
         }
-        if environment["SPMX_NO_COMPILE_CACHE"] == "1" {
-            return (false, "Disabled by SPMX_NO_COMPILE_CACHE=1")
+
+        var swiftGlobalCachePath: String?
+        var isAlignedWithSwiftPM: Bool?
+        if swiftCapability == .se0547,
+           let swiftPath = resolvedSwiftPath,
+           swiftCommandRunner != nil || cacheProbe != nil,
+           let globalConfig = SwiftBuildCacheCLI.getGlobalConfiguration(
+               swiftPath: swiftPath,
+               environment: sanitizedEnv,
+               runner: swiftCommandRunner ?? SwiftBuildCacheCLI.defaultRunner
+           ),
+           let configuredPath = globalConfig.path {
+            swiftGlobalCachePath = configuredPath
+            isAlignedWithSwiftPM = SwiftBuildCacheCLI.pathsMatch(configuredPath, cacheURL.path)
         }
-        guard let toolchain else {
-            return (false, "Active Swift/Xcode toolchain unavailable")
+
+        func makeStatus(enabled: Bool, reason: String?) -> CompilationCacheStatus {
+            CompilationCacheStatus(
+                path: cacheURL.path,
+                enabled: enabled,
+                sizeBytes: cacheSize,
+                reason: reason,
+                xcodeSupported: xcodeSupported,
+                swiftCapability: swiftCapability,
+                swiftGlobalCachePath: swiftGlobalCachePath,
+                isAlignedWithSwiftPM: isAlignedWithSwiftPM
+            )
         }
-        if DiagnosticsSupport.supportsCompilationCache(
-            swiftVersion: toolchain.swiftVersion,
-            xcodeVersion: toolchain.xcodeVersion
-        ) {
-            return (true, "Supported by active Xcode 16+ / Swift 6+ toolchain")
+
+        if CompilationCacheConfig.isTruthy(environment[ExecutableLocator.disableEnvironmentKey]) {
+            return makeStatus(enabled: false, reason: "Disabled by SPMX_DISABLE=1")
         }
-        return (false, "Requires Xcode 16+ or Swift 6+ for LLVM CAS compilation caching")
+        if CompilationCacheConfig.isTruthy(environment[CompilationCacheConfig.disableEnvironmentKey]) {
+            return makeStatus(enabled: false, reason: "Disabled by SPMX_NO_COMPILE_CACHE=1")
+        }
+        if !isLinked {
+            return makeStatus(enabled: false, reason: "Disabled for unlinked project (spmx unlink)")
+        }
+        guard toolchain != nil else {
+            return makeStatus(enabled: false, reason: "Active Swift/Xcode toolchain unavailable")
+        }
+
+        switch projectType {
+        case .swiftPackage:
+            switch swiftCapability {
+            case .se0547:
+                return makeStatus(enabled: true, reason: "Supported by Swift SE-0547 (--enable-build-caching)")
+            case .legacyBuildCache:
+                return makeStatus(enabled: true, reason: "Supported by Swift (--enable-build-cache)")
+            case .unsupported, .none:
+                return makeStatus(enabled: false, reason: "SwiftPM compilation caching requires Swift 6.5+ (SE-0547)")
+            }
+        case .xcode, .flutter:
+            if xcodeSupported == true {
+                let reason = swiftCapability == .se0547
+                    ? "Supported by Xcode 16+ (COMPILATION_CACHE_CAS_PATH) & Swift SE-0547"
+                    : "Supported by Xcode 16+ (COMPILATION_CACHE_CAS_PATH)"
+                return makeStatus(enabled: true, reason: reason)
+            }
+            return makeStatus(enabled: false, reason: "Requires Xcode 16+ for LLVM CAS compilation caching")
+        }
     }
 
     private func estimateProjectSavedBytes(

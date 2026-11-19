@@ -190,7 +190,7 @@ struct StoreAndDoctorTests {
             versionOrChecksum: "510.0.0"
         )
 
-        // Compilation cache files (old vs fresh)
+        // Active CAS directory contains both an older blob and a recent blob -> must NOT delete partial CAS files!
         let oldCacheFile = cacheRoot.appendingPathComponent("old-cas-blob")
         let freshCacheFile = cacheRoot.appendingPathComponent("fresh-cas-blob")
         try Data(repeating: 0x01, count: 4000).write(to: oldCacheFile)
@@ -216,15 +216,15 @@ struct StoreAndDoctorTests {
 
         let manager = StoreManager(store: store, compilationCacheURL: cacheRoot, homeDirectory: tmp)
 
-        // 1. Dry-run prune
+        // 1. Dry-run prune (active CAS is untouched)
         let dryReport = try manager.prune(options: PruneOptions(dryRun: true, olderThanDays: 30, now: now))
         #expect(dryReport.dryRun == true)
         #expect(dryReport.removedMissingProjects == [URL(fileURLWithPath: staleWorktreePath).standardizedFileURL.path])
         #expect(dryReport.removedCheckouts == [oldCheckoutURL.path])
         #expect(dryReport.removedArtifacts == [oldArtifactURL.path])
         #expect(dryReport.removedPrebuilts == [oldPrebuiltURL.path])
-        #expect(dryReport.removedCompilationCacheEntries == [oldCacheFile.path])
-        #expect(dryReport.reclaimedBytes == 1000 + 2000 + 3000 + 4000)
+        #expect(dryReport.removedCompilationCacheEntries.isEmpty)
+        #expect(dryReport.reclaimedBytes == 1000 + 2000 + 3000)
 
         // Nothing removed on disk during dry-run
         #expect(FileManager.default.fileExists(atPath: oldCheckoutURL.path))
@@ -233,24 +233,24 @@ struct StoreAndDoctorTests {
         #expect(FileManager.default.fileExists(atPath: oldCacheFile.path))
         #expect(try store.readIndex().projects.count == 2)
 
-        // 2. Actual prune
+        // 2. Actual prune (active CAS remains intact)
         let actualReport = try manager.prune(options: PruneOptions(dryRun: false, olderThanDays: 30, now: now))
         #expect(actualReport.dryRun == false)
         #expect(actualReport.removedMissingProjects == dryReport.removedMissingProjects)
         #expect(actualReport.removedCheckouts == dryReport.removedCheckouts)
         #expect(actualReport.removedArtifacts == dryReport.removedArtifacts)
         #expect(actualReport.removedPrebuilts == dryReport.removedPrebuilts)
-        #expect(actualReport.removedCompilationCacheEntries == dryReport.removedCompilationCacheEntries)
-        #expect(actualReport.reclaimedBytes == 10_000)
+        #expect(actualReport.removedCompilationCacheEntries.isEmpty)
+        #expect(actualReport.reclaimedBytes == 6_000)
 
-        // Referenced and recent items survive; stale/old unreferenced items are gone
+        // Referenced, recent items, and active CAS blobs survive; stale/old unreferenced store entries are gone
         #expect(FileManager.default.fileExists(atPath: activeCheckoutURL.path))
         #expect(FileManager.default.fileExists(atPath: freshCheckoutURL.path))
+        #expect(FileManager.default.fileExists(atPath: oldCacheFile.path))
         #expect(FileManager.default.fileExists(atPath: freshCacheFile.path))
         #expect(!FileManager.default.fileExists(atPath: oldCheckoutURL.path))
         #expect(!FileManager.default.fileExists(atPath: oldArtifactURL.path))
         #expect(!FileManager.default.fileExists(atPath: oldPrebuiltURL.path))
-        #expect(!FileManager.default.fileExists(atPath: oldCacheFile.path))
 
         let updatedIndex = try store.readIndex()
         #expect(updatedIndex.projects.count == 1)
@@ -421,6 +421,38 @@ struct StoreAndDoctorTests {
             environment: ["SPMX_NO_COMPILE_CACHE": "1"]
         )
         #expect(disabledReport.compilationCache.enabled == false)
+
+        // Verify SwiftPM package differentiates Swift < 6.5 vs SE-0547 (6.5+)
+        let swiftPkgDir = tmp.appendingPathComponent("SwiftPkg")
+        try FileManager.default.createDirectory(at: swiftPkgDir, withIntermediateDirectories: true)
+        try "// swift-tools-version: 6.0\nimport PackageDescription\nlet package = Package(name: \"App\")\n".write(
+            to: swiftPkgDir.appendingPathComponent("Package.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let legacySwiftInspector = ProjectStatusInspector(
+            store: store,
+            compilationCacheURL: cacheDir,
+            homeDirectory: tmp,
+            toolchainProvider: {
+                ToolchainFingerprint(swiftVersion: "Apple Swift version 6.4.2", xcodeVersion: nil)
+            }
+        )
+        let legacySwiftReport = try legacySwiftInspector.inspect(in: swiftPkgDir.path, environment: [:])
+        #expect(legacySwiftReport.compilationCache.enabled == false)
+        #expect(legacySwiftReport.compilationCache.swiftCapability == .unsupported)
+
+        let se0547Inspector = ProjectStatusInspector(
+            store: store,
+            compilationCacheURL: cacheDir,
+            homeDirectory: tmp,
+            toolchainProvider: {
+                ToolchainFingerprint(swiftVersion: "Apple Swift version 6.5.0", xcodeVersion: nil)
+            }
+        )
+        let se0547Report = try se0547Inspector.inspect(in: swiftPkgDir.path, environment: [:])
+        #expect(se0547Report.compilationCache.enabled == true)
+        #expect(se0547Report.compilationCache.swiftCapability == .se0547)
     }
 
     // MARK: - DoctorDiagnostics
@@ -666,6 +698,121 @@ struct StoreAndDoctorTests {
         #expect(puroFvmCheck?.severity == .warn)
         #expect(puroFvmCheck?.summary.contains("puro") == true)
         #expect(puroFvmCheck?.summary.contains("fvm") == true)
+    }
+
+    @Test("StoreManager.prune atomically clears CAS only when entire CAS is stale or explicitly cleaned")
+    func storePruneAtomicCASUnitCleanup() throws {
+        let tmp = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let storeRoot = tmp.appendingPathComponent(".spmx/store")
+        let cacheRoot = tmp.appendingPathComponent(".spmx/compilation-cache")
+        let store = GlobalStore(rootURL: storeRoot)
+        try store.ensureLayout()
+
+        let subDir = cacheRoot.appendingPathComponent("cas")
+        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+        let blobA = subDir.appendingPathComponent("blob-a")
+        let blobB = subDir.appendingPathComponent("blob-b")
+        try Data(repeating: 0xAA, count: 1500).write(to: blobA)
+        try Data(repeating: 0xBB, count: 2500).write(to: blobB)
+
+        let now = Date()
+        let fortyDaysAgo = now.addingTimeInterval(-40 * 86_400)
+        for url in [blobA, blobB, subDir, cacheRoot] {
+            try FileManager.default.setAttributes([.modificationDate: fortyDaysAgo], ofItemAtPath: url.path)
+        }
+
+        let manager = StoreManager(store: store, compilationCacheURL: cacheRoot, homeDirectory: tmp)
+
+        // 1. Dry-run when entire CAS is stale reports the CAS directory unit and total bytes
+        let dryReport = try manager.prune(options: PruneOptions(dryRun: true, olderThanDays: 30, now: now))
+        #expect(dryReport.removedCompilationCacheEntries == [cacheRoot.standardizedFileURL.path])
+        #expect(dryReport.reclaimedBytes == 4000)
+        #expect(FileManager.default.fileExists(atPath: blobA.path))
+        #expect(FileManager.default.fileExists(atPath: blobB.path))
+
+        // 2. Actual prune atomically removes contents and recreates empty compilation-cache directory
+        let cleanReport = try manager.prune(options: PruneOptions(dryRun: false, olderThanDays: 30, now: now))
+        #expect(cleanReport.removedCompilationCacheEntries == [cacheRoot.standardizedFileURL.path])
+        #expect(cleanReport.reclaimedBytes == 4000)
+        #expect(FileManager.default.fileExists(atPath: cacheRoot.path))
+        #expect(!FileManager.default.fileExists(atPath: blobA.path))
+        #expect(!FileManager.default.fileExists(atPath: blobB.path))
+
+        // 3. Explicit cleanCompilationCache removes even freshly modified CAS
+        try FileManager.default.createDirectory(at: subDir, withIntermediateDirectories: true)
+        try Data(repeating: 0xCC, count: 1200).write(to: blobA)
+        let explicitReport = try manager.prune(options: PruneOptions(dryRun: false, olderThanDays: 30, cleanCompilationCache: true, now: now))
+        #expect(explicitReport.removedCompilationCacheEntries == [cacheRoot.standardizedFileURL.path])
+        #expect(explicitReport.reclaimedBytes == 1200)
+        #expect(!FileManager.default.fileExists(atPath: blobA.path))
+    }
+
+    @Test("DoctorDiagnostics details xcodebuild vs Swift SE-0547 and warns on divergent global build-cache path")
+    func doctorDiagnosticsSE0547AlignmentAndDivergence() throws {
+        let tmp = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let storeRoot = tmp.appendingPathComponent(".spmx/store")
+        let cacheRoot = tmp.appendingPathComponent(".spmx/compilation-cache")
+        let shimsDir = tmp.appendingPathComponent(".spmx/shims")
+        let store = GlobalStore(rootURL: storeRoot)
+        try store.ensureLayout()
+        try FileManager.default.createDirectory(at: cacheRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: shimsDir, withIntermediateDirectories: true)
+
+        var execs: Set<String> = []
+        for tool in SetupManager.shimNames {
+            execs.insert(shimsDir.appendingPathComponent(tool).path)
+        }
+        let allowedExecs = execs
+
+        func makeDoctor(globalConfigPath: String) -> DoctorDiagnostics {
+            DoctorDiagnostics(
+                store: store,
+                compilationCacheURL: cacheRoot,
+                homeDirectory: tmp,
+                workingDirectory: tmp.path,
+                environment: ["PATH": "\(shimsDir.path):/usr/bin"],
+                commandRunner: { executable, args in
+                    if executable == "xcodebuild" {
+                        return CommandResult(exitCode: 0, stdout: "Xcode 16.3\nBuild version 16E140\n")
+                    }
+                    if executable == "swift" {
+                        if args == ["--version"] {
+                            return CommandResult(exitCode: 0, stdout: "Apple Swift version 6.5 (swiftlang-6.5.0)\n")
+                        }
+                        if args == ["build", "--help"] {
+                            return CommandResult(exitCode: 0, stdout: "  --enable-build-caching\n  --build-cache-path <path>\n")
+                        }
+                        if args == ["package", "build-cache", "get-configuration"] {
+                            return CommandResult(exitCode: 0, stdout: "Enabled: true\nPath: \(globalConfigPath)\n")
+                        }
+                    }
+                    return CommandResult(exitCode: 1, stdout: "")
+                },
+                gitHooksManager: GitHooksManager(gitRunner: StubGitRunner(), homeDirectory: tmp),
+                fileSystemTypeProvider: { _ in "apfs" },
+                executableChecker: { allowedExecs.contains($0) }
+            )
+        }
+
+        // 1. Aligned SwiftPM global path -> .pass with separate xcodebuild & SE-0547 details
+        let alignedReport = makeDoctor(globalConfigPath: cacheRoot.standardizedFileURL.path).run()
+        let alignedCheck = try #require(alignedReport.checks.first { $0.name == "Swift & Compilation Cache" })
+        #expect(alignedCheck.severity == .pass)
+        #expect(alignedCheck.summary.contains("xcodebuild: supported"))
+        #expect(alignedCheck.summary.contains("SE-0547 supported"))
+        #expect(alignedCheck.summary.contains("aligned"))
+
+        // 2. Divergent SwiftPM global path -> .warn with actionable remediation
+        let divergentReport = makeDoctor(globalConfigPath: "/tmp/other-cas").run()
+        let divergentCheck = try #require(divergentReport.checks.first { $0.name == "Swift & Compilation Cache" })
+        #expect(divergentCheck.severity == .warn)
+        #expect(divergentCheck.summary.contains("/tmp/other-cas"))
+        #expect(divergentCheck.summary.contains("diverges"))
+        #expect(divergentCheck.remediation?.contains("swift package build-cache configure --global") == true)
     }
 
     // MARK: - Helpers

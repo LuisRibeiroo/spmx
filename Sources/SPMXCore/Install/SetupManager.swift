@@ -93,6 +93,8 @@ public struct SetupResult: Sendable, Equatable {
     public let modifiedShellRC: URL?
     public let activationCommand: String
     public let localBinSymlink: URL?
+    public let swiftBuildCacheConfigured: Bool
+    public let swiftBuildCachePath: URL?
 
     public init(
         spmxDirectory: URL,
@@ -105,7 +107,9 @@ public struct SetupResult: Sendable, Equatable {
         detectedShell: ShellKind,
         modifiedShellRC: URL?,
         activationCommand: String,
-        localBinSymlink: URL? = nil
+        localBinSymlink: URL? = nil,
+        swiftBuildCacheConfigured: Bool = false,
+        swiftBuildCachePath: URL? = nil
     ) {
         self.spmxDirectory = spmxDirectory
         self.binDirectory = binDirectory
@@ -118,6 +122,8 @@ public struct SetupResult: Sendable, Equatable {
         self.modifiedShellRC = modifiedShellRC
         self.activationCommand = activationCommand
         self.localBinSymlink = localBinSymlink
+        self.swiftBuildCacheConfigured = swiftBuildCacheConfigured
+        self.swiftBuildCachePath = swiftBuildCachePath
     }
 
     /// Human-readable post-install / setup summary banner.
@@ -134,6 +140,11 @@ public struct SetupResult: Sendable, Equatable {
             style.stepSuccess("Shims (active by default):", detail: "\(style.primary(shimNames)) \(style.gray("-> \(binaryPath.path)"))"),
             "    \(style.gray("Existing and new Flutter, Xcode, and SwiftPM builds will use the global cache automatically."))"
         ]
+
+        if swiftBuildCacheConfigured {
+            let configuredPath = (swiftBuildCachePath ?? compilationCacheDirectory).path
+            lines.append(style.stepSuccess("SwiftPM global build cache configured:", detail: style.gray(configuredPath)))
+        }
 
         if let modifiedShellRC {
             lines.append(style.stepSuccess("Shell PATH configured:", detail: style.gray(modifiedShellRC.path)))
@@ -176,19 +187,25 @@ public struct UninstallResult: Sendable, Equatable {
     public let cleanedShellRCs: [URL]
     public let purgedStore: Bool
     public let purgedCompilationCache: Bool
+    public let resetSwiftBuildCache: Bool
+    public let swiftBuildCacheSupported: Bool
 
     public init(
         removedShimsDirectory: Bool,
         removedBinary: Bool,
         cleanedShellRCs: [URL],
         purgedStore: Bool,
-        purgedCompilationCache: Bool
+        purgedCompilationCache: Bool,
+        resetSwiftBuildCache: Bool = false,
+        swiftBuildCacheSupported: Bool = false
     ) {
         self.removedShimsDirectory = removedShimsDirectory
         self.removedBinary = removedBinary
         self.cleanedShellRCs = cleanedShellRCs
         self.purgedStore = purgedStore
         self.purgedCompilationCache = purgedCompilationCache
+        self.resetSwiftBuildCache = resetSwiftBuildCache
+        self.swiftBuildCacheSupported = swiftBuildCacheSupported
     }
 }
 
@@ -216,6 +233,8 @@ public struct SetupManager: Sendable {
         shell: String? = ProcessInfo.processInfo.environment["SHELL"],
         environment: [String: String] = ProcessInfo.processInfo.environment,
         fileManager: FileManager = .default,
+        swiftExecutablePath: String? = nil,
+        swiftCommandRunner: SwiftBuildCacheCLI.CommandRunner? = nil,
         stepObserver: (@Sendable (SetupStepEvent) -> Void)? = nil
     ) throws -> SetupResult {
         let spmxDir = homeDirectory.appendingPathComponent(".spmx")
@@ -290,6 +309,52 @@ public struct SetupManager: Sendable {
             stepObserver?(.completed(step: "Shell PATH configured", detail: rcURL.path))
         }
 
+        var swiftBuildCacheConfigured = false
+        var swiftBuildCachePath: URL?
+
+        let shouldProbeSwiftBuildCache = (swiftCommandRunner != nil)
+            || (swiftExecutablePath != nil)
+            || (homeDirectory.standardizedFileURL.path == FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path)
+
+        if shouldProbeSwiftBuildCache {
+            let locator = ExecutableLocator(homeDirectory: homeDirectory)
+            let resolvedSwift = swiftExecutablePath ?? (try? locator.resolveSwift(environment: environment))
+            if let swiftPath = resolvedSwift {
+                let sanitizedEnv = locator.sanitizedEnvironment(from: environment)
+                let runner = swiftCommandRunner ?? SwiftBuildCacheCLI.defaultRunner
+                if SwiftBuildCacheCLI.isSubcommandSupported(
+                    swiftPath: swiftPath,
+                    environment: sanitizedEnv,
+                    runner: runner
+                ) {
+                    let cacheConfig = CompilationCacheConfig.resolve(
+                        environment: environment,
+                        homeDirectory: homeDirectory
+                    )
+                    if !cacheConfig.isEnabled {
+                        stepObserver?(.skipped(step: "SwiftPM global build cache", detail: "SPMX_NO_COMPILE_CACHE=1"))
+                    } else {
+                        stepObserver?(.running(step: "Configuring SwiftPM global build cache", detail: cacheConfig.cacheDirectory.path))
+                        try? fileManager.createDirectory(at: cacheConfig.cacheDirectory, withIntermediateDirectories: true)
+                        let sizeLimit = cacheConfig.sizeLimit ?? SwiftBuildCacheCLI.defaultSizeLimit
+                        if SwiftBuildCacheCLI.configureGlobal(
+                            swiftPath: swiftPath,
+                            cachePath: cacheConfig.cacheDirectory.path,
+                            sizeLimit: sizeLimit,
+                            environment: sanitizedEnv,
+                            runner: runner
+                        ) {
+                            swiftBuildCacheConfigured = true
+                            swiftBuildCachePath = cacheConfig.cacheDirectory
+                            stepObserver?(.completed(step: "SwiftPM global build cache configured", detail: cacheConfig.cacheDirectory.path))
+                        } else {
+                            stepObserver?(.skipped(step: "SwiftPM global build cache", detail: "unable to update global configuration"))
+                        }
+                    }
+                }
+            }
+        }
+
         return SetupResult(
             spmxDirectory: spmxDir,
             binDirectory: binDir,
@@ -301,7 +366,9 @@ public struct SetupManager: Sendable {
             detectedShell: detectedShell,
             modifiedShellRC: modifiedRC,
             activationCommand: activationCommand,
-            localBinSymlink: localBinSymlink
+            localBinSymlink: localBinSymlink,
+            swiftBuildCacheConfigured: swiftBuildCacheConfigured,
+            swiftBuildCachePath: swiftBuildCachePath
         )
     }
 
@@ -311,7 +378,10 @@ public struct SetupManager: Sendable {
     public static func uninstall(
         purge: Bool = false,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        swiftExecutablePath: String? = nil,
+        swiftCommandRunner: SwiftBuildCacheCLI.CommandRunner? = nil
     ) throws -> UninstallResult {
         let spmxDir = homeDirectory.appendingPathComponent(".spmx")
         let shimsDir = spmxDir.appendingPathComponent("shims")
@@ -342,12 +412,54 @@ public struct SetupManager: Sendable {
             purgedCompilationCache = try removeIfExists(at: compilationCacheDir, fileManager: fileManager)
         }
 
+        var resetSwiftBuildCache = false
+        var swiftBuildCacheSupported = false
+        let shouldProbeSwiftBuildCache = (swiftCommandRunner != nil)
+            || (swiftExecutablePath != nil)
+            || (homeDirectory.standardizedFileURL.path == FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path)
+
+        if shouldProbeSwiftBuildCache {
+            let locator = ExecutableLocator(homeDirectory: homeDirectory)
+            let resolvedSwift = swiftExecutablePath ?? (try? locator.resolveSwift(environment: environment))
+            if let swiftPath = resolvedSwift {
+                let sanitizedEnv = locator.sanitizedEnvironment(from: environment)
+                let runner = swiftCommandRunner ?? SwiftBuildCacheCLI.defaultRunner
+                if SwiftBuildCacheCLI.isSubcommandSupported(
+                    swiftPath: swiftPath,
+                    environment: sanitizedEnv,
+                    runner: runner
+                ) {
+                    swiftBuildCacheSupported = true
+                    let cacheConfig = CompilationCacheConfig.resolve(
+                        environment: environment,
+                        homeDirectory: homeDirectory
+                    )
+                    if let globalConfig = SwiftBuildCacheCLI.getGlobalConfiguration(
+                        swiftPath: swiftPath,
+                        environment: sanitizedEnv,
+                        runner: runner
+                    ),
+                       let configuredPath = globalConfig.path,
+                       SwiftBuildCacheCLI.pathsMatch(configuredPath, compilationCacheDir.path)
+                        || SwiftBuildCacheCLI.pathsMatch(configuredPath, cacheConfig.cacheDirectory.path) {
+                        resetSwiftBuildCache = SwiftBuildCacheCLI.resetGlobalConfiguration(
+                            swiftPath: swiftPath,
+                            environment: sanitizedEnv,
+                            runner: runner
+                        )
+                    }
+                }
+            }
+        }
+
         return UninstallResult(
             removedShimsDirectory: removedShims,
             removedBinary: removedBinary,
             cleanedShellRCs: cleanedRCs,
             purgedStore: purgedStore,
-            purgedCompilationCache: purgedCompilationCache
+            purgedCompilationCache: purgedCompilationCache,
+            resetSwiftBuildCache: resetSwiftBuildCache,
+            swiftBuildCacheSupported: swiftBuildCacheSupported
         )
     }
 

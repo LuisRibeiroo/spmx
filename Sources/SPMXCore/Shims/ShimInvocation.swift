@@ -38,16 +38,20 @@ public enum ShimError: Error, LocalizedError, Equatable, Sendable {
 public struct CompilationCacheConfig: Equatable, Sendable {
     public static let directoryEnvironmentKey = "SPMX_COMPILATION_CACHE_DIR"
     public static let disableEnvironmentKey = "SPMX_NO_COMPILE_CACHE"
+    public static let sizeLimitEnvironmentKey = "SPMX_COMPILATION_CACHE_SIZE_LIMIT"
 
     public let cacheDirectory: URL
     public let isEnabled: Bool
+    public let sizeLimit: String?
 
-    public init(cacheDirectory: URL, isEnabled: Bool) {
+    public init(cacheDirectory: URL, isEnabled: Bool, sizeLimit: String? = nil) {
         self.cacheDirectory = cacheDirectory.standardizedFileURL
         self.isEnabled = isEnabled
+        self.sizeLimit = sizeLimit
     }
 
-    /// Resolves the compilation cache directory (`~/.spmx/compilation-cache` or `SPMX_COMPILATION_CACHE_DIR`)
+    /// Resolves the compilation cache directory (`~/.spmx/compilation-cache` or `SPMX_COMPILATION_CACHE_DIR`),
+    /// optional size limit (`SPMX_COMPILATION_CACHE_SIZE_LIMIT`),
     /// and whether compilation caching is enabled (`SPMX_NO_COMPILE_CACHE=1` disables it).
     public static func resolve(
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -55,7 +59,14 @@ public struct CompilationCacheConfig: Equatable, Sendable {
     ) -> CompilationCacheConfig {
         let directory = defaultCacheDirectory(environment: environment, homeDirectory: homeDirectory)
         let disabled = isTruthy(environment[disableEnvironmentKey])
-        return CompilationCacheConfig(cacheDirectory: directory, isEnabled: !disabled)
+        let rawLimit = environment[sizeLimitEnvironmentKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let sizeLimit = (rawLimit?.isEmpty == false) ? rawLimit : nil
+        return CompilationCacheConfig(
+            cacheDirectory: directory,
+            isEnabled: !disabled,
+            sizeLimit: sizeLimit
+        )
     }
 
     /// Resolves `~/.spmx/compilation-cache` or `SPMX_COMPILATION_CACHE_DIR`.
@@ -145,6 +156,16 @@ public struct CompilationCacheConfig: Equatable, Sendable {
     }
 }
 
+/// Native compilation-cache capabilities supported by a `swift` toolchain.
+public enum SwiftBuildCacheCapability: String, Codable, Equatable, Sendable {
+    /// Swift 6.5+ SE-0547 (`--enable-build-caching`, `--disable-build-caching`, `--build-cache-path`, `--build-cache-size-limit`).
+    case se0547
+    /// Intermediate toolchain exposing legacy `--enable-build-cache`.
+    case legacyBuildCache
+    /// Swift < 6.5 without native SwiftPM build-cache flags.
+    case unsupported
+}
+
 /// Probes whether the active `xcodebuild` and `swift` toolchains support native compilation caching.
 public protocol CompilationCacheProbing: Sendable {
     func isXcodeCompilationCacheSupported(
@@ -152,13 +173,23 @@ public protocol CompilationCacheProbing: Sendable {
         environment: [String: String]
     ) -> Bool
 
+    func swiftBuildCacheCapability(
+        swiftPath: String,
+        environment: [String: String]
+    ) -> SwiftBuildCacheCapability
+}
+
+public extension CompilationCacheProbing {
     func isSwiftBuildCacheSupported(
         swiftPath: String,
         environment: [String: String]
-    ) -> Bool
+    ) -> Bool {
+        swiftBuildCacheCapability(swiftPath: swiftPath, environment: environment) != .unsupported
+    }
 }
 
-/// Default toolchain compilation-cache probe invoking `xcodebuild -version` and `swift --version` / `swift build --help`.
+/// Default toolchain compilation-cache probe invoking `xcodebuild -version` and `swift --version` / `swift build --help`,
+/// backed by a lightweight on-disk probe cache (`~/.spmx/probe-cache.json`) invalidated by executable metadata.
 public struct DefaultCompilationCacheProbe: CompilationCacheProbing, Sendable {
     public typealias CommandRunner = @Sendable (
         _ executablePath: String,
@@ -166,9 +197,43 @@ public struct DefaultCompilationCacheProbe: CompilationCacheProbing, Sendable {
         _ environment: [String: String]
     ) throws -> CommandResult
 
+    private struct ExecutableFingerprint: Codable, Equatable, Sendable {
+        let executablePath: String
+        let resolvedExecutablePath: String
+        let fileSize: UInt64
+        let modificationTimestamp: Double
+        let inode: UInt64?
+        let developerDir: String?
+        let toolchains: String?
+        let xcodeSelectTarget: String?
+    }
+
+    private struct CachedProbeEntry: Codable, Equatable, Sendable {
+        let fingerprint: ExecutableFingerprint
+        let xcodeSupported: Bool?
+        let swiftCapability: SwiftBuildCacheCapability?
+    }
+
+    private struct ProbeCacheDocument: Codable, Equatable, Sendable {
+        var entries: [String: CachedProbeEntry]
+    }
+
+    private static let fileLock = NSLock()
+
+    private let cacheFileURL: URL
     private let runner: CommandRunner
 
-    public init(runner: @escaping CommandRunner = DefaultCompilationCacheProbe.defaultRunner) {
+    public init(
+        cacheFileURL: URL? = nil,
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+        runner: @escaping CommandRunner = DefaultCompilationCacheProbe.defaultRunner
+    ) {
+        self.cacheFileURL = (
+            cacheFileURL
+                ?? homeDirectory
+                    .appendingPathComponent(".spmx")
+                    .appendingPathComponent("probe-cache.json")
+        ).standardizedFileURL
         self.runner = runner
     }
 
@@ -176,31 +241,149 @@ public struct DefaultCompilationCacheProbe: CompilationCacheProbing, Sendable {
         xcodebuildPath: String,
         environment: [String: String]
     ) -> Bool {
+        let fingerprint = computeFingerprint(executablePath: xcodebuildPath, environment: environment)
+        let cacheKey = makeCacheKey(tool: "xcodebuild", executablePath: xcodebuildPath, environment: environment)
+
+        if let fingerprint,
+           let cached = readCachedEntry(forKey: cacheKey),
+           cached.fingerprint == fingerprint,
+           let xcodeSupported = cached.xcodeSupported {
+            return xcodeSupported
+        }
+
         guard let result = try? runner(xcodebuildPath, ["-version"], environment),
               result.exitCode == 0
         else {
             return false
         }
-        return CompilationCacheConfig.isXcodeSupported(versionOutput: result.stdout)
+        let supported = CompilationCacheConfig.isXcodeSupported(versionOutput: result.stdout)
+        if let fingerprint {
+            writeCachedEntry(
+                CachedProbeEntry(fingerprint: fingerprint, xcodeSupported: supported, swiftCapability: nil),
+                forKey: cacheKey
+            )
+        }
+        return supported
     }
 
-    public func isSwiftBuildCacheSupported(
+    public func swiftBuildCacheCapability(
         swiftPath: String,
         environment: [String: String]
-    ) -> Bool {
+    ) -> SwiftBuildCacheCapability {
+        let fingerprint = computeFingerprint(executablePath: swiftPath, environment: environment)
+        let cacheKey = makeCacheKey(tool: "swift", executablePath: swiftPath, environment: environment)
+
+        if let fingerprint,
+           let cached = readCachedEntry(forKey: cacheKey),
+           cached.fingerprint == fingerprint,
+           let capability = cached.swiftCapability {
+            return capability
+        }
+
         guard let versionResult = try? runner(swiftPath, ["--version"], environment),
-              versionResult.exitCode == 0,
-              CompilationCacheConfig.isSwiftSupported(versionOutput: versionResult.stdout)
+              versionResult.exitCode == 0
         else {
-            return false
+            return .unsupported
         }
-        guard let helpResult = try? runner(swiftPath, ["build", "--help"], environment),
-              helpResult.exitCode == 0
+
+        let capability: SwiftBuildCacheCapability
+        if !CompilationCacheConfig.isSwiftSupported(versionOutput: versionResult.stdout) {
+            capability = .unsupported
+        } else {
+            guard let helpResult = try? runner(swiftPath, ["build", "--help"], environment),
+                  helpResult.exitCode == 0
+            else {
+                return .unsupported
+            }
+            let helpOutput = helpResult.stdout + "\n" + helpResult.stderr
+            capability = SwiftBuildCacheCLI.detectCapability(fromBuildHelpOutput: helpOutput)
+        }
+
+        if let fingerprint {
+            writeCachedEntry(
+                CachedProbeEntry(fingerprint: fingerprint, xcodeSupported: nil, swiftCapability: capability),
+                forKey: cacheKey
+            )
+        }
+        return capability
+    }
+
+    private func makeCacheKey(tool: String, executablePath: String, environment: [String: String]) -> String {
+        let standardized = URL(fileURLWithPath: executablePath).standardizedFileURL.path
+        let devDir = environment["DEVELOPER_DIR"] ?? ""
+        let toolchains = environment["TOOLCHAINS"] ?? ""
+        return "\(tool)|\(standardized)|\(devDir)|\(toolchains)"
+    }
+
+    private func computeFingerprint(executablePath: String, environment: [String: String]) -> ExecutableFingerprint? {
+        let fileManager = FileManager.default
+        let standardizedURL = URL(fileURLWithPath: executablePath).standardizedFileURL
+        let resolvedURL = standardizedURL.resolvingSymlinksInPath().standardizedFileURL
+
+        guard let attrs = try? fileManager.attributesOfItem(atPath: resolvedURL.path) else {
+            return nil
+        }
+
+        let fileSize = (attrs[.size] as? NSNumber)?.uint64Value ?? 0
+        let modDate = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        let inode = (attrs[.systemFileNumber] as? NSNumber)?.uint64Value
+        let xcodeSelectTarget = Self.readXcodeSelectTarget(fileManager: fileManager)
+
+        return ExecutableFingerprint(
+            executablePath: standardizedURL.path,
+            resolvedExecutablePath: resolvedURL.path,
+            fileSize: fileSize,
+            modificationTimestamp: modDate,
+            inode: inode,
+            developerDir: environment["DEVELOPER_DIR"],
+            toolchains: environment["TOOLCHAINS"],
+            xcodeSelectTarget: xcodeSelectTarget
+        )
+    }
+
+    private static func readXcodeSelectTarget(fileManager: FileManager) -> String? {
+        for linkPath in ["/var/db/xcode_select_link", "/usr/share/xcode-select/xcode_dir_link"] {
+            if let target = try? fileManager.destinationOfSymbolicLink(atPath: linkPath) {
+                return target
+            }
+        }
+        return nil
+    }
+
+    private func readCachedEntry(forKey key: String) -> CachedProbeEntry? {
+        Self.fileLock.lock()
+        defer { Self.fileLock.unlock() }
+
+        guard let data = try? Data(contentsOf: cacheFileURL),
+              let doc = try? JSONDecoder().decode(ProbeCacheDocument.self, from: data)
         else {
-            return false
+            return nil
         }
-        return helpResult.stdout.contains("--enable-build-cache")
-            || helpResult.stderr.contains("--enable-build-cache")
+        return doc.entries[key]
+    }
+
+    private func writeCachedEntry(_ entry: CachedProbeEntry, forKey key: String) {
+        Self.fileLock.lock()
+        defer { Self.fileLock.unlock() }
+
+        let fileManager = FileManager.default
+        var doc: ProbeCacheDocument
+        if let existingData = try? Data(contentsOf: cacheFileURL),
+           let decoded = try? JSONDecoder().decode(ProbeCacheDocument.self, from: existingData) {
+            doc = decoded
+        } else {
+            doc = ProbeCacheDocument(entries: [:])
+        }
+
+        doc.entries[key] = entry
+        try? fileManager.createDirectory(
+            at: cacheFileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        guard let encoded = try? JSONEncoder().encode(doc) else {
+            return
+        }
+        try? encoded.write(to: cacheFileURL, options: .atomic)
     }
 
     public static let defaultRunner: CommandRunner = { executablePath, arguments, environment in
@@ -757,6 +940,9 @@ public struct SwiftCommandAnalysis: Equatable, Sendable {
     public let scratchPath: String?
     public let hasHelpOrVersionFlag: Bool
     public let hasExplicitBuildCacheFlag: Bool
+    public let hasExplicitBuildCacheDisableFlag: Bool
+    public let hasExplicitBuildCachePath: Bool
+    public let hasExplicitBuildCacheSizeLimit: Bool
 
     public init(
         subcommand: Subcommand,
@@ -764,7 +950,10 @@ public struct SwiftCommandAnalysis: Equatable, Sendable {
         packagePath: String?,
         scratchPath: String?,
         hasHelpOrVersionFlag: Bool,
-        hasExplicitBuildCacheFlag: Bool
+        hasExplicitBuildCacheFlag: Bool,
+        hasExplicitBuildCacheDisableFlag: Bool = false,
+        hasExplicitBuildCachePath: Bool = false,
+        hasExplicitBuildCacheSizeLimit: Bool = false
     ) {
         self.subcommand = subcommand
         self.subcommandArgumentIndex = subcommandArgumentIndex
@@ -772,6 +961,9 @@ public struct SwiftCommandAnalysis: Equatable, Sendable {
         self.scratchPath = scratchPath
         self.hasHelpOrVersionFlag = hasHelpOrVersionFlag
         self.hasExplicitBuildCacheFlag = hasExplicitBuildCacheFlag
+        self.hasExplicitBuildCacheDisableFlag = hasExplicitBuildCacheDisableFlag
+        self.hasExplicitBuildCachePath = hasExplicitBuildCachePath
+        self.hasExplicitBuildCacheSizeLimit = hasExplicitBuildCacheSizeLimit
     }
 
     /// True when the invocation targets a SwiftPM dependency/build command rather than a query or unrelated subcommand.
@@ -779,7 +971,7 @@ public struct SwiftCommandAnalysis: Equatable, Sendable {
         subcommand != .other && !hasHelpOrVersionFlag
     }
 
-    /// True when `--enable-build-cache` is supported by the subcommand syntax (`build`, `test`, `run`).
+    /// True when build-cache flags are supported by the subcommand syntax (`build`, `test`, `run`).
     public var supportsBuildCacheFlag: Bool {
         switch subcommand {
         case .build, .test, .run:
@@ -789,14 +981,22 @@ public struct SwiftCommandAnalysis: Equatable, Sendable {
         }
     }
 
-    /// Returns arguments with `--enable-build-cache` inserted directly after the subcommand when applicable.
-    public func argumentsWithBuildCacheEnabled(from originalArguments: [String]) -> [String] {
-        guard let index = subcommandArgumentIndex, index < originalArguments.count else {
+    /// Returns arguments with the given build-cache flags inserted directly after the subcommand when applicable.
+    public func argumentsWithBuildCacheFlags(_ flags: [String], from originalArguments: [String]) -> [String] {
+        guard !flags.isEmpty,
+              let index = subcommandArgumentIndex,
+              index < originalArguments.count
+        else {
             return originalArguments
         }
         var updated = originalArguments
-        updated.insert("--enable-build-cache", at: index + 1)
+        updated.insert(contentsOf: flags, at: index + 1)
         return updated
+    }
+
+    /// Returns arguments with `--enable-build-cache` inserted directly after the subcommand when applicable.
+    public func argumentsWithBuildCacheEnabled(from originalArguments: [String]) -> [String] {
+        argumentsWithBuildCacheFlags(["--enable-build-cache"], from: originalArguments)
     }
 }
 
@@ -810,6 +1010,8 @@ public enum SwiftShimParser {
         "--config-path",
         "--security-path",
         "--pkg-config-path",
+        "--build-cache-path",
+        "--build-cache-size-limit",
         "-Xcc", "-Xcxx", "-Xlinker", "-Xswiftc", "-Xmanifest",
         "-c", "--configuration",
         "--arch", "--triple", "--sdk", "--toolchain", "--sanitize",
@@ -827,6 +1029,9 @@ public enum SwiftShimParser {
         var scratchPath: String?
         var hasHelpOrVersionFlag = false
         var hasExplicitBuildCacheFlag = false
+        var hasExplicitBuildCacheDisableFlag = false
+        var hasExplicitBuildCachePath = false
+        var hasExplicitBuildCacheSizeLimit = false
         var awaitingFlag: String?
 
         for (index, arg) in arguments.enumerated() {
@@ -852,11 +1057,40 @@ public enum SwiftShimParser {
                 continue
             }
 
-            if arg == "--enable-build-cache"
+            if arg == "--disable-build-caching"
                 || arg == "--disable-build-cache"
-                || arg.hasPrefix("--enable-build-cache=")
+                || arg.hasPrefix("--disable-build-caching=")
                 || arg.hasPrefix("--disable-build-cache=") {
                 hasExplicitBuildCacheFlag = true
+                hasExplicitBuildCacheDisableFlag = true
+                continue
+            }
+
+            if arg == "--enable-build-caching"
+                || arg == "--enable-build-cache"
+                || arg.hasPrefix("--enable-build-caching=")
+                || arg.hasPrefix("--enable-build-cache=") {
+                hasExplicitBuildCacheFlag = true
+                continue
+            }
+
+            if arg == "--build-cache-path" {
+                hasExplicitBuildCachePath = true
+                awaitingFlag = arg
+                continue
+            }
+            if arg.hasPrefix("--build-cache-path=") {
+                hasExplicitBuildCachePath = true
+                continue
+            }
+
+            if arg == "--build-cache-size-limit" {
+                hasExplicitBuildCacheSizeLimit = true
+                awaitingFlag = arg
+                continue
+            }
+            if arg.hasPrefix("--build-cache-size-limit=") {
+                hasExplicitBuildCacheSizeLimit = true
                 continue
             }
 
@@ -922,7 +1156,10 @@ public enum SwiftShimParser {
             packagePath: packagePath,
             scratchPath: scratchPath,
             hasHelpOrVersionFlag: hasHelpOrVersionFlag,
-            hasExplicitBuildCacheFlag: hasExplicitBuildCacheFlag
+            hasExplicitBuildCacheFlag: hasExplicitBuildCacheFlag,
+            hasExplicitBuildCacheDisableFlag: hasExplicitBuildCacheDisableFlag,
+            hasExplicitBuildCachePath: hasExplicitBuildCachePath,
+            hasExplicitBuildCacheSizeLimit: hasExplicitBuildCacheSizeLimit
         )
     }
 }
