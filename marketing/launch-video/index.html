@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>spmx launch video</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=block" rel="stylesheet">
+<style>
+  /* Dark tokens from website/app/globals.css (.dark). */
+  :root {
+    --paper: oklch(0.175 0.004 60);
+    --paper-2: oklch(0.215 0.005 60);
+    --paper-3: oklch(0.245 0.006 60);
+    --ink: oklch(0.96 0.008 85);
+    --muted: oklch(0.74 0.01 75);
+    --accent: oklch(0.72 0.16 42);
+    --accent-text: oklch(0.8 0.14 52);
+    --line: oklch(0.3 0.008 60);
+    --line-strong: oklch(0.56 0.01 60);
+    --ok: oklch(0.78 0.14 150);
+    --err: oklch(0.72 0.17 28);
+    --sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 100%; height: 100%; background: #0d0c0b; overflow: hidden; }
+
+  #stage {
+    position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden;
+    background: var(--paper); color: var(--ink); font-family: var(--sans);
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; transform-origin: 0 0;
+  }
+  .glow { position: absolute; inset: 0; background: radial-gradient(1400px 640px at 88% -14%, color-mix(in oklch, var(--accent) 22%, transparent), transparent 70%); }
+  .scene { position: absolute; inset: 0; padding: 150px 120px 90px; visibility: hidden; }
+
+  .topbar { position: absolute; left: 120px; right: 120px; top: 56px; display: flex; justify-content: space-between; align-items: center; z-index: 5; opacity: 0; }
+  .brand { display: flex; gap: 14px; align-items: center; font: 600 30px var(--mono); }
+  .brand img { height: 46px; image-rendering: pixelated; }
+  .url { font: 400 22px var(--mono); color: var(--muted); }
+
+  .mono { font-family: var(--mono); }
+  .muted { color: var(--muted); }
+  .accent { color: var(--accent-text); }
+  .ok { color: var(--ok); }
+  .err { color: var(--err); }
+  .b { font-weight: 600; }
+
+  .caret { display: inline-block; width: 0.56em; height: 1.08em; margin-left: 0.06em; background: var(--accent); vertical-align: -0.18em; }
+  .typed { min-height: 1.15em; }
+  .label { font: 600 18px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-text); margin-bottom: 18px; }
+  .h { font: 600 56px/1.14 var(--mono); letter-spacing: -0.02em; margin: 0; }
+
+  .card { background: var(--paper-2); border: 1px solid var(--line); border-radius: 18px; }
+  .chip { display: inline-flex; align-items: center; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--line-strong); font: 600 17px var(--sans); color: var(--muted); }
+  .chip.orange { border-color: var(--accent); color: var(--accent-text); }
+  .chip.m { font: 400 16px var(--mono); }
+  .pixel-rule {
+    height: 8px; opacity: 0.55;
+    background-image: linear-gradient(90deg, var(--line-strong) 4px, transparent 4px), linear-gradient(90deg, var(--accent) 4px, transparent 4px);
+    background-size: 16px 4px, 16px 4px; background-position: 0 0, 8px 4px; background-repeat: repeat-x;
+  }
+  .pill { font: 400 15px var(--mono); padding: 4px 9px; border-radius: 5px; background: color-mix(in oklch, var(--line-strong) 40%, transparent); color: var(--ink); white-space: nowrap; }
+  .pill.o { background: color-mix(in oklch, var(--accent) 22%, transparent); color: var(--accent-text); border: 1px solid color-mix(in oklch, var(--accent) 50%, transparent); }
+
+  /* Terminal */
+  .terminal { background: var(--paper-2); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; }
+  .terminal .bar { flex: none; display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+  .terminal .bar i { width: 14px; height: 14px; border-radius: 50%; background: var(--line-strong); opacity: 0.55; }
+  .terminal .bar span { flex: 1; text-align: center; margin-right: 62px; font: 400 17px var(--mono); color: var(--muted); }
+  .tbody { flex: 1; position: relative; overflow: hidden; padding: 22px 26px; }
+  .tinner { font: 400 22px/1.55 var(--mono); white-space: pre-wrap; word-break: break-word; }
+  .line .pr { color: var(--muted); }
+  .line .caret { display: none; }
+  .line.cursor .caret { display: inline-block; }
+  .hl { border-radius: 6px; padding: 2px 6px; margin-left: -6px; }
+
+  /* A — hook */
+  .hook { position: absolute; left: 150px; right: 120px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 30px; }
+  .hook .typed { font: 600 72px/1.1 var(--mono); letter-spacing: -0.03em; white-space: nowrap; }
+
+  /* B — problem */
+  #b-cap { font: 600 50px/1.15 var(--mono); letter-spacing: -0.02em; }
+  .b-grid { position: absolute; left: 120px; right: 120px; top: 250px; height: 620px; display: grid; grid-template-columns: 1fr 600px; gap: 36px; }
+  .dd { padding: 28px; display: flex; flex-direction: column; }
+  .dd-head { display: flex; justify-content: space-between; align-items: center; }
+  .dd-rows { display: flex; flex-direction: column; gap: 14px; margin-top: 26px; }
+  .ddrow { display: grid; grid-template-columns: 96px 1fr auto; align-items: center; gap: 10px; padding: 15px 14px; border-radius: 10px; background: var(--paper-3); border: 1px solid var(--line); opacity: 0; }
+  .ddrow .name { font: 400 17px var(--mono); color: var(--muted); }
+  .ddrow .pills { display: flex; gap: 6px; }
+  .ddrow .size { font: 600 17px var(--mono); white-space: nowrap; }
+  .dd-total { margin-top: auto; display: flex; align-items: baseline; gap: 16px; }
+  .dd-total .n { font: 700 80px/1 var(--sans); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+  .dd-total .c { font-size: 20px; color: var(--muted); line-height: 1.35; }
+  #b-cap2 { position: absolute; left: 120px; right: 120px; top: 920px; font: 600 46px/1.15 var(--mono); letter-spacing: -0.02em; }
+
+  /* C — intro */
+  .intro { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  #c-logo { height: 260px; image-rendering: pixelated; opacity: 0; transform-origin: 50% 70%; }
+  #c-word { font: 600 132px/1 var(--mono); letter-spacing: -0.03em; margin-top: 30px; min-width: 2ch; }
+  #c-tag { font: 400 36px/1.3 var(--mono); color: var(--muted); margin-top: 26px; }
+
+  /* D — setup */
+  .d-left { position: absolute; left: 120px; top: 150px; width: 560px; }
+  #d-head { font: 600 54px/1.14 var(--mono); letter-spacing: -0.02em; min-height: 3.42em; }
+  #d-steps { margin-top: 40px; display: flex; flex-direction: column; gap: 22px; }
+  .step { display: grid; grid-template-columns: 56px 1fr; gap: 18px; align-items: start; opacity: 0.42; }
+  .step .num { width: 48px; height: 48px; border-radius: 12px; border: 1.5px solid var(--line-strong); display: grid; place-items: center; font: 600 20px var(--mono); color: var(--muted); }
+  .step .t { font: 600 26px/1.25 var(--sans); }
+  .step .c { font: 400 18px/1.4 var(--mono); color: var(--muted); margin-top: 6px; }
+  .step.active, .step.done { opacity: 1; }
+  .step.active .num { border-color: var(--accent); color: var(--accent-text); background: color-mix(in oklch, var(--accent) 16%, transparent); }
+  .step.done .num { border-color: var(--ok); color: var(--paper); background: var(--ok); }
+  #d-termwrap { position: absolute; left: 740px; right: 120px; top: 150px; bottom: 90px; }
+
+  /* E — how it works */
+  #e-head { font: 600 56px/1.14 var(--mono); letter-spacing: -0.02em; }
+  #e-store { position: absolute; left: 610px; width: 700px; top: 330px; height: 140px; border-radius: 16px; border: 2px solid var(--accent); background: color-mix(in oklch, var(--accent) 10%, var(--paper-2)); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; opacity: 0; }
+  #e-store .path { font: 600 32px var(--mono); color: var(--accent-text); }
+  #e-store .pills { display: flex; gap: 10px; }
+  #e-store .pill { font-size: 19px; padding: 5px 12px; }
+  #e-one { position: absolute; left: 1334px; top: 382px; opacity: 0; }
+  #e-svg { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+  #e-wts { position: absolute; left: 300px; top: 720px; display: grid; grid-template-columns: repeat(5, 240px); gap: 30px; }
+  .wt { height: 110px; border-radius: 14px; border: 1.5px dashed var(--line-strong); background: var(--paper-2); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font: 500 26px var(--mono); opacity: 0; }
+  .wt small { font: 600 21px var(--mono); color: var(--ok); }
+  #e-cap { position: absolute; left: 260px; right: 260px; top: 890px; text-align: center; font: 400 30px/1.45 var(--mono); color: var(--muted); }
+
+  /* F — new worktree */
+  #f-head { font: 600 56px/1.14 var(--mono); letter-spacing: -0.02em; }
+  #f-termwrap { position: absolute; left: 120px; width: 1080px; top: 300px; height: 560px; }
+  #f-stack { position: absolute; left: 1236px; right: 120px; top: 300px; height: 560px; padding: 28px; display: flex; flex-direction: column; gap: 14px; }
+  #f-stack .title { font: 600 24px var(--sans); margin-bottom: 6px; }
+  .srow { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--paper-3); border: 1px solid var(--line); opacity: 0; }
+  .srow .badge { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--accent); color: var(--accent-text); font: 600 18px var(--sans); white-space: nowrap; }
+  .srow .cmd { font: 400 16px var(--mono); color: var(--muted); white-space: nowrap; }
+  #f-cap { position: absolute; left: 120px; right: 120px; top: 905px; font: 400 30px/1.4 var(--mono); color: var(--muted); }
+
+  /* G — gains */
+  #g-head { font: 600 56px/1.14 var(--mono); letter-spacing: -0.02em; }
+  #g-chart { position: absolute; left: 120px; right: 120px; top: 300px; height: 310px; padding: 30px 40px; display: flex; flex-direction: column; justify-content: center; gap: 30px; opacity: 0; }
+  .g-meta { display: flex; gap: 12px; }
+  .grow { display: grid; grid-template-columns: 300px 1fr 190px; gap: 26px; align-items: center; }
+  .grow .lab b { display: block; font: 600 24px var(--sans); }
+  .grow .lab span { font: 400 18px var(--sans); color: var(--muted); }
+  .gtrack { position: relative; height: 56px; background: var(--paper-3); border-radius: 6px; }
+  .gfill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px 0 0 6px; width: 0; }
+  #g-base-fill { background: var(--line-strong); }
+  #g-spmx-fill { background: var(--accent); }
+  #g-whisk { position: absolute; top: 50%; left: 83.4%; width: 16.6%; height: 2px; background: var(--ink); transform: translateY(-50%); opacity: 0; }
+  #g-whisk::before, #g-whisk::after { content: ""; position: absolute; top: -8px; width: 2px; height: 18px; background: var(--ink); }
+  #g-whisk::before { left: 0; } #g-whisk::after { right: 0; }
+  .gval { font: 700 36px var(--sans); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 12px; }
+  #g-spmx-val { color: var(--accent-text); }
+  #g-spmx-done { font: 600 18px var(--mono); color: var(--ok); opacity: 0; }
+  #g-cards { position: absolute; left: 120px; right: 120px; top: 645px; height: 240px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; }
+  .stat { padding: 30px 34px; display: flex; flex-direction: column; justify-content: center; gap: 14px; opacity: 0; }
+  .stat .n { font: 700 96px/0.95 var(--sans); letter-spacing: -0.05em; font-variant-numeric: tabular-nums; color: var(--accent-text); }
+  .stat .n.okc { color: var(--ok); }
+  .stat p { margin: 0; font-size: 22px; color: var(--muted); line-height: 1.35; }
+  #g-foot { position: absolute; left: 120px; right: 120px; top: 920px; font: 400 19px var(--mono); color: var(--muted); opacity: 0; }
+
+  /* H — end card */
+  .end { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  #h-logo { height: 200px; image-rendering: pixelated; opacity: 0; transform-origin: 50% 70%; }
+  #h-word { font: 600 104px/1 var(--mono); letter-spacing: -0.03em; margin-top: 26px; opacity: 0; }
+  #h-tag { font: 400 32px/1.3 var(--sans); color: var(--muted); margin-top: 20px; opacity: 0; }
+  #h-pill { margin-top: 48px; padding: 22px 34px; font: 400 32px var(--mono); opacity: 0; min-width: 800px; text-align: left; }
+  #h-pill .pr { color: var(--muted); }
+  #h-url { margin-top: 34px; font: 600 30px var(--mono); color: var(--accent-text); opacity: 0; }
+  #h-url span { color: var(--muted); font-weight: 400; }
+
+  /* Preview controls (hidden while capturing) */
+  #controls { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-radius: 12px; background: rgba(20,18,16,.85); border: 1px solid #3a3531; color: #ddd; font: 13px ui-monospace, Menlo, monospace; z-index: 10; }
+  #controls button { background: none; border: 1px solid #55504a; color: #eee; border-radius: 8px; padding: 4px 10px; font: inherit; cursor: pointer; }
+  #controls input { width: 420px; accent-color: #ea6a38; }
+  body.capture #controls { display: none; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="glow"></div>
+  <div class="topbar" id="topbar"><div class="brand"><img src="icon.svg" alt="">spmx</div><div class="url">spmx.io</div></div>
+
+  <!-- A: hook -->
+  <section class="scene" id="sA">
+    <div class="hook">
+      <div class="typed" id="a1"></div>
+      <div class="typed" id="a2"></div>
+    </div>
+  </section>
+
+  <!-- B: problem -->
+  <section class="scene" id="sB">
+    <div class="typed" id="b-cap"></div>
+    <div class="b-grid">
+      <div class="terminal"><div class="bar"><i></i><i></i><i></i><span>~/dev/app — zsh</span></div><div class="tbody"><div class="tinner" id="b-term"></div></div></div>
+      <div class="card dd">
+        <div class="dd-head"><span class="chip">DerivedData per worktree</span><span class="mono muted" style="font-size:17px">Standard Xcode</span></div>
+        <div class="dd-rows" id="b-rows"></div>
+        <div class="dd-total"><span class="n" id="b-total">0 GB</span><span class="c">of the same<br>packages on disk</span></div>
+      </div>
+    </div>
+    <div class="typed" id="b-cap2"></div>
+  </section>
+
+  <!-- C: intro -->
+  <section class="scene" id="sC">
+    <div class="intro">
+      <img id="c-logo" src="icon.svg" alt="">
+      <div class="typed" id="c-word"></div>
+      <div class="typed" id="c-tag"></div>
+    </div>
+  </section>
+
+  <!-- D: setup -->
+  <section class="scene" id="sD">
+    <div class="d-left">
+      <div class="label">Setup</div>
+      <div class="typed" id="d-head"></div>
+      <div id="d-steps">
+        <div class="step"><div class="num">1</div><div><div class="t">Install</div><div class="c">brew install LuisRibeiroo/tap/spmx</div></div></div>
+        <div class="step"><div class="num">2</div><div><div class="t">Turn on the shims</div><div class="c">spmx setup</div></div></div>
+        <div class="step"><div class="num">3</div><div><div class="t">Link the projects you already have</div><div class="c">spmx link ~/dev</div></div></div>
+      </div>
+    </div>
+    <div id="d-termwrap" class="terminal"><div class="bar"><i></i><i></i><i></i><span>~ — zsh</span></div><div class="tbody"><div class="tinner" id="d-term"></div></div></div>
+  </section>
+
+  <!-- E: how it works -->
+  <section class="scene" id="sE">
+    <div class="label">How it works</div>
+    <div class="typed" id="e-head"></div>
+    <svg id="e-svg" viewBox="0 0 1920 1080" aria-hidden="true">
+      <g class="fan" fill="none" stroke="oklch(0.72 0.16 42)" stroke-width="2.5">
+        <path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M960 470 C960 600, 420 590, 420 720"/>
+        <path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M960 470 C960 600, 690 590, 690 720"/>
+        <path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M960 470 L960 720"/>
+        <path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M960 470 C960 600, 1230 590, 1230 720"/>
+        <path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M960 470 C960 600, 1500 590, 1500 720"/>
+      </g>
+      <g id="e-lbl" opacity="0">
+        <rect x="870" y="574" width="180" height="38" rx="8" fill="oklch(0.175 0.004 60)"/>
+        <text x="960" y="601" text-anchor="middle" font-family="IBM Plex Mono" font-weight="600" font-size="22" fill="oklch(0.8 0.14 52)">clonefile()</text>
+      </g>
+    </svg>
+    <div id="e-store">
+      <div class="path">~/.spmx/store</div>
+      <div class="pills"><span class="pill o">Firebase</span><span class="pill o">Stripe</span><span class="pill o">gRPC</span><span class="pill o">SwiftSyntax</span></div>
+    </div>
+    <div id="e-one" class="chip orange">1 copy on disk</div>
+    <div id="e-wts">
+      <div class="wt">agent-1<small>+0 B</small></div>
+      <div class="wt">agent-2<small>+0 B</small></div>
+      <div class="wt">agent-3<small>+0 B</small></div>
+      <div class="wt">agent-4<small>+0 B</small></div>
+      <div class="wt">agent-5<small>+0 B</small></div>
+    </div>
+    <div class="typed" id="e-cap"></div>
+  </section>
+
+  <!-- F: every new worktree -->
+  <section class="scene" id="sF">
+    <div class="label">Every new worktree</div>
+    <div class="typed" id="f-head"></div>
+    <div id="f-termwrap" class="terminal"><div class="bar"><i></i><i></i><i></i><span>~/dev — zsh</span></div><div class="tbody"><div class="tinner" id="f-term"></div></div></div>
+    <div id="f-stack" class="card">
+      <div class="title">Works with your stack</div>
+      <div class="srow"><span class="badge">Swift / Xcode</span><span class="cmd">xcodebuild</span></div>
+      <div class="srow"><span class="badge">Flutter</span><span class="cmd">flutter build ios</span></div>
+      <div class="srow"><span class="badge">React Native / Expo</span><span class="cmd">npx expo run:ios</span></div>
+      <div class="srow"><span class="badge">Kotlin Multiplatform</span><span class="cmd">xcodebuild</span></div>
+      <div class="srow"><span class="badge">Capacitor / Tauri</span><span class="cmd">npx cap run ios</span></div>
+    </div>
+    <div class="typed" id="f-cap"></div>
+  </section>
+
+  <!-- G: gains -->
+  <section class="scene" id="sG">
+    <div class="label">Measured on Apple M4 Pro</div>
+    <div class="typed" id="g-head"></div>
+    <div id="g-chart" class="card">
+      <div class="g-meta"><span class="chip">New worktree, store warm</span><span class="chip m">swift-composable-architecture</span></div>
+      <div class="grow">
+        <div class="lab"><b>Native resolve</b><span>Swift Package Manager</span></div>
+        <div class="gtrack"><div class="gfill" id="g-base-fill"></div><div id="g-whisk"></div></div>
+        <div class="gval" id="g-base-val">0.0 s</div>
+      </div>
+      <div class="grow">
+        <div class="lab"><b>spmx hydrate</b><span>APFS clonefile()</span></div>
+        <div class="gtrack"><div class="gfill" id="g-spmx-fill"></div></div>
+        <div class="gval"><span id="g-spmx-val">0.00 s</span><span id="g-spmx-done">✓ done</span></div>
+      </div>
+    </div>
+    <div id="g-cards">
+      <div class="card stat"><div class="n" id="g-n1">1×</div><p>faster setup for<br>every new worktree</p></div>
+      <div class="card stat"><div class="n" id="g-n2">0.0%</div><p>less time spent<br>hydrating packages</p></div>
+      <div class="card stat"><div class="n okc" id="g-n3">8.0 GB</div><p>extra disk per worktree,<br>thanks to APFS copy-on-write</p></div>
+    </div>
+    <div id="g-foot">Median of 3 runs · methodology and raw data at spmx.io/benchmarks</div>
+  </section>
+
+  <!-- H: end card -->
+  <section class="scene" id="sH">
+    <div class="end">
+      <img id="h-logo" src="icon.svg" alt="">
+      <div id="h-word">spmx</div>
+      <div id="h-tag">One package store for every Swift project on your Mac.</div>
+      <div id="h-pill" class="card"><span class="pr">$ </span><span id="h-cmd"></span></div>
+      <div id="h-url">spmx.io <span>· macOS · Apple Silicon &amp; Intel</span></div>
+    </div>
+  </section>
+</div>
+
+<div id="controls"><button id="play">Pause</button><input id="seek" type="range" min="0" max="100" step="0.01" value="0"><span id="time">0.0s</span></div>
+
+<script>
+/* ---------- helpers ---------- */
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const prog = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
+const easeOut = (p) => 1 - Math.pow(1 - p, 3);
+const easeInOut = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+const blink = (t) => ((t % 1) + 1) % 1 < 0.55;
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const sp = (c, s) => `<span class="${c}">${esc(s)}</span>`;
+const G = (s) => sp("muted", s), A = (s) => sp("accent", s), AB = (s) => sp("accent b", s);
+const OK = (s) => sp("ok", s), OKB = (s) => sp("ok b", s), B = (s) => sp("b", s), W = (s) => esc(s);
+
+/** Text typed character by character with a block caret. */
+class Typer {
+  constructor(el, segs, start, cps = 30, opts = {}) {
+    this.el = el;
+    this.segs = typeof segs === "string" ? [{ t: segs }] : segs;
+    this.len = this.segs.reduce((n, s) => n + s.t.length, 0);
+    this.start = start; this.cps = cps; this.end = start + this.len / cps;
+    this.linger = opts.linger ?? 0.45; this.keep = !!opts.keep; this.last = null;
+  }
+  render(t) {
+    const n = clamp(Math.floor((t - this.start) * this.cps), 0, this.len);
+    let html = "", left = n;
+    for (const s of this.segs) {
+      if (left <= 0) break;
+      const part = s.t.slice(0, left); left -= part.length;
+      html += s.c ? sp(s.c, part) : esc(part);
+    }
+    const typing = t >= this.start && t < this.end;
+    const idle = t >= this.end && (this.keep || t < this.end + this.linger);
+    if (typing || (idle && blink(t - this.end))) html += '<span class="caret"></span>';
+    if (html !== this.last) { this.el.innerHTML = html; this.last = html; }
+  }
+}
+
+/** A terminal: typed commands, instant output lines, scrolls when full. */
+class Term {
+  constructor(inner, start) { this.inner = inner; this.body = inner.parentElement; this.items = []; this.c = start; }
+  wait(d) { this.c += d; return this; }
+  _line(html) { const el = document.createElement("div"); el.className = "line"; el.innerHTML = html; el.style.display = "none"; this.inner.appendChild(el); return el; }
+  cmd(text, cps = 38, after = 0.3) {
+    const el = this._line('<span class="pr">$ </span><span class="tx"></span><span class="caret"></span>');
+    const it = { kind: "cmd", el, tx: el.querySelector(".tx"), text, start: this.c, end: this.c + text.length / cps, cps, n: -1 };
+    this.items.push(it); this.c = it.end + after; return this;
+  }
+  prompt() { return this.cmd("", 1, 0); }
+  out(lines, gap = 0.05, after = 0.25) {
+    for (const h of lines) { this.items.push({ kind: "out", el: this._line(h || " "), start: this.c }); this.c += gap; }
+    this.c += after; return this;
+  }
+  render(t) {
+    let last = null;
+    for (const it of this.items) {
+      const v = t >= it.start;
+      if (it.vis !== v) { it.el.style.display = v ? "" : "none"; it.vis = v; }
+      if (!v) continue;
+      last = it;
+      if (it.kind === "cmd") {
+        const n = clamp(Math.floor((t - it.start) * it.cps), 0, it.text.length);
+        if (n !== it.n) { it.tx.textContent = it.text.slice(0, n); it.n = n; }
+      }
+    }
+    for (const it of this.items) if (it.kind === "cmd") {
+      const on = it === last && (t < it.end || blink(t - it.end));
+      if (it.cur !== on) { it.el.classList.toggle("cursor", on); it.cur = on; }
+    }
+    const room = this.body.clientHeight - 44;
+    const over = this.inner.offsetHeight - room;
+    this.inner.style.transform = over > 0 ? `translateY(${-over}px)` : "";
+  }
+}
+
+/* ---------- timeline ---------- */
+const scenes = [];
+let cursor = 0;
+function addScene(id, build, overlap = 0.25) {
+  const el = $(id);
+  const start = scenes.length ? cursor - overlap : 0;
+  const r = build(start);
+  const s = { el, start, end: r.end, render: r.render, brand: !!r.brand, vis: null };
+  scenes.push(s); cursor = s.end; return s;
+}
+const pixelPop = (el, t, a) => { const p = prog(t, a, a + 0.5); const st = Math.ceil(p * 5) / 5; el.style.opacity = st; el.style.transform = `scale(${0.5 + 0.5 * st})`; };
+
+function build() {
+  /* A — hook */
+  addScene("sA", (t0) => {
+    const l1 = new Typer($("a1"), [{ t: "› ", c: "accent" }, { t: "Your AI agents love git worktrees." }], t0 + 0.5, 26);
+    const l2 = new Typer($("a2"), [{ t: "› ", c: "accent" }, { t: "Your SSD doesn't.", c: "accent" }], l1.end + 0.6, 18, { keep: true });
+    return { end: l2.end + 1.9, render: (t) => { l1.render(t); l2.render(t); } };
+  });
+
+  /* B — problem */
+  addScene("sB", (t0) => {
+    const cap = new Typer($("b-cap"), "Each worktree re-downloads every Swift package.", t0 + 0.4, 36);
+    const term = new Term($("b-term"), cap.end + 0.3);
+    const fetches = ["firebase/firebase-ios-sdk", "stripe/stripe-ios", "grpc/grpc-swift", "swiftlang/swift-syntax"].map((r) => G("Fetching from ") + W("https://github.com/" + r));
+    const rowsEl = $("b-rows");
+    const rowsAt = [];
+    const speeds = [[40, 0.2, 0.3], [95, 0.07, 0.18], [170, 0.035, 0.1], [210, 0.03, 0.08], [230, 0.03, 0.08]];
+    speeds.forEach(([cps, gap, after], i) => {
+      const n = i + 1;
+      term.cmd(`git worktree add ../agent-${n} && cd ../agent-${n}`, cps, after);
+      term.out([G(`Preparing worktree (new branch 'agent-${n}')`)], gap, after * 0.6);
+      term.cmd("xcodebuild -resolvePackageDependencies", cps, after);
+      term.out([G("Resolve Package Graph"), ...fetches], gap, after);
+      rowsAt.push(term.c - after);
+      const row = document.createElement("div");
+      row.className = "ddrow";
+      row.innerHTML = `<span class="name">agent-${n}</span><span class="pills"><span class="pill">Firebase</span><span class="pill">Stripe</span><span class="pill">gRPC</span><span class="pill">SwiftSyntax</span></span><span class="size">~8 GB</span>`;
+      rowsEl.appendChild(row);
+    });
+    term.prompt();
+    const rows = [...rowsEl.children];
+    const total = $("b-total");
+    const cap2 = new Typer($("b-cap2"), [{ t: "Same packages. " }, { t: "Copied five times.", c: "err" }], term.c + 0.4, 30, { keep: true });
+    return {
+      end: cap2.end + 1.6,
+      render: (t) => {
+        cap.render(t); term.render(t); cap2.render(t);
+        let gb = 0;
+        rows.forEach((r, i) => {
+          const p = easeOut(prog(t, rowsAt[i], rowsAt[i] + 0.35));
+          r.style.opacity = p; r.style.transform = `translateX(${(1 - p) * 24}px)`;
+          gb += 8 * easeOut(prog(t, rowsAt[i], rowsAt[i] + 0.45));
+        });
+        const txt = t >= rowsAt[4] + 0.45 ? "40+ GB" : `${Math.round(gb)} GB`;
+        if (total.textContent !== txt) total.textContent = txt;
+        total.classList.toggle("err", gb >= 23.5);
+      },
+    };
+  });
+
+  /* C — intro */
+  addScene("sC", (t0) => {
+    const la = t0 + 0.35;
+    const word = new Typer($("c-word"), "spmx", la + 0.6, 9);
+    const tag = new Typer($("c-tag"), "One package store for every Swift project on your Mac.", word.end + 0.55, 40, { keep: true });
+    return { end: tag.end + 1.8, render: (t) => { pixelPop($("c-logo"), t, la); word.render(t); tag.render(t); } };
+  });
+
+  /* D — setup */
+  addScene("sD", (t0) => {
+    const head = new Typer($("d-head"), "Set up in three commands.", t0 + 0.4, 34);
+    const term = new Term($("d-term"), head.end + 0.3);
+    const steps = [...document.querySelectorAll("#d-steps .step")];
+    const marks = [term.c];
+    term.cmd("brew install LuisRibeiroo/tap/spmx", 34, 0.45);
+    term.out([AB("==> ") + B("Fetching luisribeiroo/tap/spmx"), AB("==> ") + B("Installing spmx from luisribeiroo/tap"), W("🍺  /opt/homebrew/Cellar/spmx/0.2.0: 6 files, 8.4MB"), ""], 0.32, 0.4);
+    marks.push(term.c);
+    term.cmd("spmx setup", 24, 0.45);
+    const ck = "  " + OKB("✓") + " ";
+    term.out([
+      OKB("✓ ") + OK("spmx setup complete!"), "",
+      AB("Installation:"),
+      ck + B("Directories:") + " " + A("~/.spmx") + " " + G("(store, compilation-cache, bin, shims)"),
+      ck + B("Shims (active by default):") + " " + A("flutter, xcodebuild, swift"),
+      ck + B("Shell PATH configured:") + " " + G("~/.zshrc"), "",
+    ], 0.09, 0.5);
+    marks.push(term.c);
+    term.cmd("spmx link ~/dev --yes", 30, 0.45);
+    const L = (name, type, size, h, saved) => "  " + OKB("+") + " " + A(name) + " " + G(`[${type}]`) + "  " + A(size) + " " + G(`(harvested ${h}, CoW ${h} · ${saved})`);
+    term.out([AB("spmx link"), G("Scope:") + " ~/dev", "", AB("Linking and deduplicating:")], 0.07, 0.15);
+    term.out([
+      L("app", "xcode", "2.9 GB", 38, "2.6 GB"),
+      L("app-agent-1", "xcode", "2.9 GB", 38, "2.9 GB"),
+      L("app-agent-2", "xcode", "2.9 GB", 38, "2.9 GB"),
+      L("app-agent-3", "xcode", "2.8 GB", 37, "2.8 GB"),
+      L("shop", "flutter", "1.4 GB", 18, "1.3 GB"),
+    ], 0.22, 0.3);
+    term.out([
+      "", AB("Summary:"),
+      "  " + G("Projects linked:") + "   " + sp("accent b", "5"),
+      "  " + G("Harvested:") + "         " + sp("accent b", "169") + " " + G("item(s)"),
+      '  <span class="hl" id="d-hl">' + G("Reclaimed:") + "         " + OKB("12.5 GB") + " " + G("(via APFS CoW)") + "</span>",
+      "", OK("Done") + " " + G("in 3.1s"),
+    ], 0.08, 0.3);
+    const hlAt = term.items[term.items.length - 3].start;
+    marks.push(term.c);
+    term.prompt();
+    const hl = $("d-hl");
+    return {
+      end: term.c + 2.4, brand: true,
+      render: (t) => {
+        head.render(t); term.render(t);
+        steps.forEach((s, i) => {
+          s.classList.toggle("active", t >= marks[i] && t < marks[i + 1]);
+          s.classList.toggle("done", t >= marks[i + 1]);
+        });
+        const p = prog(t, hlAt + 0.2, hlAt + 0.7);
+        hl.style.background = `color-mix(in oklch, var(--ok) ${Math.round(p * 16)}%, transparent)`;
+      },
+    };
+  });
+
+  /* E — how it works */
+  addScene("sE", (t0) => {
+    const head = new Typer($("e-head"), "One store. Cloned, not copied.", t0 + 0.4, 32);
+    const s0 = head.end + 0.2;
+    const paths = [...document.querySelectorAll("#e-svg .fan path")];
+    const wts = [...document.querySelectorAll("#e-wts .wt")];
+    const l0 = s0 + 0.7;
+    const cap = new Typer($("e-cap"), "APFS clonefile() shares the same disk blocks. A worktree only takes space for files it changes.", l0 + 4 * 0.18 + 1.3, 44, { keep: true });
+    return {
+      end: cap.end + 2.2, brand: true,
+      render: (t) => {
+        head.render(t);
+        const p = easeOut(prog(t, s0, s0 + 0.5));
+        $("e-store").style.opacity = p; $("e-store").style.transform = `translateY(${(1 - p) * 16}px)`;
+        $("e-one").style.opacity = easeOut(prog(t, s0 + 0.5, s0 + 0.9));
+        paths.forEach((pa, i) => {
+          const a = l0 + i * 0.18;
+          pa.style.strokeDashoffset = 1 - easeInOut(prog(t, a, a + 0.8));
+          const wp = easeOut(prog(t, a + 0.55, a + 0.95));
+          wts[i].style.opacity = wp; wts[i].style.transform = `translateY(${(1 - wp) * 12}px)`;
+          wts[i].querySelector("small").style.opacity = prog(t, a + 0.95, a + 1.15);
+        });
+        $("e-lbl").setAttribute("opacity", easeOut(prog(t, l0 + 0.5, l0 + 0.9)));
+        cap.render(t);
+      },
+    };
+  });
+
+  /* F — every new worktree */
+  addScene("sF", (t0) => {
+    const head = new Typer($("f-head"), "New worktree? Ready in half a second.", t0 + 0.4, 34);
+    const term = new Term($("f-term"), head.end + 0.3);
+    term.cmd("git worktree add ../agent-6 && cd ../agent-6", 42, 0.3);
+    term.out([G("Preparing worktree (new branch 'agent-6')")], 0.05, 0.3);
+    term.cmd("spmx hydrate", 24, 0.5);
+    term.out([
+      AB("spmx hydrate") + " " + G("[xcode]"),
+      G("Scope:") + " ~/dev/agent-6",
+      "  " + G("Target:") + " ~/Library/Developer/Xcode/DerivedData/App-…/SourcePackages", "",
+      G("Progress:") + " checkouts " + sp("accent b", "14") + " " + G("cloned") + ", " + G("0 skipped") + ", artifacts " + sp("accent b", "2") + ", prebuilts " + sp("accent b", "0") + ", workspace-state " + G("updated"), "",
+      OK("Done") + " " + G("in 0.5s"),
+    ], 0.06, 0.3);
+    const doneAt = term.c - 0.3;
+    term.prompt();
+    const rows = [...document.querySelectorAll("#f-stack .srow")];
+    const cap = new Typer($("f-cap"), "No command needed: the xcodebuild, swift and flutter shims hydrate on every build.", doneAt + 0.5 + rows.length * 0.15, 46, { keep: true });
+    return {
+      end: cap.end + 2.2, brand: true,
+      render: (t) => {
+        head.render(t); term.render(t); cap.render(t);
+        rows.forEach((r, i) => {
+          const p = easeOut(prog(t, doneAt + 0.2 + i * 0.15, doneAt + 0.6 + i * 0.15));
+          r.style.opacity = p; r.style.transform = `translateX(${(1 - p) * 20}px)`;
+        });
+      },
+    };
+  });
+
+  /* G — gains */
+  addScene("sG", (t0) => {
+    const head = new Typer($("g-head"), "The gains.", t0 + 0.4, 18);
+    const c0 = head.end + 0.2;
+    const race = c0 + 0.7;
+    const raceEnd = race + 2.8;
+    const cs = raceEnd + 0.3;
+    const cards = [...document.querySelectorAll("#g-cards .stat")];
+    return {
+      end: cs + 0.6 + 1.3 + 3.0, brand: true,
+      render: (t) => {
+        head.render(t);
+        const cp = easeOut(prog(t, c0, c0 + 0.5));
+        $("g-chart").style.opacity = cp; $("g-chart").style.transform = `translateY(${(1 - cp) * 16}px)`;
+        const ps = prog(t, race, race + 0.46);
+        $("g-spmx-fill").style.width = ps > 0 ? `max(8px, ${ps}%)` : "0";
+        $("g-spmx-val").textContent = `${(0.46 * ps).toFixed(2)} s`;
+        $("g-spmx-done").style.opacity = prog(t, race + 0.46, race + 0.7);
+        const pb = prog(t, race, raceEnd);
+        $("g-base-fill").style.width = `${87.6 * pb}%`;
+        $("g-base-val").textContent = `${(42.3 * pb).toFixed(1)} s`;
+        $("g-whisk").style.opacity = prog(t, raceEnd, raceEnd + 0.3);
+        cards.forEach((c, i) => {
+          const a = cs + i * 0.3;
+          const op = easeOut(prog(t, a, a + 0.4));
+          c.style.opacity = op; c.style.transform = `translateY(${(1 - op) * 18}px)`;
+        });
+        const q = (i) => easeOut(prog(t, cs + i * 0.3, cs + i * 0.3 + 1.3));
+        $("g-n1").textContent = `${Math.round(1 + 90 * q(0))}×`;
+        $("g-n2").textContent = `${(98.9 * q(1)).toFixed(1)}%`;
+        $("g-n3").textContent = q(2) < 1 ? `${(8 * (1 - q(2))).toFixed(1)} GB` : "0 B";
+        $("g-foot").style.opacity = prog(t, cs + 1.2, cs + 1.7);
+      },
+    };
+  });
+
+  /* H — end card */
+  addScene("sH", (t0) => {
+    const la = t0 + 0.3;
+    const cmd = new Typer($("h-cmd"), "brew install LuisRibeiroo/tap/spmx", la + 1.7, 32, { keep: true });
+    const fade = (id, a, dy = 14) => { const p = easeOut(prog(cur, a, a + 0.5)); $(id).style.opacity = p; $(id).style.transform = `translateY(${(1 - p) * dy}px)`; };
+    let cur = 0;
+    return {
+      end: cmd.end + 4.2,
+      render: (t) => {
+        cur = t;
+        pixelPop($("h-logo"), t, la);
+        fade("h-word", la + 0.45); fade("h-tag", la + 0.8); fade("h-pill", la + 1.3); fade("h-url", cmd.end + 0.4);
+        cmd.render(t);
+      },
+    };
+  });
+}
+
+function render(t) {
+  const lastScene = scenes[scenes.length - 1];
+  for (const s of scenes) {
+    const a = Math.min(prog(t, s.start, s.start + 0.45), s === lastScene ? 1 : 1 - prog(t, s.end - 0.45, s.end));
+    if (a <= 0) { if (s.vis !== false) { s.el.style.visibility = "hidden"; s.vis = false; } continue; }
+    if (s.vis !== true) { s.el.style.visibility = "visible"; s.vis = true; }
+    s.el.style.opacity = a;
+    s.el.style.transform = `translateY(${(1 - easeOut(prog(t, s.start, s.start + 0.6))) * 18}px)`;
+    s.render(t);
+  }
+  const brand = scenes.filter((s) => s.brand);
+  const first = brand[0], last = brand[brand.length - 1];
+  $("topbar").style.opacity = Math.min(prog(t, first.start, first.start + 0.45), 1 - prog(t, last.end - 0.45, last.end));
+}
+
+/* ---------- boot ---------- */
+const capture = new URLSearchParams(location.search).has("capture");
+if (capture) document.body.classList.add("capture");
+
+(async () => {
+  const fonts = ["400 20px Geist", "500 20px Geist", "600 20px Geist", "700 20px Geist", '400 20px "IBM Plex Mono"', '500 20px "IBM Plex Mono"', '600 20px "IBM Plex Mono"'];
+  await Promise.all(fonts.map((f) => document.fonts.load(f)));
+  await document.fonts.ready;
+  await Promise.all([...document.images].map((i) => i.decode().catch(() => {})));
+  build();
+  window.DURATION = cursor;
+  window.renderAt = (t) => render(t);
+  render(0);
+  window.__ready = true;
+  if (capture) return;
+
+  const stage = $("stage");
+  const fit = () => {
+    const s = Math.min(innerWidth / 1920, (innerHeight - 64) / 1080);
+    stage.style.transform = `scale(${s})`;
+    stage.style.left = `${(innerWidth - 1920 * s) / 2}px`;
+    stage.style.top = `${Math.max(0, (innerHeight - 64 - 1080 * s) / 2)}px`;
+  };
+  fit(); addEventListener("resize", fit);
+  const seek = $("seek"), time = $("time"), play = $("play");
+  seek.max = window.DURATION;
+  let playing = true, t = 0, prev = performance.now();
+  play.onclick = () => { playing = !playing; play.textContent = playing ? "Pause" : "Play"; };
+  seek.oninput = () => { t = +seek.value; };
+  addEventListener("keydown", (e) => {
+    if (e.code === "Space") { e.preventDefault(); play.click(); }
+    if (e.code === "ArrowRight") t = Math.min(window.DURATION, t + 2);
+    if (e.code === "ArrowLeft") t = Math.max(0, t - 2);
+  });
+  const loop = (now) => {
+    if (playing) { t += (now - prev) / 1000; if (t > window.DURATION + 1) t = 0; }
+    prev = now;
+    render(Math.min(t, window.DURATION));
+    seek.value = t; time.textContent = `${t.toFixed(1)}s / ${window.DURATION.toFixed(1)}s`;
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

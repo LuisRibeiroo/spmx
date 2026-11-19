@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>spmx — stack</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .head { margin-top: 26px; display: flex; flex-direction: column; gap: 12px; }
+  h2 { font-size: 50px; line-height: 1.05; }
+  .head .lead { font-size: 19px; }
+  .head .lead code { font-family: var(--mono); color: var(--ink); font-size: 0.92em; }
+  .list { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 11px; margin-top: 22px; }
+  .item { display: grid; grid-template-columns: 250px 1fr 210px; align-items: center; gap: 22px; padding: 15px 22px; }
+  .badge { justify-self: start; padding: 7px 15px; border-radius: 999px; border: 1px solid var(--accent); color: var(--accent-text); font-weight: 600; font-size: 16px; white-space: nowrap; }
+  .cmd { font-family: var(--mono); font-size: 16px; color: var(--ink); white-space: nowrap; }
+  .cmd .muted { user-select: none; }
+  .how { font-size: 14px; color: var(--muted); text-align: right; }
+  .bottom { margin-top: 18px; display: flex; align-items: center; gap: 14px; font-family: var(--mono); font-size: 16px; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="topbar">
+    <div class="brand"><img src="icon.svg" alt="">spmx</div>
+    <div class="url">spmx.io</div>
+  </div>
+  <div class="head">
+    <h2>Works with your whole Apple stack</h2>
+    <p class="lead">Anything that resolves SwiftPM through <code>xcodebuild</code> or <code>swift</code> shares the same store.</p>
+  </div>
+  <div class="list">
+    <div class="card item"><span class="badge">Swift / Xcode</span><span class="cmd"><span class="muted">$ </span>spmx hydrate</span><span class="how">clones the store</span></div>
+    <div class="card item"><span class="badge">Flutter</span><span class="cmd"><span class="muted">$ </span>flutter build ios</span><span class="how">flutter + xcodebuild shims</span></div>
+    <div class="card item"><span class="badge">React Native / Expo</span><span class="cmd"><span class="muted">$ </span>npx expo run:ios</span><span class="how">xcodebuild shim</span></div>
+    <div class="card item"><span class="badge">Kotlin Multiplatform</span><span class="cmd"><span class="muted">$ </span>xcodebuild -scheme iosApp build</span><span class="how">xcodebuild shim</span></div>
+    <div class="card item"><span class="badge">Capacitor / Tauri</span><span class="cmd"><span class="muted">$ </span>npx cap run ios</span><span class="how">xcodebuild shim</span></div>
+  </div>
+  <div class="bottom">
+    <span class="ok b">✓</span><span><span class="muted">$</span> spmx setup</span><span class="muted">— one shim, every toolchain.</span>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>spmx — hero</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .grid { flex: 1; display: grid; grid-template-columns: 500px 1fr; gap: 48px; align-items: center; }
+  .left { display: flex; flex-direction: column; gap: 26px; }
+  h1 { font-size: 60px; line-height: 1.04; }
+  h1 em { font-style: normal; color: var(--accent-text); }
+  .stats { display: flex; gap: 12px; flex-wrap: wrap; }
+  .stats .chip { font-size: 15px; color: var(--ink); }
+  .stats .chip b { color: var(--accent-text); font-weight: 700; }
+  .terminal pre { font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="topbar">
+    <div class="brand"><img src="icon.svg" alt="">spmx</div>
+    <div class="url">spmx.io</div>
+  </div>
+  <div class="grid">
+    <div class="left">
+      <h1>Stop AI worktrees &amp; Xcode from <em>eating your SSD.</em></h1>
+      <div class="pixel-rule"></div>
+      <p class="lead">One global APFS copy-on-write store for SwiftPM, cloned into every project and worktree on your Mac.</p>
+      <div class="stats">
+        <span class="chip"><b>0 MB</b> extra per worktree</span>
+        <span class="chip"><b>98.9%</b> faster hydration</span>
+      </div>
+    </div>
+    <div class="terminal">
+      <div class="bar"><i></i><i></i><i></i><span>~/dev — zsh</span></div>
+<pre><span class="muted">$</span> spmx link ~/dev --yes
+<span class="accent b">spmx link</span>
+<span class="muted">Scope:</span> ~/dev
+
+<span class="b">Linking and deduplicating:</span>
+  <span class="ok b">+</span> <span class="accent">app</span> <span class="muted">[xcode]</span>  <span class="accent">2.9 GB</span> <span class="muted">(harvested 38, CoW 38 · 2.6 GB)</span>
+  <span class="ok b">+</span> <span class="accent">app-agent-1</span> <span class="muted">[xcode]</span>  <span class="accent">2.9 GB</span> <span class="muted">(harvested 38, CoW 38 · 2.9 GB)</span>
+  <span class="ok b">+</span> <span class="accent">app-agent-2</span> <span class="muted">[xcode]</span>  <span class="accent">2.9 GB</span> <span class="muted">(harvested 38, CoW 38 · 2.9 GB)</span>
+  <span class="ok b">+</span> <span class="accent">app-agent-3</span> <span class="muted">[xcode]</span>  <span class="accent">2.8 GB</span> <span class="muted">(harvested 37, CoW 37 · 2.8 GB)</span>
+  <span class="ok b">+</span> <span class="accent">shop</span> <span class="muted">[flutter]</span>  <span class="accent">1.4 GB</span> <span class="muted">(harvested 18, CoW 18 · 1.3 GB)</span>
+
+<span class="b">Summary:</span>
+  <span class="muted">Projects linked:</span>   <span class="accent b">5</span>
+  <span class="muted">Harvested:</span>         <span class="accent b">169</span> <span class="muted">item(s)</span>
+  <span class="muted">Reclaimed:</span>         <span class="ok b">12.5 GB</span> <span class="muted">(via APFS CoW)</span>
+
+<span class="ok">Done</span> <span class="muted">in 3.1s</span></pre>
+    </div>
+  </div>
+</div>
+</body>
+</html>

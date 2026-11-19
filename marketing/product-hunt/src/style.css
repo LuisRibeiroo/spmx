@@ -1,0 +1,162 @@
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=block");
+
+/* Dark tokens copied from website/app/globals.css (.dark). */
+:root {
+  --paper: oklch(0.175 0.004 60);
+  --paper-2: oklch(0.215 0.005 60);
+  --paper-3: oklch(0.245 0.006 60);
+  --ink: oklch(0.96 0.008 85);
+  --muted: oklch(0.74 0.01 75);
+  --accent: oklch(0.72 0.16 42);
+  --accent-text: oklch(0.8 0.14 52);
+  --line: oklch(0.3 0.008 60);
+  --line-strong: oklch(0.56 0.01 60);
+  --ok: oklch(0.78 0.14 150);
+  --sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  width: 1270px;
+  height: 760px;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.slide {
+  position: relative;
+  width: 1270px;
+  height: 760px;
+  padding: 52px 64px 48px;
+  display: flex;
+  flex-direction: column;
+}
+
+.slide::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(900px 440px at 88% -12%, color-mix(in oklch, var(--accent) 24%, transparent), transparent 70%);
+  pointer-events: none;
+}
+
+.slide > * { position: relative; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+}
+
+.brand img { height: 34px; image-rendering: pixelated; }
+
+.url {
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.pixel-rule {
+  height: 8px;
+  background-image:
+    linear-gradient(90deg, var(--line-strong) 4px, transparent 4px),
+    linear-gradient(90deg, var(--accent) 4px, transparent 4px);
+  background-size: 16px 4px, 16px 4px;
+  background-position: 0 0, 8px 4px;
+  background-repeat: repeat-x;
+  opacity: 0.55;
+}
+
+h1, h2 {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.lead { color: var(--muted); font-size: 21px; line-height: 1.5; margin: 0; text-wrap: pretty; }
+
+.mono { font-family: var(--mono); }
+.muted { color: var(--muted); }
+.accent { color: var(--accent-text); }
+.ok { color: var(--ok); }
+.b { font-weight: 600; }
+
+.card {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.chip.orange { border-color: var(--accent); color: var(--accent-text); }
+
+.terminal {
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.terminal .bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.terminal .bar i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  opacity: 0.55;
+}
+
+.terminal .bar span {
+  margin-left: auto;
+  margin-right: auto;
+  transform: translateX(-26px);
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.terminal pre {
+  margin: 0;
+  padding: 20px 22px 22px;
+  font-family: var(--mono);
+  font-size: 14.5px;
+  line-height: 1.62;
+  white-space: pre;
+  color: var(--ink);
+}

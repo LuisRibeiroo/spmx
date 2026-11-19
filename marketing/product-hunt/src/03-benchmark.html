@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>spmx — benchmark</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .head { margin-top: 30px; display: flex; flex-direction: column; gap: 14px; }
+  h2 { font-size: 58px; line-height: 1.02; }
+  h2 em { font-style: normal; color: var(--accent-text); }
+  .meta { display: flex; gap: 10px; flex-wrap: wrap; }
+  .meta .chip { font-weight: 500; font-size: 14px; }
+  .meta .chip.m { font-family: var(--mono); font-weight: 400; }
+  .body { flex: 1; display: grid; grid-template-columns: 1fr 300px; gap: 28px; margin-top: 34px; align-items: stretch; }
+  .chart { padding: 34px 34px 28px; display: flex; flex-direction: column; justify-content: center; gap: 44px; }
+  .bar-row { display: grid; grid-template-columns: 200px 1fr 112px; gap: 20px; align-items: center; }
+  .bar-row .label { font-size: 16px; color: var(--muted); }
+  .bar-row .label b { display: block; color: var(--ink); font-weight: 600; font-size: 19px; margin-bottom: 2px; }
+  .track { position: relative; height: 64px; background: var(--paper-3); border-radius: 4px; }
+  .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px 0 0 4px; }
+  .fill.base { width: 87.6%; background: var(--line-strong); }
+  .fill.spmx { width: 1%; min-width: 7px; background: var(--accent); }
+  .whisker { position: absolute; top: 50%; height: 2px; background: var(--ink); transform: translateY(-50%); }
+  .whisker::before, .whisker::after { content: ""; position: absolute; top: -7px; width: 2px; height: 16px; background: var(--ink); }
+  .whisker::before { left: 0; } .whisker::after { right: 0; }
+  .val { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .val.base { color: var(--ink); }
+  .val.spmx { color: var(--accent-text); }
+  .foot { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  .callout { padding: 30px 28px; display: flex; flex-direction: column; justify-content: center; gap: 22px; border-color: color-mix(in oklch, var(--accent) 55%, var(--line)); }
+  .big { font-size: 84px; font-weight: 700; letter-spacing: -0.05em; line-height: 0.95; color: var(--accent-text); }
+  .callout p { margin: 0; color: var(--muted); font-size: 18px; line-height: 1.45; }
+  .callout .pixel-rule { width: 100%; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="topbar">
+    <div class="brand"><img src="icon.svg" alt="">spmx</div>
+    <div class="url">spmx.io/benchmarks</div>
+  </div>
+  <div class="head">
+    <h2><em>91×</em> faster worktree setup</h2>
+    <div class="meta">
+      <span class="chip">New worktree, store warm</span>
+      <span class="chip m">swift-composable-architecture</span>
+      <span class="chip">Apple M4 Pro</span>
+    </div>
+  </div>
+  <div class="body">
+    <div class="card chart">
+      <div class="bar-row">
+        <div class="label"><b>Native resolve</b>Swift Package Manager</div>
+        <div class="track">
+          <div class="fill base"></div>
+          <div class="whisker" style="left:83.4%;width:16.6%"></div>
+        </div>
+        <div class="val base">42.3 s</div>
+      </div>
+      <div class="bar-row">
+        <div class="label"><b>spmx hydrate</b>APFS clonefile()</div>
+        <div class="track">
+          <div class="fill spmx"></div>
+        </div>
+        <div class="val spmx">0.46 s</div>
+      </div>
+      <div class="foot">Median of 3 runs after 1 warm-up · whiskers show min–max</div>
+    </div>
+    <div class="card callout">
+      <div class="big">98.9%</div>
+      <div class="pixel-rule"></div>
+      <p>less time hydrating packages in every new Git worktree.</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>
