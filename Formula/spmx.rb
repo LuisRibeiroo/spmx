@@ -4,7 +4,7 @@ class Spmx < Formula
   version "0.2.4"
   url "https://get.spmx.io/releases/download/v#{version}/spmx-macos-universal.tar.gz"
   # Replace with the SHA-256 printed by `.github/workflows/release.yml` when cutting a release.
-  sha256 "ece3f11ede7fa38f7600d61a895ebf820153430e6fe1b973fd08e36da68eedc3"
+  sha256 "40f97b7adaa58e442397333993a80b07180a7eef592301587d5a016a332889f9"
   license "MIT"
 
   depends_on :macos
